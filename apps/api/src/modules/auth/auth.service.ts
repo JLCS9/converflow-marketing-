@@ -42,13 +42,19 @@ export class AuthService {
       }),
     );
 
-    if (!user || !(await argon2.verify(user.passwordHash, password))) {
-      // Record failed attempt for Kit Digital evidence
+    // If the user doesn't exist we can't attribute an access_log row to any
+    // tenant (FK would fail). Failed logins by unknown email surface only in
+    // the API logger; failures with a real user are still recorded against
+    // their tenant for Kit Digital evidence.
+    if (!user) {
+      throw new UnauthorizedError('Credenciales inválidas');
+    }
+    if (!(await argon2.verify(user.passwordHash, password))) {
       await this.prisma.bypass(async (tx) =>
         tx.accessLog.create({
           data: {
-            tenantId: user?.tenantId ?? 'unknown',
-            userId: user?.id,
+            tenantId: user.tenantId,
+            userId: user.id,
             email,
             action: 'login',
             success: false,
