@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
 import {
   ConflictError,
+  NotFoundError,
   createTenantSchema,
   updateTenantLimitsSchema,
   type CreateTenantInput,
@@ -23,9 +24,67 @@ export interface TenantListItem {
   _count: { users: number; bots: number };
 }
 
+export interface TenantDetail {
+  id: string;
+  name: string;
+  slug: string;
+  status: Tenant['status'];
+  maxUsers: number;
+  maxBots: number;
+  maxConversationsPerMonth: number;
+  maxStorageGb: number;
+  kitDigitalSegment: string | null;
+  kitDigitalActivatedAt: Date | null;
+  contactEmail: string;
+  contactPhone: string | null;
+  timezone: string;
+  locale: string;
+  createdAt: Date;
+  updatedAt: Date;
+  suspendedAt: Date | null;
+  _count: { users: number; bots: number; agents: number; accessLogs: number };
+}
+
 @Injectable()
 export class TenantsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async findById(id: string): Promise<TenantDetail> {
+    const tenant = await this.prisma.bypass(async (tx) =>
+      tx.tenant.findUnique({
+        where: { id },
+        include: { _count: { select: { users: true, bots: true, agents: true, accessLogs: true } } },
+      }),
+    );
+    if (!tenant) throw new NotFoundError('Tenant no encontrado');
+    return tenant;
+  }
+
+  async stats(): Promise<{
+    tenants: { total: number; active: number; trial: number; suspended: number };
+    users: number;
+    bots: number;
+    accessLogsLast24h: number;
+  }> {
+    return this.prisma.bypass(async (tx) => {
+      const [tenantsByStatus, users, bots, recentLogs] = await Promise.all([
+        tx.tenant.groupBy({ by: ['status'], _count: { _all: true } }),
+        tx.user.count(),
+        tx.bot.count(),
+        tx.accessLog.count({
+          where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+        }),
+      ]);
+      const counts = { total: 0, active: 0, trial: 0, suspended: 0 };
+      for (const row of tenantsByStatus) {
+        counts.total += row._count._all;
+        if (row.status === 'ACTIVE') counts.active = row._count._all;
+        if (row.status === 'TRIAL') counts.trial = row._count._all;
+        if (row.status === 'SUSPENDED') counts.suspended = row._count._all;
+      }
+      return { tenants: counts, users, bots, accessLogsLast24h: recentLogs };
+    });
+  }
 
   list(opts: { limit?: number; offset?: number } = {}): Promise<TenantListItem[]> {
     return this.prisma.bypass(async (tx) =>

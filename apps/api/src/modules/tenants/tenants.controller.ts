@@ -1,20 +1,25 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Tenant } from '@converflow/db';
-import { TenantsService, type TenantListItem } from './tenants.service.js';
+import { TenantsService, type TenantDetail, type TenantListItem } from './tenants.service.js';
 import { AdminAuthGuard } from '../../common/guards/admin-auth.guard.js';
 import {
   CurrentAdmin,
   type AuthenticatedAdmin,
 } from '../../common/decorators/current-user.decorator.js';
 
-@ApiTags('admin/tenants')
+@ApiTags('admin')
 @UseGuards(AdminAuthGuard)
-@Controller('admin/tenants')
+@Controller('admin')
 export class TenantsController {
   constructor(private readonly tenants: TenantsService) {}
 
-  @Get()
+  @Get('stats')
+  stats() {
+    return this.tenants.stats();
+  }
+
+  @Get('tenants')
   list(@Query('limit') limit?: string, @Query('offset') offset?: string): Promise<TenantListItem[]> {
     return this.tenants.list({
       limit: limit ? Number(limit) : undefined,
@@ -22,7 +27,12 @@ export class TenantsController {
     });
   }
 
-  @Post()
+  @Get('tenants/:id')
+  findById(@Param('id') id: string): Promise<TenantDetail> {
+    return this.tenants.findById(id);
+  }
+
+  @Post('tenants')
   create(
     @Body() body: unknown,
     @CurrentAdmin() admin: AuthenticatedAdmin,
@@ -30,7 +40,7 @@ export class TenantsController {
     return this.tenants.create(body as never, admin.adminId);
   }
 
-  @Patch(':id/limits')
+  @Patch('tenants/:id/limits')
   updateLimits(
     @Param('id') id: string,
     @Body() body: unknown,
