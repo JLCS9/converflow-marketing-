@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BadRequestError, NotFoundError } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
-import { R2Service } from '../../common/storage/r2.service.js';
+import { S3Service } from '../../common/storage/s3.service.js';
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB
 
@@ -9,7 +9,7 @@ const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB
 export class DocumentsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly r2: R2Service,
+    private readonly s3: S3Service,
   ) {}
 
   list(tenantId: string, opts: { clientId?: string; opportunityId?: string } = {}) {
@@ -48,8 +48,9 @@ export class DocumentsService {
     }
 
     return this.prisma.withTenant(tenantId, async (tx) => {
-      // First create the DB row so we get an id, then upload to R2 using that id
-      // in the key (so renames are isolated).
+      // Create the DB row first so we get an id, then upload to S3 using that id
+      // in the key path (so renames stay isolated, and orphaned objects are
+      // easy to garbage-collect by listing keys without a matching DB row).
       const doc = await tx.document.create({
         data: {
           tenantId,
@@ -63,9 +64,9 @@ export class DocumentsService {
         },
       });
 
-      const key = this.r2.buildKey(tenantId, doc.id, file.filename);
+      const key = this.s3.buildKey(tenantId, doc.id, file.filename);
       try {
-        await this.r2.upload({
+        await this.s3.upload({
           key,
           body: file.buffer,
           mimeType: file.mimeType,
@@ -84,7 +85,7 @@ export class DocumentsService {
     return this.prisma.withTenant(tenantId, async (tx) => {
       const doc = await tx.document.findUnique({ where: { id } });
       if (!doc) throw new NotFoundError('Documento no encontrado');
-      const url = await this.r2.signedDownloadUrl(doc.storageKey, 600);
+      const url = await this.s3.signedDownloadUrl(doc.storageKey, 600);
       return { url, name: doc.name, mimeType: doc.mimeType };
     });
   }
@@ -93,7 +94,7 @@ export class DocumentsService {
     return this.prisma.withTenant(tenantId, async (tx) => {
       const doc = await tx.document.findUnique({ where: { id } });
       if (!doc) throw new NotFoundError('Documento no encontrado');
-      await this.r2.delete(doc.storageKey);
+      await this.s3.delete(doc.storageKey);
       await tx.document.delete({ where: { id } });
     });
   }

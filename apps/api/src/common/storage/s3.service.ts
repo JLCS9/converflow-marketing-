@@ -10,44 +10,50 @@ import { env } from '../../config/env.js';
 import { AppError } from '@converflow/shared';
 
 /**
- * Wrapper around the AWS S3 SDK pointed at Cloudflare R2.
+ * Provider-agnostic S3 wrapper. Works against any S3-compatible store:
+ *   - Cloudflare R2 (S3_ENDPOINT=https://<accountId>.r2.cloudflarestorage.com,
+ *     S3_REGION=auto)
+ *   - AWS S3 (S3_ENDPOINT omitted, S3_REGION=eu-west-1, etc.)
+ *   - Backblaze B2, MinIO, Wasabi… (same shape, different endpoint).
  *
- * Object keys are namespaced by tenant: `tenant/<tenantId>/document/<docId>/<filename>`.
- * Downloads are served via short-lived presigned URLs (default 10 min) so the
- * docs stay private even though the bucket is on the public R2 endpoint.
+ * Object keys: `tenant/<tenantId>/document/<docId>/<filename>` (sanitized).
+ * Downloads via short-lived presigned URLs (default 10 min) so objects stay
+ * private even on public buckets.
  */
 @Injectable()
-export class R2Service {
-  private readonly logger = new Logger(R2Service.name);
+export class S3Service {
+  private readonly logger = new Logger(S3Service.name);
   private client: S3Client | null = null;
 
   private getClient(): S3Client {
     if (this.client) return this.client;
-    if (!env.R2_ENDPOINT || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY) {
+    if (!env.S3_ACCESS_KEY_ID || !env.S3_SECRET_ACCESS_KEY) {
       throw new AppError(
         'INTERNAL',
-        'R2 no está configurado. Añade R2_* en .env.prod y reinicia el contenedor.',
+        'S3 no está configurado. Añade S3_* en .env.prod y reinicia el contenedor.',
         503,
       );
     }
     this.client = new S3Client({
-      region: 'auto',
-      endpoint: env.R2_ENDPOINT,
+      region: env.S3_REGION,
+      endpoint: env.S3_ENDPOINT,
       credentials: {
-        accessKeyId: env.R2_ACCESS_KEY_ID,
-        secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+        accessKeyId: env.S3_ACCESS_KEY_ID,
+        secretAccessKey: env.S3_SECRET_ACCESS_KEY,
       },
+      // R2 requires path-style; harmless on real AWS.
+      forcePathStyle: !!env.S3_ENDPOINT && !env.S3_ENDPOINT.includes('amazonaws.com'),
     });
     return this.client;
   }
 
   private get bucket(): string {
-    if (!env.R2_BUCKET) throw new AppError('INTERNAL', 'R2_BUCKET sin configurar', 503);
-    return env.R2_BUCKET;
+    if (!env.S3_BUCKET) throw new AppError('INTERNAL', 'S3_BUCKET sin configurar', 503);
+    return env.S3_BUCKET;
   }
 
   buildKey(tenantId: string, documentId: string, filename: string): string {
-    // Strip path separators from filename
+    // Strip path separators and collapse whitespace; cap at 120 chars
     const safe = filename.replace(/[/\\]/g, '_').replace(/\s+/g, '-').slice(0, 120);
     return `tenant/${tenantId}/document/${documentId}/${safe}`;
   }
@@ -84,7 +90,7 @@ export class R2Service {
       );
     } catch (err) {
       // Idempotent — log but don't throw if already gone
-      this.logger.warn({ key, err }, 'r2 delete failed (continuing)');
+      this.logger.warn({ key, err }, 's3 delete failed (continuing)');
     }
   }
 }

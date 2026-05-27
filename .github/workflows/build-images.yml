@@ -1,10 +1,17 @@
-name: Build & push images
+name: Build & push images (manual)
+
+# This workflow pushes Docker images to GHCR. We currently DON'T use those
+# images — the VPS builds locally via `docker compose build`. Kept here as
+# manual trigger so we can flip to image-pull deploys later without
+# re-writing the workflow. Removed from `push` triggers to stop the email
+# spam from automatic runs.
 
 on:
-  push:
-    branches: [main]
-    tags: ['v*']
   workflow_dispatch:
+  # Re-enable when we want CI/CD to GHCR:
+  # push:
+  #   branches: [main]
+  #   tags: ['v*']
 
 permissions:
   contents: read

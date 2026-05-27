@@ -104,11 +104,8 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 
 ## Open known issues / discrepancies
 
-1. **turbo.json globalEnv has `S3_*` not `R2_*`**. The code in `apps/api/src/config/env.ts` and `r2.service.ts` reads `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT`, `R2_PUBLIC_BASE`. The `S3_*` entries in turbo.json are inert (no code reads them). Either:
-   - Remove the S3_* entries from turbo.json globalEnv, OR
-   - Rename the code to S3_* (more generic, works for any S3-compatible store) and update `.env.prod` accordingly.
-2. **`docker-compose.prod.yml` does not propagate R2_* env vars to the api service explicitly** — they come via `env_file: ./.env.prod`. If anyone wonders why upload works, that's the path.
-3. **`docs/architecture/README.md` is outdated** vs current architecture (mentions Traefik which we don't use). Should be rewritten.
+1. **`docker-compose.prod.yml` does not propagate S3_* env vars to the api service explicitly** — they come via `env_file: ./.env.prod`. If anyone wonders why upload works, that's the path.
+2. **GHCR build workflow disabled**: `.github/workflows/build-images.yml` is now `workflow_dispatch` only (manual). The VPS builds locally via `docker compose build`. Re-enable the `push` trigger when we want CI/CD-deployed images.
 
 ## Operational runbook
 
