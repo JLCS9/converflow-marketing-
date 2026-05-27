@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
 import {
   ConflictError,
@@ -11,6 +10,7 @@ import {
 } from '@converflow/shared';
 import type { Tenant } from '@converflow/db';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { generateReadablePassword } from '../../common/utils/password.js';
 
 export interface TenantListItem {
   id: string;
@@ -130,7 +130,7 @@ export class TenantsService {
         { field: 'ownerEmail' },
       );
 
-    const tempPassword = randomBytes(12).toString('base64url');
+    const tempPassword = generateReadablePassword();
     const passwordHash = await argon2.hash(tempPassword, { type: argon2.argon2id });
 
     const tenant = await this.prisma.bypass(async (tx) => {

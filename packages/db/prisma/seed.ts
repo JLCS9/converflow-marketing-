@@ -15,8 +15,20 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-function generateTempPassword(): string {
-  return randomBytes(12).toString('base64url');
+const READABLE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+
+function generateTempPassword(length = 14): string {
+  const max = 256 - (256 % READABLE_ALPHABET.length);
+  let result = '';
+  while (result.length < length) {
+    const bytes = randomBytes(length * 2);
+    for (const b of bytes) {
+      if (result.length >= length) break;
+      if (b >= max) continue;
+      result += READABLE_ALPHABET[b % READABLE_ALPHABET.length];
+    }
+  }
+  return result;
 }
 
 async function seedSuperAdmin() {

@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
 import { z } from 'zod';
 import {
@@ -9,6 +8,7 @@ import {
   TenantLimitReachedError,
 } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { generateReadablePassword } from '../../common/utils/password.js';
 
 const inviteSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -66,7 +66,7 @@ export class UsersService {
         throw new ConflictError('Ya existe un usuario con ese email', { field: 'email' });
       }
 
-      const tempPassword = randomBytes(12).toString('base64url');
+      const tempPassword = generateReadablePassword();
       const passwordHash = await argon2.hash(tempPassword, { type: argon2.argon2id });
 
       const user = await tx.user.create({

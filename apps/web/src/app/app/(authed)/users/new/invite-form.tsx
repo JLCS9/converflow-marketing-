@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
+import { CopyButton } from '@/components/ui/copy-button';
 
 interface InviteResponse {
   user: { id: string; email: string };
@@ -27,8 +28,11 @@ export function InviteUserForm() {
           </div>
           <div>
             <dt className="text-xs text-ink-500">Contraseña temporal</dt>
-            <dd className="select-all break-all rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-900">
-              {result.tempPassword}
+            <dd className="mt-1 flex items-center gap-2">
+              <code className="flex-1 select-all rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-900">
+                {result.tempPassword}
+              </code>
+              <CopyButton value={result.tempPassword} />
             </dd>
           </div>
         </dl>

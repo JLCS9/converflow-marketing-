@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
+import { CopyButton } from '@/components/ui/copy-button';
 
 interface CreateResponse {
   tenant: { id: string; name: string; slug: string };
@@ -35,8 +36,11 @@ export function CreateTenantForm() {
           </div>
           <div>
             <dt className="text-xs text-ink-500">Owner password (temporal)</dt>
-            <dd className="select-all break-all rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-900">
-              {result.ownerTempPassword}
+            <dd className="mt-1 flex items-center gap-2">
+              <code className="flex-1 select-all rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-900">
+                {result.ownerTempPassword}
+              </code>
+              <CopyButton value={result.ownerTempPassword} />
             </dd>
           </div>
         </dl>
