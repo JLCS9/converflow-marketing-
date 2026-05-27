@@ -18,6 +18,8 @@
     "migrate": "prisma migrate dev && pnpm apply:rls",
     "migrate:deploy": "prisma migrate deploy && pnpm apply:rls",
     "migrate:reset": "prisma migrate reset --force && pnpm apply:rls && pnpm seed",
+    "push": "prisma db push --accept-data-loss && pnpm apply:rls",
+    "bootstrap": "pnpm push && pnpm seed",
     "seed": "tsx prisma/seed.ts",
     "studio": "prisma studio",
     "db:push": "prisma db push",
