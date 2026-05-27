@@ -57,11 +57,13 @@ export class UsersService {
         throw new TenantLimitReachedError('users', userCount, tenant.maxUsers);
       }
 
-      const existing = await tx.user.findFirst({ where: { email: data.email } });
-      if (existing) {
-        throw new ConflictError('Ya hay un usuario con ese email en este tenant', {
-          field: 'email',
-        });
+      // Email is globally unique across tenants. RLS limits this tx to the
+      // current tenant, so we use a parallel bypass query to look across all.
+      const existingGlobal = await this.prisma.bypass((rawTx) =>
+        rawTx.user.findFirst({ where: { email: data.email } }),
+      );
+      if (existingGlobal) {
+        throw new ConflictError('Ya existe un usuario con ese email', { field: 'email' });
       }
 
       const tempPassword = randomBytes(12).toString('base64url');

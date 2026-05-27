@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { Card, StatCard, tenantStatusBadge } from '@/components/ui/primitives';
 import { EditLimitsForm } from './edit-limits-form';
+import { DeleteTenantButton } from './delete-tenant-button';
 
 interface TenantDetail {
   id: string;
@@ -106,6 +107,16 @@ export default async function TenantDetailPage({
                   (tenant.kitDigitalSegment as 'IV' | 'V' | null) ?? null,
               }}
             />
+            <div className="mt-8 border-t border-ink-100 pt-6">
+              <h2 className="text-sm font-mono uppercase tracking-wider text-red-700">
+                Zona peligrosa
+              </h2>
+              <p className="mt-1 mb-4 text-xs text-ink-500">
+                Eliminar este tenant borra usuarios, bots, logs y todo lo asociado de forma
+                irreversible.
+              </p>
+              <DeleteTenantButton tenantId={tenant.id} tenantSlug={tenant.slug} />
+            </div>
           </div>
         </Card>
       </div>

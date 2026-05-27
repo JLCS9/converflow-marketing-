@@ -113,10 +113,22 @@ export class TenantsService {
   ): Promise<{ tenant: Tenant; ownerTempPassword: string }> {
     const data = createTenantSchema.parse(input);
 
-    const conflict = await this.prisma.bypass(async (tx) =>
+    // Slug must be unique platform-wide.
+    const slugConflict = await this.prisma.bypass(async (tx) =>
       tx.tenant.findUnique({ where: { slug: data.slug } }),
     );
-    if (conflict) throw new ConflictError('Slug ya en uso', { field: 'slug' });
+    if (slugConflict) throw new ConflictError('Slug ya en uso', { field: 'slug' });
+
+    // Owner email must be globally unique (Option B — same person can't be
+    // owner of two tenants under the same email; avoids login ambiguity).
+    const emailConflict = await this.prisma.bypass(async (tx) =>
+      tx.user.findFirst({ where: { email: data.ownerEmail } }),
+    );
+    if (emailConflict)
+      throw new ConflictError(
+        `Ya existe un usuario con email ${data.ownerEmail} en otro tenant`,
+        { field: 'ownerEmail' },
+      );
 
     const tempPassword = randomBytes(12).toString('base64url');
     const passwordHash = await argon2.hash(tempPassword, { type: argon2.argon2id });
@@ -155,6 +167,29 @@ export class TenantsService {
 
     // TODO: send invitation email instead of returning password in the response.
     return { tenant, ownerTempPassword: tempPassword };
+  }
+
+  async remove(tenantId: string, adminId: string): Promise<{ id: string; slug: string }> {
+    return this.prisma.bypass(async (tx) => {
+      const tenant = await tx.tenant.findUnique({ where: { id: tenantId } });
+      if (!tenant) throw new NotFoundError('Tenant no encontrado');
+
+      // Cascade deletes (users, bots, agents, sessions, access_logs, etc) are
+      // handled by Prisma onDelete: Cascade declarations in the schema.
+      await tx.tenant.delete({ where: { id: tenantId } });
+
+      await tx.adminActionLog.create({
+        data: {
+          adminId,
+          action: 'delete_tenant',
+          targetType: 'tenant',
+          targetId: tenantId,
+          metadata: { slug: tenant.slug, name: tenant.name },
+        },
+      });
+
+      return { id: tenant.id, slug: tenant.slug };
+    });
   }
 
   async updateLimits(

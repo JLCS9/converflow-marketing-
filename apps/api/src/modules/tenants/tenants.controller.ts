@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Tenant } from '@converflow/db';
 import { TenantsService, type TenantDetail, type TenantListItem } from './tenants.service.js';
@@ -47,5 +47,10 @@ export class TenantsController {
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ): Promise<Tenant> {
     return this.tenants.updateLimits(id, body as never, admin.adminId);
+  }
+
+  @Delete('tenants/:id')
+  remove(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {
+    return this.tenants.remove(id, admin.adminId);
   }
 }
