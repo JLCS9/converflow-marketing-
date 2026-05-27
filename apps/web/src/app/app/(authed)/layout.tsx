@@ -54,6 +54,7 @@ export default async function TenantAuthedLayout({
           <NavLink href="/app/clients" label="Clientes" />
           <NavLink href="/app/tasks" label="Tareas" />
           <NavLink href="/app/documents" label="Documentos" />
+          <NavLink href="/app/ai-history" label="Historial IA" />
           <NavLink href="/app/bots" label="Bots" />
           <NavLink href="/app/users" label="Usuarios" />
           <NavLink href="/app/profile" label="Perfil" />

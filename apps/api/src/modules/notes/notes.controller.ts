@@ -23,6 +23,18 @@ export class NotesController {
     return this.notes.list(user.tenantId, { leadId, clientId, opportunityId });
   }
 
+  @Get('analyzed')
+  listAnalyzed(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('category') category?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.notes.listAnalyzed(user.tenantId, {
+      category,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
   @Post()
   create(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
     return this.notes.create(user.tenantId, user.userId, body as never);

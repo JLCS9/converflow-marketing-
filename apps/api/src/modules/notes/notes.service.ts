@@ -29,6 +29,29 @@ export class NotesService {
     );
   }
 
+  /**
+   * List notes that Claude has classified (aiAnalyzedAt not null).
+   * Used by the "Historial IA" page so the user can audit every AI-generated
+   * suggestion across leads/clients.
+   */
+  listAnalyzed(tenantId: string, opts: { category?: string; limit?: number } = {}) {
+    return this.prisma.withTenant(tenantId, (tx) =>
+      tx.note.findMany({
+        where: {
+          aiAnalyzedAt: { not: null },
+          aiCategory: (opts.category as never) || undefined,
+        },
+        orderBy: { aiAnalyzedAt: 'desc' },
+        take: opts.limit ?? 100,
+        include: {
+          lead: { select: { id: true, name: true } },
+          client: { select: { id: true, name: true } },
+          opportunity: { select: { id: true, name: true } },
+        },
+      }),
+    );
+  }
+
   async create(tenantId: string, authorId: string, input: CreateNoteInput) {
     const data = createNoteSchema.parse(input);
     return this.prisma.withTenant(tenantId, (tx) =>
