@@ -130,6 +130,10 @@ export class TenantsService {
         { field: 'ownerEmail' },
       );
 
+    // Kit Digital minimum users by segment.
+    const minUsers = data.kitDigitalSegment === 'IV' ? 10 : data.kitDigitalSegment === 'V' ? 15 : 20;
+    const initialMaxUsers = Math.max(minUsers, 20);
+
     const tempPassword = generateReadablePassword();
     const passwordHash = await argon2.hash(tempPassword, { type: argon2.argon2id });
 
@@ -141,6 +145,7 @@ export class TenantsService {
           contactEmail: data.contactEmail,
           contactPhone: data.contactPhone,
           kitDigitalSegment: data.kitDigitalSegment,
+          maxUsers: initialMaxUsers,
           status: 'ACTIVE',
           users: {
             create: {
@@ -199,6 +204,30 @@ export class TenantsService {
     adminId: string,
   ): Promise<Tenant> {
     const data = updateTenantLimitsSchema.parse(input);
+
+    // Kit Digital minimums: segment IV ⇒ ≥10 users, segment V ⇒ ≥15.
+    // These apply both when the segment is being set now or when it's
+    // already set and someone tries to lower maxUsers below the floor.
+    const effectiveSegment =
+      data.kitDigitalSegment !== undefined
+        ? data.kitDigitalSegment
+        : (await this.prisma.bypass((tx) =>
+            tx.tenant.findUniqueOrThrow({
+              where: { id: tenantId },
+              select: { kitDigitalSegment: true },
+            }),
+          )).kitDigitalSegment;
+
+    if (data.maxUsers !== undefined && effectiveSegment) {
+      const min = effectiveSegment === 'IV' ? 10 : effectiveSegment === 'V' ? 15 : 0;
+      if (data.maxUsers < min) {
+        throw new ConflictError(
+          `Kit Digital segmento ${effectiveSegment} requiere al menos ${min} usuarios`,
+          { field: 'maxUsers' },
+        );
+      }
+    }
+
     const updated = await this.prisma.bypass(async (tx) => {
       const t = await tx.tenant.update({ where: { id: tenantId }, data });
       await tx.adminActionLog.create({

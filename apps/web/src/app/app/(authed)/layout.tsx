@@ -49,17 +49,20 @@ export default async function TenantAuthedLayout({
 
         <nav className="flex-1 space-y-1 px-3 py-4 text-sm">
           <NavLink href="/app" label="Dashboard" />
+          <NavLink href="/app/leads" label="Leads" />
+          <NavLink href="/app/opportunities" label="Oportunidades" />
           <NavLink href="/app/bots" label="Bots" />
           <NavLink href="/app/users" label="Usuarios" />
-          <NavLink href="/app/access-logs" label="Logs de acceso" />
           <NavLink href="/app/profile" label="Perfil" />
           <NavLink href="/app/settings" label="Ajustes" />
           <div className="mt-6 px-3 text-[10px] font-mono uppercase tracking-wider text-ink-500">
             Soon
           </div>
+          <NavLink href="#" label="Clientes" disabled />
+          <NavLink href="#" label="Tareas" disabled />
+          <NavLink href="#" label="Documentos" disabled />
           <NavLink href="#" label="Agentes IA" disabled />
           <NavLink href="#" label="Conversaciones" disabled />
-          <NavLink href="#" label="Leads" disabled />
         </nav>
 
         <div className="border-t border-ink-100 px-4 py-3 text-xs">

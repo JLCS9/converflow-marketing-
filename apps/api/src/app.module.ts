@@ -10,6 +10,8 @@ import { AccessLogsModule } from './modules/access-logs/access-logs.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { MeModule } from './modules/me/me.module.js';
 import { AppVersionsModule } from './modules/app-versions/app-versions.module.js';
+import { LeadsModule } from './modules/leads/leads.module.js';
+import { OpportunitiesModule } from './modules/opportunities/opportunities.module.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
 
 @Module({
@@ -26,6 +28,8 @@ import { PrismaModule } from './common/prisma/prisma.module.js';
     UsersModule,
     MeModule,
     AppVersionsModule,
+    LeadsModule,
+    OpportunitiesModule,
   ],
 })
 export class AppModule {}

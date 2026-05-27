@@ -118,3 +118,62 @@ CREATE POLICY tenant_isolation ON agents
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- ---------------------------------------------------------------------
+-- CRM tables (clients, leads, opportunities, tasks, documents, notes, alerts)
+-- ---------------------------------------------------------------------
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clients FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON clients;
+CREATE POLICY tenant_isolation ON clients
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE leads FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON leads;
+CREATE POLICY tenant_isolation ON leads
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE opportunities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE opportunities FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON opportunities;
+CREATE POLICY tenant_isolation ON opportunities
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON tasks;
+CREATE POLICY tenant_isolation ON tasks
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE documents FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON documents;
+CREATE POLICY tenant_isolation ON documents
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notes FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON notes;
+CREATE POLICY tenant_isolation ON notes
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE alerts FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON alerts;
+CREATE POLICY tenant_isolation ON alerts
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

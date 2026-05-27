@@ -40,6 +40,7 @@ export default async function AdminAuthedLayout({ children }: { children: React.
           <NavLink href="/admin" label="Dashboard" />
           <NavLink href="/admin/tenants" label="Tenants" />
           <NavLink href="/admin/bots" label="Bots (global)" />
+          <NavLink href="/admin/access-logs" label="Logs Kit Digital" />
           <NavLink href="/admin/profile" label="Perfil + 2FA" />
           <div className="mt-6 px-3 text-[10px] font-mono uppercase tracking-wider text-ink-500">
             Soon
