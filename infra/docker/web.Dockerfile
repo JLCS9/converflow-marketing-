@@ -10,6 +10,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && corepack prepare pnpm@9.15.0 --activate
 
 WORKDIR /repo
+
+# Public URLs are baked into the Next.js bundle at build time. Compose passes
+# these via `args:` so the production container points at api.converflow.ai
+# instead of falling back to the same-origin default.
+ARG NEXT_PUBLIC_API_URL=http://localhost:4000
+ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
+
 COPY . .
 
 RUN pnpm install --frozen-lockfile \
