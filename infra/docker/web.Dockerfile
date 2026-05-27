@@ -1,30 +1,26 @@
 # =====================================================================
-# Multi-stage Dockerfile for apps/web (Next.js standalone)
+# Dockerfile for apps/web (Next.js 15 standalone)
 # =====================================================================
-FROM node:22.12-bookworm-slim AS base
-RUN corepack enable
+FROM node:22.12-bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      openssl ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable \
+    && corepack prepare pnpm@9.15.0 --activate
+
 WORKDIR /repo
+COPY . .
 
-FROM base AS deps
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
-COPY apps/web/package.json apps/web/
-COPY packages/shared/package.json packages/shared/
-COPY packages/config/package.json packages/config/
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile \
+    && pnpm --filter @converflow/shared build \
+    && pnpm --filter @converflow/web build
 
-FROM deps AS build
-COPY tsconfig.base.json turbo.json ./
-COPY packages packages
-COPY apps/web apps/web
-RUN pnpm --filter @converflow/web build
-
-FROM node:22.12-bookworm-slim AS runtime
-WORKDIR /app
+WORKDIR /repo/apps/web
 ENV NODE_ENV=production
 ENV PORT=3000
-COPY --from=build /repo/apps/web/.next/standalone ./
-COPY --from=build /repo/apps/web/.next/static ./apps/web/.next/static
-COPY --from=build /repo/apps/web/public ./apps/web/public
+ENV HOSTNAME=0.0.0.0
 EXPOSE 3000
-USER node
-CMD ["node", "apps/web/server.js"]
+
+# Next.js standalone output bundles everything it needs into .next/standalone
+CMD ["node", ".next/standalone/apps/web/server.js"]

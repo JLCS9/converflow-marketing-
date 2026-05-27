@@ -1,0 +1,34 @@
+# Files NOT to send to the Docker build context.
+# Critical for pnpm + monorepo speed and correctness.
+
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+
+.git
+.gitignore
+.github
+
+# Secrets — never ship
+.env
+.env.*
+!.env*.example
+**/.env
+**/.env.*
+!**/.env*.example
+
+# Local artifacts
+infra/docker/data
+**/baileys-auth
+**/auth_info_*
+
+# Misc
+.DS_Store
+*.log
+.idea
+.vscode
+README.md
+docs
