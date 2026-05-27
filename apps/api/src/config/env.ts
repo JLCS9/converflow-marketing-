@@ -23,6 +23,13 @@ const envSchema = z.object({
 
   BOT_RUNNER_PORT: z.coerce.number().int().positive().default(4100),
   BOT_RUNNER_INTERNAL_TOKEN: z.string().min(16).optional(),
+
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
+  R2_ENDPOINT: z.string().url().optional(),
+  R2_PUBLIC_BASE: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

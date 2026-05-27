@@ -6,6 +6,7 @@ import {
 } from '@nestjs/platform-fastify';
 import helmet from '@fastify/helmet';
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
@@ -27,6 +28,12 @@ async function bootstrap() {
   });
   await app.register(cookie as never, {
     secret: env.AUTH_SECRET,
+  });
+  await app.register(multipart as never, {
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50 MB per file
+      files: 1,
+    },
   });
 
   app.useGlobalFilters(new AllExceptionsFilter());
