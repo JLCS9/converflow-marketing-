@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
-import { Card, StatCard, buttonClass } from '@/components/ui/primitives';
+import { Card, StatCard } from '@/components/ui/primitives';
 
 interface Stats {
   limits: {

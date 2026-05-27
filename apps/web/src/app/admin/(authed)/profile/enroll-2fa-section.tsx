@@ -56,8 +56,7 @@ export function Enroll2faSection({ totpEnabled }: { totpEnabled: boolean }) {
         Escanea el QR con tu app autenticadora.
       </p>
       <div className="flex flex-wrap items-start gap-6">
-        {/* Inline SVG/PNG from data URI */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {/* QR comes from server as a data: URI — next/image can't handle that */}
         <img
           src={enroll.qrPng}
           alt="QR para enrolar TOTP"
