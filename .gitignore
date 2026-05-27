@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Env files (never commit secrets)
+.env
+.env.*
+!.env*.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+# Test
+coverage/
+.nyc_output/
+
+# Prisma
+packages/db/prisma/migrations/dev.db
+packages/db/src/generated/
+
+# Baileys sessions (never commit, contain WhatsApp creds)
+**/baileys-auth/
+**/auth_info_*/
+
+# Local infra
+infra/docker/data/
+infra/docker/.volumes/
+
+# Misc
+*.pem
+*.key
+.python-version

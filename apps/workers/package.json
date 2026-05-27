@@ -1,0 +1,27 @@
+{
+  "name": "@converflow/workers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@converflow/db": "workspace:*",
+    "@converflow/shared": "workspace:*",
+    "bullmq": "^5.34.10",
+    "ioredis": "5.10.1",
+    "pino": "^9.6.0"
+  },
+  "devDependencies": {
+    "@converflow/config": "workspace:*",
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

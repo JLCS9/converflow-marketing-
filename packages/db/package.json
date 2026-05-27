@@ -1,0 +1,43 @@
+{
+  "name": "@converflow/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Prisma schema, migrations and RLS policies for converflow-app",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "prisma"],
+  "scripts": {
+    "build": "tsc",
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev && pnpm apply:rls",
+    "migrate:deploy": "prisma migrate deploy && pnpm apply:rls",
+    "migrate:reset": "prisma migrate reset --force && pnpm apply:rls && pnpm seed",
+    "seed": "tsx prisma/seed.ts",
+    "studio": "prisma studio",
+    "db:push": "prisma db push",
+    "apply:rls": "tsx prisma/apply-rls.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma",
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.2.1"
+  },
+  "devDependencies": {
+    "@converflow/config": "workspace:*",
+    "@types/node": "^22.10.5",
+    "argon2": "^0.41.1",
+    "prisma": "^6.2.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

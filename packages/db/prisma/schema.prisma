@@ -1,0 +1,315 @@
+// =====================================================================
+// converflow.ai — Prisma schema
+//
+// Multitenant pool model. Tenant-scoped tables enforce isolation via
+// Postgres Row Level Security. The API sets `app.tenant_id` per request
+// in a transaction-scoped session variable (see packages/db/src/rls.ts).
+//
+// Platform-level tables (PlatformAdmin*, AppVersion) have no tenant_id
+// and are accessed only through admin context.
+// =====================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DATABASE_DIRECT_URL")
+  extensions = [pgcrypto, vector]
+}
+
+// ============================================
+// PLATFORM (no tenant scope, no RLS)
+// ============================================
+
+model PlatformAdmin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  totpSecret   String?
+  totpEnabled  Boolean  @default(false)
+  status       AdminStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions     PlatformAdminSession[]
+  actions      AdminActionLog[]
+
+  @@map("platform_admins")
+}
+
+enum AdminStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model PlatformAdminSession {
+  id        String   @id @default(cuid())
+  adminId   String
+  admin     PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  ip        String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([expiresAt])
+  @@map("platform_admin_sessions")
+}
+
+model AdminActionLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  admin      PlatformAdmin @relation(fields: [adminId], references: [id])
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([adminId, createdAt])
+  @@index([targetType, targetId])
+  @@map("admin_action_log")
+}
+
+model AppVersion {
+  id          String   @id @default(cuid())
+  version     String   @unique
+  releasedAt  DateTime
+  title       String
+  description String
+  highlights  Json?
+  createdAt   DateTime @default(now())
+
+  @@index([releasedAt])
+  @@map("app_versions")
+}
+
+// ============================================
+// TENANT-SCOPED (RLS enforced)
+// ============================================
+
+model Tenant {
+  id                       String   @id @default(cuid())
+  slug                     String   @unique
+  name                     String
+  status                   TenantStatus @default(TRIAL)
+
+  // Limits controlled by super admin
+  maxUsers                 Int      @default(20)
+  maxBots                  Int      @default(1)
+  maxConversationsPerMonth Int      @default(5000)
+  maxStorageGb             Int      @default(5)
+
+  // Kit Digital tracking
+  kitDigitalSegment     String?
+  kitDigitalActivatedAt DateTime?
+
+  // Metadata
+  contactEmail String
+  contactPhone String?
+  timezone     String   @default("Europe/Madrid")
+  locale       String   @default("es-ES")
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  suspendedAt DateTime?
+
+  users       User[]
+  invitations TenantInvitation[]
+  bots        Bot[]
+  agents      Agent[]
+  accessLogs  AccessLog[]
+
+  @@map("tenants")
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+model User {
+  id              String     @id @default(cuid())
+  tenantId        String
+  tenant          Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email           String
+  name            String
+  passwordHash    String
+  role            UserRole   @default(AGENT_USER)
+  status          UserStatus @default(ACTIVE)
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  sessions UserSession[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  BUILDER
+  AGENT_USER
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING
+}
+
+model UserSession {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  ip        String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+model TenantInvitation {
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email      String
+  role       UserRole  @default(AGENT_USER)
+  token      String    @unique
+  invitedBy  String
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId])
+  @@index([token])
+  @@map("tenant_invitations")
+}
+
+// Kit Digital requirement: per-user access logs, stored in DB,
+// exportable to CSV/JSON with date + user + email.
+model AccessLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String?
+  email     String
+  action    String
+  resource  String?
+  ip        String?
+  userAgent String?
+  success   Boolean  @default(true)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([userId])
+  @@index([email])
+  @@map("access_logs")
+}
+
+model Bot {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  channel     Channel
+  phoneNumber String?
+  status      BotStatus @default(PENDING)
+  agentId     String?
+  agent       Agent?    @relation(fields: [agentId], references: [id])
+
+  // Rate limits (overridable per bot, otherwise tenant default)
+  maxMessagesPerMinute Int @default(60)
+  maxMessagesPerHour   Int @default(1500)
+  warmupUntil          DateTime?
+
+  lastConnectedAt      DateTime?
+  lastDisconnectAt     DateTime?
+  lastDisconnectReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session BotSession?
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("bots")
+}
+
+enum Channel {
+  WHATSAPP
+  INSTAGRAM
+  MESSENGER
+  WEBCHAT
+}
+
+enum BotStatus {
+  PENDING
+  AWAITING_QR
+  CONNECTING
+  CONNECTED
+  DISCONNECTED
+  BANNED
+  ERROR
+}
+
+model BotSession {
+  botId              String @id
+  tenantId           String
+  bot                Bot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  authStateEncrypted Bytes
+  encryptionVersion  Int    @default(1)
+  updatedAt          DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("bot_sessions")
+}
+
+model Agent {
+  id           String      @id @default(cuid())
+  tenantId     String
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  systemPrompt String
+  model        String      @default("claude-sonnet-4-6")
+  config       Json
+  status       AgentStatus @default(DRAFT)
+  version      Int         @default(1)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  bots Bot[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("agents")
+}
+
+enum AgentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}

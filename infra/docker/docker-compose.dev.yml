@@ -1,0 +1,45 @@
+# Local development infra — Postgres + Redis only.
+# Run apps locally (pnpm dev) for hot reload.
+#
+# Usage:
+#   pnpm infra:dev           # start
+#   pnpm infra:dev:down      # stop
+#   pnpm infra:dev:logs      # tail
+#
+# Volumes live under ./data so they survive `down` but are ignored by git.
+
+name: converflow-dev
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: converflow-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: converflow
+      POSTGRES_PASSWORD: converflow
+      POSTGRES_DB: converflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U converflow -d converflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: converflow-redis-dev
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

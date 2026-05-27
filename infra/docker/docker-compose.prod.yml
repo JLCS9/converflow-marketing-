@@ -1,0 +1,126 @@
+# Production stack for converflow.ai — designed for the existing Hostinger VPS
+# where Nginx already terminates :80/:443 and routes to other projects.
+#
+# Strategy:
+#   - Containers live on a dedicated bridge network (converflow_ai_net) so we
+#     can't accidentally reach the converflow.tech stack or any other project.
+#   - Postgres and Redis are NOT published to the host — internal only.
+#   - api / web / bot-runner publish to 127.0.0.1 on high ports so the host
+#     Nginx can proxy them via vhost files.
+#   - Images are built on the VPS from this repo (no GHCR needed yet).
+#
+# Bring up:
+#   cd /opt/converflow-ai
+#   cp infra/docker/.env.prod.example infra/docker/.env.prod
+#   <edit .env.prod with real secrets>
+#   docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env.prod up -d --build
+#
+# Run migrations + seed (one-off after first up):
+#   docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env.prod \
+#     run --rm api node ../packages/db/dist/scripts/migrate.js
+#
+# Or simpler, on host with DATABASE_URL pointed at the container:
+#   pnpm --filter @converflow/db migrate:deploy
+#   pnpm --filter @converflow/db seed
+
+name: converflow-ai
+
+networks:
+  converflow_ai_net:
+    name: converflow_ai_net
+    driver: bridge
+
+volumes:
+  cfai_postgres_data:
+  cfai_redis_data:
+  cfai_bot_sessions:
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: cfai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - cfai_postgres_data:/var/lib/postgresql/data
+    networks: [converflow_ai_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: cfai-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - cfai_redis_data:/data
+    networks: [converflow_ai_net]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    image: cfai-api:latest
+    container_name: cfai-api
+    restart: unless-stopped
+    env_file: ./.env.prod
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    networks: [converflow_ai_net]
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-8091}:4000"
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+    image: cfai-web:latest
+    container_name: cfai-web
+    restart: unless-stopped
+    env_file: ./.env.prod
+    networks: [converflow_ai_net]
+    ports:
+      - "127.0.0.1:${WEB_HOST_PORT:-8090}:3000"
+
+  workers:
+    build:
+      context: ../..
+      dockerfile: infra/docker/workers.Dockerfile
+    image: cfai-workers:latest
+    container_name: cfai-workers
+    restart: unless-stopped
+    env_file: ./.env.prod
+    depends_on:
+      redis:    { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    networks: [converflow_ai_net]
+
+  bot-runner:
+    build:
+      context: ../..
+      dockerfile: infra/docker/bot-runner.Dockerfile
+    image: cfai-bot-runner:latest
+    container_name: cfai-bot-runner
+    restart: unless-stopped
+    env_file: ./.env.prod
+    depends_on:
+      redis:    { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    networks: [converflow_ai_net]
+    volumes:
+      - cfai_bot_sessions:/var/lib/converflow/bot-sessions
+    ports:
+      - "127.0.0.1:${BOT_RUNNER_HOST_PORT:-8092}:4100"
+    stop_grace_period: 60s
