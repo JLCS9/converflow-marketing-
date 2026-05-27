@@ -74,18 +74,20 @@ export class NotesService {
   }
 
   async analyze(tenantId: string, id: string) {
-    return this.prisma.withTenant(tenantId, async (tx) => {
-      const note = await tx.note.findUnique({
+    // 1. Fetch context (quick transaction).
+    const note = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.note.findUnique({
         where: { id },
         include: {
           lead: { select: { name: true, company: true, status: true } },
           client: { select: { name: true } },
         },
-      });
-      if (!note) throw new NotFoundError('Nota no encontrada');
+      }),
+    );
+    if (!note) throw new NotFoundError('Nota no encontrada');
 
-      // Pull a few recent prior notes for context (same lead/client/opp).
-      const recent = await tx.note.findMany({
+    const recent = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.note.findMany({
         where: {
           id: { not: id },
           leadId: note.leadId,
@@ -95,22 +97,22 @@ export class NotesService {
         orderBy: { createdAt: 'desc' },
         take: 5,
         select: { body: true },
-      });
+      }),
+    );
 
-      const call = await this.ai.classifyNote({
-        noteBody: note.body,
-        leadContext: note.lead
-          ? {
-              name: note.lead.name,
-              company: note.lead.company,
-              status: note.lead.status,
-            }
-          : undefined,
-        clientContext: note.client ? { name: note.client.name } : undefined,
-        recentMessages: recent.map((r) => r.body),
-      });
+    // 2. Claude call OUTSIDE the transaction — can take several seconds.
+    const call = await this.ai.classifyNote({
+      noteBody: note.body,
+      leadContext: note.lead
+        ? { name: note.lead.name, company: note.lead.company, status: note.lead.status }
+        : undefined,
+      clientContext: note.client ? { name: note.client.name } : undefined,
+      recentMessages: recent.map((r) => r.body),
+    });
 
-      const updated = await tx.note.update({
+    // 3. Persist result in a fresh quick transaction.
+    const updated = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.note.update({
         where: { id },
         data: {
           aiCategory: call.result.category as never,
@@ -119,30 +121,30 @@ export class NotesService {
           aiSuggestedReply: call.result.suggestedReply,
           aiAnalyzedAt: new Date(),
         },
-      });
+      }),
+    );
 
-      void this.ai.recordUsage({
-        tenantId,
-        feature: 'classify_note',
-        callResult: call,
-        resourceType: 'note',
-        resourceId: id,
-        metadata: { category: call.result.category, sentiment: call.result.sentiment },
-      });
-
-      return {
-        note: updated,
-        ai: {
-          category: call.result.category,
-          categoryReasoning: call.result.categoryReasoning,
-          sentiment: call.result.sentiment,
-          confidence: call.result.confidence,
-          suggestedReply: call.result.suggestedReply,
-          model: call.model,
-          durationMs: call.durationMs,
-          costUsd: call.costUsd,
-        },
-      };
+    void this.ai.recordUsage({
+      tenantId,
+      feature: 'classify_note',
+      callResult: call,
+      resourceType: 'note',
+      resourceId: id,
+      metadata: { category: call.result.category, sentiment: call.result.sentiment },
     });
+
+    return {
+      note: updated,
+      ai: {
+        category: call.result.category,
+        categoryReasoning: call.result.categoryReasoning,
+        sentiment: call.result.sentiment,
+        confidence: call.result.confidence,
+        suggestedReply: call.result.suggestedReply,
+        model: call.model,
+        durationMs: call.durationMs,
+        costUsd: call.costUsd,
+      },
+    };
   }
 }
