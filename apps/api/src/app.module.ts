@@ -15,12 +15,14 @@ import { OpportunitiesModule } from './modules/opportunities/opportunities.modul
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { TasksModule } from './modules/tasks/tasks.module.js';
 import { DocumentsModule } from './modules/documents/documents.module.js';
+import { AiModule } from './common/ai/ai.module.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    AiModule,
     HealthModule,
     AuthModule,
     AuthAdminModule,

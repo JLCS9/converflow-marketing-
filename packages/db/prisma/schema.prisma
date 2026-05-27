@@ -135,6 +135,7 @@ model Tenant {
   documents     Document[]
   notes         Note[]
   alerts        Alert[]
+  aiUsage       AiUsage[]
 
   @@map("tenants")
 }
@@ -376,6 +377,11 @@ model Lead {
   ownerId     String?
   customFields Json?
 
+  // AI-generated context (Sprint 3 lead scoring)
+  aiScoreReasoning String?
+  aiScoreActions   Json?
+  aiScoredAt       DateTime?
+
   contactedAt DateTime?
   qualifiedAt DateTime?
 
@@ -572,4 +578,36 @@ enum AlertSeverity {
   INFO
   WARNING
   CRITICAL
+}
+
+// ============================================
+// AI usage tracking (cost + audit)
+// ============================================
+
+model AiUsage {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  feature      String   // 'lead_scoring', 'classify_message', 'chat_assistant', etc.
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  totalTokens  Int
+  costUsd      Float?
+  durationMs   Int?
+  status       AiUsageStatus @default(OK)
+  errorMessage String?
+  resourceType String?  // 'lead', 'opportunity', 'note', etc.
+  resourceId   String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, feature])
+  @@map("ai_usage")
+}
+
+enum AiUsageStatus {
+  OK
+  ERROR
 }

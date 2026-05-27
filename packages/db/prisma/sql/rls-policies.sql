@@ -177,3 +177,11 @@ CREATE POLICY tenant_isolation ON alerts
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE ai_usage ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_usage FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ai_usage;
+CREATE POLICY tenant_isolation ON ai_usage
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

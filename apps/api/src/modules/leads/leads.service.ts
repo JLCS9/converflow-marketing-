@@ -9,6 +9,14 @@ import {
   type UpdateLeadInput,
 } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { AiService } from '../../common/ai/ai.service.js';
+
+interface ScoreLeadOutput {
+  score: number;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  reasoning: string;
+  recommendedActions: string[];
+}
 
 interface ListOpts {
   status?: string;
@@ -20,7 +28,10 @@ interface ListOpts {
 
 @Injectable()
 export class LeadsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ai: AiService,
+  ) {}
 
   list(tenantId: string, opts: ListOpts = {}) {
     return this.prisma.withTenant(tenantId, (tx) =>
@@ -103,6 +114,114 @@ export class LeadsService {
       const lead = await tx.lead.findUnique({ where: { id } });
       if (!lead) throw new NotFoundError('Lead no encontrado');
       await tx.lead.delete({ where: { id } });
+    });
+  }
+
+  async score(tenantId: string, id: string) {
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const lead = await tx.lead.findUnique({
+        where: { id },
+        include: { notes: { orderBy: { createdAt: 'desc' }, take: 20 } },
+      });
+      if (!lead) throw new NotFoundError('Lead no encontrado');
+
+      const noteSummary = lead.notes.length
+        ? lead.notes
+            .map((n) => `- [${n.createdAt.toISOString().slice(0, 10)}] ${n.body.slice(0, 200)}`)
+            .join('\n')
+        : '(sin notas)';
+
+      const customFields = lead.customFields
+        ? JSON.stringify(lead.customFields, null, 2)
+        : '(sin campos)';
+
+      const userPrompt = [
+        'Analiza este lead comercial y dale un score de 0 a 100 según su potencial de cierre.',
+        '',
+        `Nombre: ${lead.name}`,
+        `Empresa: ${lead.company ?? '(no indicada)'}`,
+        `Email: ${lead.email ?? '(no indicado)'}`,
+        `Teléfono: ${lead.phone ?? '(no indicado)'}`,
+        `Fuente: ${lead.source ?? '(no indicada)'}`,
+        `Status actual: ${lead.status}`,
+        `Score anterior: ${lead.score ?? '(nunca calculado)'}`,
+        `Contactado el: ${lead.contactedAt?.toISOString() ?? '(no contactado)'}`,
+        `Cualificado el: ${lead.qualifiedAt?.toISOString() ?? '(no cualificado)'}`,
+        `Creado el: ${lead.createdAt.toISOString()}`,
+        '',
+        'Notas/interacciones recientes:',
+        noteSummary,
+        '',
+        'Campos personalizados:',
+        customFields,
+        '',
+        'Criterios para puntuar (España, B2B):',
+        '- Empresa B2B con dominio corporativo → +20',
+        '- Teléfono móvil completo → +10',
+        '- Fuente "referido" o "ferias" → +15; "web" → +10; "scraping/lista" → +0',
+        '- Notas que muestran intención de compra o presupuesto explícito → +25',
+        '- Tono frío, ausencia de respuesta o petición de "info genérica" → -15',
+        '- Antigüedad sin contactar > 14 días → -10',
+        '',
+        'Devuelve el resultado vía la herramienta `submit_lead_score`.',
+      ].join('\n');
+
+      const call = await this.ai.callWithTool<ScoreLeadOutput>({
+        system:
+          'Eres un analista comercial senior B2B en España. Devuelves resultados estructurados y concisos en castellano.',
+        userPrompt,
+        toolName: 'submit_lead_score',
+        toolDescription:
+          'Submit the lead score, priority bucket, reasoning and 1-3 recommended next actions.',
+        toolInputSchema: {
+          type: 'object',
+          properties: {
+            score: { type: 'integer', minimum: 0, maximum: 100 },
+            priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+            reasoning: { type: 'string' },
+            recommendedActions: {
+              type: 'array',
+              items: { type: 'string' },
+              maxItems: 3,
+            },
+          },
+          required: ['score', 'priority', 'reasoning', 'recommendedActions'],
+        },
+        maxTokens: 800,
+      });
+
+      // Persist the score on the lead, and the rationale in metadata.
+      const updated = await tx.lead.update({
+        where: { id },
+        data: {
+          score: call.result.score,
+          aiScoreReasoning: call.result.reasoning,
+          aiScoreActions: call.result.recommendedActions as never,
+          aiScoredAt: new Date(),
+        },
+      });
+
+      // Fire-and-forget usage log
+      void this.ai.recordUsage({
+        tenantId,
+        feature: 'lead_scoring',
+        callResult: call,
+        resourceType: 'lead',
+        resourceId: id,
+      });
+
+      return {
+        lead: updated,
+        ai: {
+          score: call.result.score,
+          priority: call.result.priority,
+          reasoning: call.result.reasoning,
+          recommendedActions: call.result.recommendedActions,
+          model: call.model,
+          durationMs: call.durationMs,
+          costUsd: call.costUsd,
+        },
+      };
     });
   }
 

@@ -60,4 +60,9 @@ export class LeadsController {
   bulkImport(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
     return this.leads.bulkImport(user.tenantId, body as never);
   }
+
+  @Post(':id/score')
+  score(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.leads.score(user.tenantId, id);
+  }
 }
