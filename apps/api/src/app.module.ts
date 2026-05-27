@@ -12,6 +12,8 @@ import { MeModule } from './modules/me/me.module.js';
 import { AppVersionsModule } from './modules/app-versions/app-versions.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
 import { OpportunitiesModule } from './modules/opportunities/opportunities.module.js';
+import { ClientsModule } from './modules/clients/clients.module.js';
+import { TasksModule } from './modules/tasks/tasks.module.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
 
 @Module({
@@ -30,6 +32,8 @@ import { PrismaModule } from './common/prisma/prisma.module.js';
     AppVersionsModule,
     LeadsModule,
     OpportunitiesModule,
+    ClientsModule,
+    TasksModule,
   ],
 })
 export class AppModule {}
