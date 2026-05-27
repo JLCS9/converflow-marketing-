@@ -50,8 +50,8 @@ ALTER TABLE users FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON users;
 CREATE POLICY tenant_isolation ON users
   FOR ALL
-  USING (rls_bypass_enabled() OR tenant_id = current_tenant_id())
-  WITH CHECK (rls_bypass_enabled() OR tenant_id = current_tenant_id());
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
 
 -- ---------------------------------------------------------------------
 -- user_sessions
@@ -61,8 +61,8 @@ ALTER TABLE user_sessions FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON user_sessions;
 CREATE POLICY tenant_isolation ON user_sessions
   FOR ALL
-  USING (rls_bypass_enabled() OR tenant_id = current_tenant_id())
-  WITH CHECK (rls_bypass_enabled() OR tenant_id = current_tenant_id());
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
 
 -- ---------------------------------------------------------------------
 -- tenant_invitations
@@ -72,8 +72,8 @@ ALTER TABLE tenant_invitations FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON tenant_invitations;
 CREATE POLICY tenant_isolation ON tenant_invitations
   FOR ALL
-  USING (rls_bypass_enabled() OR tenant_id = current_tenant_id())
-  WITH CHECK (rls_bypass_enabled() OR tenant_id = current_tenant_id());
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
 
 -- ---------------------------------------------------------------------
 -- access_logs
@@ -83,8 +83,8 @@ ALTER TABLE access_logs FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON access_logs;
 CREATE POLICY tenant_isolation ON access_logs
   FOR ALL
-  USING (rls_bypass_enabled() OR tenant_id = current_tenant_id())
-  WITH CHECK (rls_bypass_enabled() OR tenant_id = current_tenant_id());
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
 
 -- ---------------------------------------------------------------------
 -- bots
@@ -94,8 +94,8 @@ ALTER TABLE bots FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON bots;
 CREATE POLICY tenant_isolation ON bots
   FOR ALL
-  USING (rls_bypass_enabled() OR tenant_id = current_tenant_id())
-  WITH CHECK (rls_bypass_enabled() OR tenant_id = current_tenant_id());
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
 
 -- ---------------------------------------------------------------------
 -- bot_sessions
@@ -105,8 +105,8 @@ ALTER TABLE bot_sessions FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON bot_sessions;
 CREATE POLICY tenant_isolation ON bot_sessions
   FOR ALL
-  USING (rls_bypass_enabled() OR tenant_id = current_tenant_id())
-  WITH CHECK (rls_bypass_enabled() OR tenant_id = current_tenant_id());
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
 
 -- ---------------------------------------------------------------------
 -- agents
@@ -116,5 +116,5 @@ ALTER TABLE agents FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON agents;
 CREATE POLICY tenant_isolation ON agents
   FOR ALL
-  USING (rls_bypass_enabled() OR tenant_id = current_tenant_id())
-  WITH CHECK (rls_bypass_enabled() OR tenant_id = current_tenant_id());
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
