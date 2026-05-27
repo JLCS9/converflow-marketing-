@@ -183,9 +183,17 @@ export default async function LeadDetailPage({
         </Card>
 
         <Card>
-          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
-            Oportunidades vinculadas
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
+              Oportunidades vinculadas
+            </h2>
+            <Link
+              href={`/app/opportunities/new?leadId=${lead.id}`}
+              className="text-xs text-primary-700 hover:underline"
+            >
+              + Nueva oportunidad
+            </Link>
+          </div>
           {lead.opportunities.length === 0 ? (
             <p className="mt-3 text-sm text-ink-500">Sin oportunidades todavía.</p>
           ) : (

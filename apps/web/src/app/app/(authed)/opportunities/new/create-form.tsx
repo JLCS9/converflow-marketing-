@@ -4,8 +4,14 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
+import { EntityPicker } from '@/components/ui/entity-picker';
 
-export function CreateOpportunityForm() {
+interface Props {
+  prefillLead?: { id: string; name: string } | null;
+  prefillClient?: { id: string; name: string } | null;
+}
+
+export function CreateOpportunityForm({ prefillLead, prefillClient }: Props) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -19,14 +25,17 @@ export function CreateOpportunityForm() {
           const data = new FormData(event.currentTarget);
           const amountStr = String(data.get('amount') ?? '').trim();
           const expectedCloseStr = String(data.get('expectedCloseDate') ?? '').trim();
+          const leadId = String(data.get('leadId') ?? '').trim();
+          const clientId = String(data.get('clientId') ?? '').trim();
           const payload = {
             name: String(data.get('name') ?? '').trim(),
             amount: amountStr ? Number(amountStr) : undefined,
             currency: String(data.get('currency') ?? 'EUR').trim(),
-            status: (String(data.get('status') ?? 'OPEN')) as never,
+            status: String(data.get('status') ?? 'OPEN') as never,
             probability: Number(data.get('probability') ?? 50),
             expectedCloseDate: expectedCloseStr || undefined,
-            leadId: String(data.get('leadId') ?? '').trim() || undefined,
+            leadId: leadId || undefined,
+            clientId: clientId || undefined,
           };
           setError(null);
           startTransition(async () => {
@@ -42,12 +51,34 @@ export function CreateOpportunityForm() {
           });
         }}
       >
-        <Field label="Nombre" required>
+        <Field label="Nombre de la oportunidad" required>
           <Input name="name" type="text" required minLength={1} maxLength={150} />
         </Field>
-        <Field label="Lead vinculado (ID, opcional)" help="Si esta oportunidad nace de un lead, pega su ID.">
-          <Input name="leadId" type="text" className="font-mono text-xs" />
-        </Field>
+
+        <div className="border-t border-ink-100 pt-4">
+          <p className="mb-3 text-xs text-ink-500">
+            Vincula la oportunidad a un lead o cliente existente (puedes dejar ambos vacíos).
+          </p>
+          <div className="space-y-4">
+            <EntityPicker
+              endpoint="/leads"
+              name="leadId"
+              label="Lead vinculado"
+              defaultId={prefillLead?.id}
+              defaultName={prefillLead?.name}
+              placeholder="Buscar lead por nombre…"
+            />
+            <EntityPicker
+              endpoint="/clients"
+              name="clientId"
+              label="Cliente vinculado"
+              defaultId={prefillClient?.id}
+              defaultName={prefillClient?.name}
+              placeholder="Buscar cliente por nombre…"
+            />
+          </div>
+        </div>
+
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Importe">
             <Input name="amount" type="number" step="0.01" min={0} />
@@ -81,7 +112,12 @@ export function CreateOpportunityForm() {
         )}
 
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => router.push('/app/opportunities')} className={buttonClass('secondary')} disabled={pending}>
+          <button
+            type="button"
+            onClick={() => router.push('/app/opportunities')}
+            className={buttonClass('secondary')}
+            disabled={pending}
+          >
             Cancelar
           </button>
           <button type="submit" className={buttonClass('primary')} disabled={pending}>
