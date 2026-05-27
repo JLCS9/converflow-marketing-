@@ -99,6 +99,93 @@ export class AiService {
   }
 
   /**
+   * Classify a note's content and suggest a reply. Returns structured output
+   * via Claude tool calling. Callers should pass enough context (e.g., who's
+   * the lead, recent notes) so the reply is relevant.
+   */
+  async classifyNote(opts: {
+    noteBody: string;
+    leadContext?: { name: string; company?: string | null; status?: string };
+    clientContext?: { name: string };
+    recentMessages?: string[];
+  }) {
+    const context = [
+      opts.leadContext &&
+        `Lead: ${opts.leadContext.name}${opts.leadContext.company ? ` (${opts.leadContext.company})` : ''} — status ${opts.leadContext.status ?? '?'}`,
+      opts.clientContext && `Cliente: ${opts.clientContext.name}`,
+      opts.recentMessages?.length &&
+        `Mensajes anteriores (más reciente primero):\n${opts.recentMessages
+          .slice(0, 5)
+          .map((m, i) => `${i + 1}. ${m.slice(0, 200)}`)
+          .join('\n')}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    return this.callWithTool<{
+      category: string;
+      categoryReasoning: string;
+      sentiment: string;
+      confidence: number;
+      suggestedReply: string;
+    }>({
+      model: env.ANTHROPIC_FAST_MODEL,
+      system:
+        'Eres un asistente comercial B2B en castellano. Clasificas mensajes de clientes/leads y sugieres respuestas concisas, profesionales y accionables. Responde siempre en español.',
+      userPrompt: [
+        'Analiza el siguiente mensaje/nota y devuelve la clasificación + una respuesta sugerida vía la herramienta `analyze_note`.',
+        '',
+        context ? `Contexto:\n${context}\n` : '',
+        `Mensaje a clasificar:\n"""${opts.noteBody}"""`,
+        '',
+        'Categorías:',
+        '- BUY_INTENT: interés explícito en comprar, pide demo, presupuesto, condiciones.',
+        '- OBJECTION: objeción a manejar (precio alto, competencia, características que no convencen).',
+        '- INFO_REQUEST: pide información genérica del producto/servicio.',
+        '- COMPLAINT: queja, problema con el servicio existente, frustración.',
+        '- SCHEDULING: quiere agendar reunión/llamada/visita.',
+        '- OFF_TOPIC: mensaje no relacionado con la venta.',
+        '- OTHER: cualquier otro caso.',
+        '',
+        'Sentimiento: POSITIVE | NEUTRAL | NEGATIVE | URGENT.',
+        '',
+        'Respuesta sugerida: máximo 400 caracteres, en castellano, tono profesional pero cercano, ' +
+          'lista para enviar tal cual (NO uses placeholders tipo [tu nombre] — usa primera persona ' +
+          'directa). Si la categoría es OBJECTION, incluye 1 argumento que la rebate.',
+      ].join('\n'),
+      toolName: 'analyze_note',
+      toolDescription:
+        'Submit the classification, sentiment, confidence and a ready-to-send reply for this note.',
+      toolInputSchema: {
+        type: 'object',
+        properties: {
+          category: {
+            type: 'string',
+            enum: [
+              'BUY_INTENT',
+              'OBJECTION',
+              'INFO_REQUEST',
+              'COMPLAINT',
+              'SCHEDULING',
+              'OFF_TOPIC',
+              'OTHER',
+            ],
+          },
+          categoryReasoning: { type: 'string' },
+          sentiment: {
+            type: 'string',
+            enum: ['POSITIVE', 'NEUTRAL', 'NEGATIVE', 'URGENT'],
+          },
+          confidence: { type: 'number', minimum: 0, maximum: 1 },
+          suggestedReply: { type: 'string' },
+        },
+        required: ['category', 'sentiment', 'confidence', 'suggestedReply'],
+      },
+      maxTokens: 600,
+    });
+  }
+
+  /**
    * Persist an AiUsage row (with RLS scoped to tenant). Idempotent failures
    * are swallowed — losing a usage log shouldn't break the user-facing call.
    */

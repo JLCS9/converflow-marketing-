@@ -111,6 +111,33 @@ export const taskStatusSchema = z.enum([
 
 export const prioritySchema = z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']);
 
+// ============================================
+// Notes
+// ============================================
+
+export const createNoteSchema = z
+  .object({
+    body: z.string().trim().min(1).max(5000),
+    leadId: z.string().cuid().optional(),
+    clientId: z.string().cuid().optional(),
+    opportunityId: z.string().cuid().optional(),
+  })
+  .refine(
+    (d) => Boolean(d.leadId || d.clientId || d.opportunityId),
+    'Una nota debe enlazar a un lead, cliente u oportunidad',
+  );
+
+export const updateNoteSchema = z.object({
+  body: z.string().trim().min(1).max(5000),
+});
+
+export type CreateNoteInput = z.infer<typeof createNoteSchema>;
+export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
+
+// ============================================
+// Tasks
+// ============================================
+
 export const createTaskSchema = z.object({
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().max(2000).optional(),

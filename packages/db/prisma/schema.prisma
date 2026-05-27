@@ -536,10 +536,36 @@ model Note {
 
   body      String
   authorId  String
+
+  // AI classification (Sprint 3.2 — Journeys de venta)
+  aiCategory          NoteCategory?
+  aiSentiment         NoteSentiment?
+  aiConfidence        Float?
+  aiSuggestedReply    String?
+  aiAnalyzedAt        DateTime?
+
   createdAt DateTime @default(now())
 
   @@index([tenantId, createdAt])
+  @@index([tenantId, aiCategory])
   @@map("notes")
+}
+
+enum NoteCategory {
+  BUY_INTENT
+  OBJECTION
+  INFO_REQUEST
+  COMPLAINT
+  SCHEDULING
+  OFF_TOPIC
+  OTHER
+}
+
+enum NoteSentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  URGENT
 }
 
 model Alert {
