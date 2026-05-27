@@ -36,33 +36,44 @@ export class AuthService {
   async login(input: LoginInput, ctx: { ip?: string; userAgent?: string }): Promise<LoginResult> {
     const { email, password } = loginSchema.parse(input);
 
-    const user = await this.prisma.bypass(async (tx) =>
-      tx.user.findFirst({
+    // Same email can exist in multiple tenants (pool model). Try the password
+    // against each candidate; the one whose hash verifies wins. Most-recent
+    // first so a fresh signup wins ties when a user happens to share email
+    // across tenants.
+    const candidates = await this.prisma.bypass(async (tx) =>
+      tx.user.findMany({
         where: { email, status: { not: 'SUSPENDED' } },
+        orderBy: { createdAt: 'desc' },
       }),
     );
 
-    // If the user doesn't exist we can't attribute an access_log row to any
-    // tenant (FK would fail). Failed logins by unknown email surface only in
-    // the API logger; failures with a real user are still recorded against
-    // their tenant for Kit Digital evidence.
-    if (!user) {
-      throw new UnauthorizedError('Credenciales inválidas');
+    let user: (typeof candidates)[number] | null = null;
+    for (const candidate of candidates) {
+      if (await argon2.verify(candidate.passwordHash, password)) {
+        user = candidate;
+        break;
+      }
     }
-    if (!(await argon2.verify(user.passwordHash, password))) {
-      await this.prisma.bypass(async (tx) =>
-        tx.accessLog.create({
-          data: {
-            tenantId: user.tenantId,
-            userId: user.id,
-            email,
-            action: 'login',
-            success: false,
-            ip: ctx.ip,
-            userAgent: ctx.userAgent,
-          },
-        }),
-      );
+
+    if (!user) {
+      // Log failure against the most recent candidate (if any) so the tenant
+      // owner sees the attempt. Unknown emails don't get attributed.
+      const target = candidates[0];
+      if (target) {
+        await this.prisma.bypass(async (tx) =>
+          tx.accessLog.create({
+            data: {
+              tenantId: target.tenantId,
+              userId: target.id,
+              email,
+              action: 'login',
+              success: false,
+              ip: ctx.ip,
+              userAgent: ctx.userAgent,
+            },
+          }),
+        );
+      }
       throw new UnauthorizedError('Credenciales inválidas');
     }
 
