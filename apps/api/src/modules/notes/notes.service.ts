@@ -97,20 +97,32 @@ export class NotesService {
   }
 
   async analyze(tenantId: string, id: string) {
-    // 1. Fetch context (quick transaction).
-    const note = await this.prisma.withTenant(tenantId, (tx) =>
-      tx.note.findUnique({
+    // 1. Fetch FULL context in one short transaction:
+    //    note + lead/client (with extended fields) + prior analyzed notes +
+    //    active opportunities + pending tasks. This is what makes replies
+    //    non-repetitive: Claude sees what we already suggested.
+    const ctx = await this.prisma.withTenant(tenantId, async (tx) => {
+      const note = await tx.note.findUnique({
         where: { id },
         include: {
-          lead: { select: { name: true, company: true, status: true } },
-          client: { select: { name: true } },
+          lead: {
+            select: {
+              id: true,
+              name: true,
+              company: true,
+              email: true,
+              phone: true,
+              source: true,
+              status: true,
+              score: true,
+            },
+          },
+          client: { select: { id: true, name: true, email: true } },
         },
-      }),
-    );
-    if (!note) throw new NotFoundError('Nota no encontrada');
+      });
+      if (!note) throw new NotFoundError('Nota no encontrada');
 
-    const recent = await this.prisma.withTenant(tenantId, (tx) =>
-      tx.note.findMany({
+      const priorNotes = await tx.note.findMany({
         where: {
           id: { not: id },
           leadId: note.leadId,
@@ -119,19 +131,80 @@ export class NotesService {
         },
         orderBy: { createdAt: 'desc' },
         take: 5,
-        select: { body: true },
-      }),
-    );
+        select: {
+          body: true,
+          aiCategory: true,
+          aiSuggestedReply: true,
+          aiAnalyzedAt: true,
+        },
+      });
+
+      // Opportunities tied to the same lead OR client.
+      const opportunities = note.leadId
+        ? await tx.opportunity.findMany({
+            where: { leadId: note.leadId, status: { in: ['OPEN', 'QUOTED', 'NEGOTIATING'] } },
+            select: { name: true, status: true, amount: true, probability: true },
+          })
+        : note.clientId
+          ? await tx.opportunity.findMany({
+              where: { clientId: note.clientId, status: { in: ['OPEN', 'QUOTED', 'NEGOTIATING'] } },
+              select: { name: true, status: true, amount: true, probability: true },
+            })
+          : [];
+
+      const pendingTasks = await tx.task.findMany({
+        where: {
+          OR: [
+            { leadId: note.leadId || undefined },
+            { clientId: note.clientId || undefined },
+          ],
+          status: { in: ['PENDING', 'IN_PROGRESS'] },
+        },
+        orderBy: { dueAt: 'asc' },
+        take: 5,
+        select: { title: true, type: true, dueAt: true },
+      });
+
+      return { note, priorNotes, opportunities, pendingTasks };
+    });
 
     // 2. Claude call OUTSIDE the transaction — can take several seconds.
     const call = await this.ai.classifyNote({
-      noteBody: note.body,
-      leadContext: note.lead
-        ? { name: note.lead.name, company: note.lead.company, status: note.lead.status }
+      noteBody: ctx.note.body,
+      leadContext: ctx.note.lead
+        ? {
+            name: ctx.note.lead.name,
+            company: ctx.note.lead.company,
+            email: ctx.note.lead.email,
+            phone: ctx.note.lead.phone,
+            source: ctx.note.lead.source,
+            status: ctx.note.lead.status,
+            score: ctx.note.lead.score,
+          }
         : undefined,
-      clientContext: note.client ? { name: note.client.name } : undefined,
-      recentMessages: recent.map((r) => r.body),
+      clientContext: ctx.note.client
+        ? { name: ctx.note.client.name, email: ctx.note.client.email }
+        : undefined,
+      priorNotes: ctx.priorNotes.map((n) => ({
+        body: n.body,
+        category: n.aiCategory,
+        suggestedReply: n.aiSuggestedReply,
+        analyzedAt: n.aiAnalyzedAt,
+      })),
+      opportunities: ctx.opportunities.map((o) => ({
+        name: o.name,
+        status: o.status,
+        amount: o.amount?.toString() ?? null,
+        probability: o.probability,
+      })),
+      pendingTasks: ctx.pendingTasks.map((t) => ({
+        title: t.title,
+        type: t.type,
+        dueAt: t.dueAt,
+      })),
     });
+    // Re-bind for downstream code that still references `note`.
+    const note = ctx.note;
 
     // 3. Persist result in a fresh quick transaction.
     const updated = await this.prisma.withTenant(tenantId, (tx) =>

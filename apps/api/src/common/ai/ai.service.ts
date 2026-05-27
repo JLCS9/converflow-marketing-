@@ -105,22 +105,87 @@ export class AiService {
    */
   async classifyNote(opts: {
     noteBody: string;
-    leadContext?: { name: string; company?: string | null; status?: string };
-    clientContext?: { name: string };
-    recentMessages?: string[];
+    leadContext?: {
+      name: string;
+      company?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      source?: string | null;
+      status?: string;
+      score?: number | null;
+    };
+    clientContext?: { name: string; email?: string | null };
+    /** Previous notes WITH their AI classifications so Claude can avoid repeating itself. */
+    priorNotes?: Array<{
+      body: string;
+      category?: string | null;
+      suggestedReply?: string | null;
+      analyzedAt?: Date | null;
+    }>;
+    /** Active opportunities so the reply can reference current deal stage. */
+    opportunities?: Array<{
+      name: string;
+      status: string;
+      amount?: string | number | null;
+      probability?: number | null;
+    }>;
+    /** Pending tasks tied to the lead/client. */
+    pendingTasks?: Array<{ title: string; type: string; dueAt?: Date | null }>;
   }) {
-    const context = [
-      opts.leadContext &&
-        `Lead: ${opts.leadContext.name}${opts.leadContext.company ? ` (${opts.leadContext.company})` : ''} — status ${opts.leadContext.status ?? '?'}`,
-      opts.clientContext && `Cliente: ${opts.clientContext.name}`,
-      opts.recentMessages?.length &&
-        `Mensajes anteriores (más reciente primero):\n${opts.recentMessages
-          .slice(0, 5)
-          .map((m, i) => `${i + 1}. ${m.slice(0, 200)}`)
-          .join('\n')}`,
-    ]
-      .filter(Boolean)
-      .join('\n\n');
+    const contextLines: string[] = [];
+
+    if (opts.leadContext) {
+      const l = opts.leadContext;
+      contextLines.push(
+        `LEAD: ${l.name}` +
+          (l.company ? ` · ${l.company}` : '') +
+          (l.status ? ` · status=${l.status}` : '') +
+          (l.score != null ? ` · score=${l.score}/100` : '') +
+          (l.source ? ` · fuente=${l.source}` : ''),
+      );
+      if (l.email) contextLines.push(`  email: ${l.email}`);
+      if (l.phone) contextLines.push(`  tel: ${l.phone}`);
+    }
+    if (opts.clientContext) {
+      contextLines.push(`CLIENTE: ${opts.clientContext.name}`);
+    }
+
+    if (opts.opportunities?.length) {
+      contextLines.push('');
+      contextLines.push('OPORTUNIDADES ACTIVAS:');
+      for (const o of opts.opportunities) {
+        contextLines.push(
+          `  - "${o.name}" status=${o.status}` +
+            (o.amount ? ` · ${o.amount}€` : '') +
+            (o.probability != null ? ` · ${o.probability}% prob` : ''),
+        );
+      }
+    }
+
+    if (opts.pendingTasks?.length) {
+      contextLines.push('');
+      contextLines.push('TAREAS PENDIENTES:');
+      for (const t of opts.pendingTasks.slice(0, 5)) {
+        contextLines.push(
+          `  - [${t.type}] ${t.title}` + (t.dueAt ? ` (vence ${t.dueAt.toISOString().slice(0, 10)})` : ''),
+        );
+      }
+    }
+
+    if (opts.priorNotes?.length) {
+      contextLines.push('');
+      contextLines.push('NOTAS Y MENSAJES PREVIOS (no repitas estas respuestas):');
+      for (const n of opts.priorNotes.slice(0, 5)) {
+        const date = n.analyzedAt ? n.analyzedAt.toISOString().slice(0, 10) : 's/f';
+        const cat = n.category ? ` [${n.category}]` : '';
+        contextLines.push(`  - [${date}]${cat} ${n.body.slice(0, 150)}`);
+        if (n.suggestedReply) {
+          contextLines.push(`    ↳ ya sugerimos: "${n.suggestedReply.slice(0, 120)}"`);
+        }
+      }
+    }
+
+    const context = contextLines.join('\n');
 
     return this.callWithTool<{
       category: string;
@@ -131,31 +196,38 @@ export class AiService {
     }>({
       model: env.ANTHROPIC_FAST_MODEL,
       system:
-        'Eres un asistente comercial B2B en castellano. Clasificas mensajes de clientes/leads y sugieres respuestas concisas, profesionales y accionables. Responde siempre en español.',
+        'Eres un asistente comercial B2B en castellano. Clasificas mensajes y sugieres respuestas CORTAS, concretas y diferentes a las anteriores. Tu output va directo al copy/paste de un comercial — escribe en primera persona, sin saludos genéricos, sin firmas, sin placeholders.',
       userPrompt: [
-        'Analiza el siguiente mensaje/nota y devuelve la clasificación + una respuesta sugerida vía la herramienta `analyze_note`.',
+        'Analiza este mensaje y devuelve la clasificación + respuesta vía `analyze_note`.',
         '',
-        context ? `Contexto:\n${context}\n` : '',
-        `Mensaje a clasificar:\n"""${opts.noteBody}"""`,
+        context ? `CONTEXTO COMPLETO DEL CONTACTO:\n${context}\n` : '',
+        `MENSAJE A CLASIFICAR:\n"""${opts.noteBody}"""`,
         '',
-        'Categorías:',
-        '- BUY_INTENT: interés explícito en comprar, pide demo, presupuesto, condiciones.',
-        '- OBJECTION: objeción a manejar (precio alto, competencia, características que no convencen).',
-        '- INFO_REQUEST: pide información genérica del producto/servicio.',
-        '- COMPLAINT: queja, problema con el servicio existente, frustración.',
-        '- SCHEDULING: quiere agendar reunión/llamada/visita.',
-        '- OFF_TOPIC: mensaje no relacionado con la venta.',
-        '- OTHER: cualquier otro caso.',
+        'CATEGORÍAS:',
+        '- BUY_INTENT: interés en comprar, pide demo/precio/condiciones',
+        '- OBJECTION: objeción a manejar (precio, competencia, features)',
+        '- INFO_REQUEST: pide info genérica',
+        '- COMPLAINT: queja o problema',
+        '- SCHEDULING: quiere agendar reunión',
+        '- OFF_TOPIC: no relacionado con la venta',
+        '- OTHER: ninguna de las anteriores',
         '',
-        'Sentimiento: POSITIVE | NEUTRAL | NEGATIVE | URGENT.',
+        'SENTIMIENTO: POSITIVE | NEUTRAL | NEGATIVE | URGENT',
         '',
-        'Respuesta sugerida: máximo 400 caracteres, en castellano, tono profesional pero cercano, ' +
-          'lista para enviar tal cual (NO uses placeholders tipo [tu nombre] — usa primera persona ' +
-          'directa). Si la categoría es OBJECTION, incluye 1 argumento que la rebate.',
+        'REGLAS PARA LA RESPUESTA SUGERIDA:',
+        '- MÁXIMO 300 caracteres (cuenta).',
+        '- En español, primera persona ("te paso", "te confirmo").',
+        '- Sin saludos ("Hola", "Buenos días") ni despedidas ("Un saludo", "Atentamente").',
+        '- Sin placeholders ([nombre], [empresa]). Usa los datos del CONTEXTO.',
+        '- Si hay NOTAS PREVIAS con respuestas ya sugeridas, NO repitas tono ni argumentos: cambia el ángulo (si antes fue racional, ahora apela a urgencia; si fue genérico, ahora referencia algo específico del contexto).',
+        '- Si la categoría es OBJECTION, incluye 1 argumento contraintuitivo o un dato concreto.',
+        '- Si hay oportunidades activas, referénciala explícitamente cuando proceda.',
+        '',
+        'REGLA PARA categoryReasoning: máximo 150 caracteres, español, telegráfico.',
       ].join('\n'),
       toolName: 'analyze_note',
       toolDescription:
-        'Submit the classification, sentiment, confidence and a ready-to-send reply for this note.',
+        'Submit the classification, sentiment, confidence and a ready-to-send reply (≤300 chars) for this note.',
       toolInputSchema: {
         type: 'object',
         properties: {
@@ -171,17 +243,17 @@ export class AiService {
               'OTHER',
             ],
           },
-          categoryReasoning: { type: 'string' },
+          categoryReasoning: { type: 'string', maxLength: 200 },
           sentiment: {
             type: 'string',
             enum: ['POSITIVE', 'NEUTRAL', 'NEGATIVE', 'URGENT'],
           },
           confidence: { type: 'number', minimum: 0, maximum: 1 },
-          suggestedReply: { type: 'string' },
+          suggestedReply: { type: 'string', maxLength: 320 },
         },
         required: ['category', 'sentiment', 'confidence', 'suggestedReply'],
       },
-      maxTokens: 600,
+      maxTokens: 500,
     });
   }
 
