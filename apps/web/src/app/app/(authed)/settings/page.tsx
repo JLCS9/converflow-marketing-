@@ -1,0 +1,102 @@
+import { serverApiFetch } from '@/lib/server-api';
+import { Card } from '@/components/ui/primitives';
+
+interface TenantDetail {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  maxUsers: number;
+  maxBots: number;
+  maxConversationsPerMonth: number;
+  maxStorageGb: number;
+  kitDigitalSegment: string | null;
+  contactEmail: string;
+  contactPhone: string | null;
+  timezone: string;
+  locale: string;
+  createdAt: string;
+}
+
+export const metadata = { title: 'Ajustes' };
+
+export default async function SettingsPage() {
+  const tenant = await serverApiFetch<TenantDetail>('/me/tenant');
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight">Ajustes</h1>
+        <p className="mt-1 text-sm text-ink-500">
+          Configuración del tenant. Los límites los gestiona el equipo de converflow — si
+          necesitas cambiarlos, contáctanos.
+        </p>
+      </header>
+
+      <Card>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
+          Información general
+        </h2>
+        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Field label="Nombre">{tenant.name}</Field>
+          <Field label="Identificador" mono>
+            {tenant.slug}
+          </Field>
+          <Field label="Email de contacto">{tenant.contactEmail}</Field>
+          <Field label="Teléfono">{tenant.contactPhone ?? '—'}</Field>
+          <Field label="Zona horaria" mono>
+            {tenant.timezone}
+          </Field>
+          <Field label="Idioma" mono>
+            {tenant.locale}
+          </Field>
+          <Field label="Creado">{new Date(tenant.createdAt).toLocaleString('es-ES')}</Field>
+          <Field label="Estado" mono>
+            {tenant.status}
+          </Field>
+        </dl>
+      </Card>
+
+      <Card>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Plan y límites</h2>
+        <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Field label="Usuarios" mono>
+            {tenant.maxUsers}
+          </Field>
+          <Field label="Bots" mono>
+            {tenant.maxBots}
+          </Field>
+          <Field label="Conversaciones / mes" mono>
+            {tenant.maxConversationsPerMonth}
+          </Field>
+          <Field label="Almacenamiento" mono>
+            {tenant.maxStorageGb} GB
+          </Field>
+        </dl>
+        {tenant.kitDigitalSegment && (
+          <p className="mt-4 text-xs text-ink-500">
+            Tenant adherido a <strong>Kit Digital · Segmento {tenant.kitDigitalSegment}</strong>.
+            Tus logs de acceso quedan registrados y exportables a CSV para evidencias.
+          </p>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+  mono,
+}: {
+  label: string;
+  children: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div>
+      <dt className="text-xs text-ink-500">{label}</dt>
+      <dd className={`mt-1 text-sm text-ink-900 ${mono ? 'font-mono' : ''}`}>{children}</dd>
+    </div>
+  );
+}

@@ -6,6 +6,9 @@ import { AuthAdminModule } from './modules/auth-admin/auth-admin.module.js';
 import { TenantsModule } from './modules/tenants/tenants.module.js';
 import { BotsModule } from './modules/bots/bots.module.js';
 import { AccessLogsModule } from './modules/access-logs/access-logs.module.js';
+import { UsersModule } from './modules/users/users.module.js';
+import { MeModule } from './modules/me/me.module.js';
+import { AppVersionsModule } from './modules/app-versions/app-versions.module.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
 
 @Module({
@@ -18,6 +21,9 @@ import { PrismaModule } from './common/prisma/prisma.module.js';
     TenantsModule,
     BotsModule,
     AccessLogsModule,
+    UsersModule,
+    MeModule,
+    AppVersionsModule,
   ],
 })
 export class AppModule {}
