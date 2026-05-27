@@ -23,7 +23,7 @@
     "seed": "tsx prisma/seed.ts",
     "studio": "prisma studio",
     "db:push": "prisma db push",
-    "apply:rls": "tsx prisma/apply-rls.ts",
+    "apply:rls": "prisma db execute --file ./prisma/sql/rls-policies.sql --schema ./prisma/schema.prisma",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
