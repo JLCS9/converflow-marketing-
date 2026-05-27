@@ -71,9 +71,11 @@ export class AuthAdminController {
     res.setCookie(ADMIN_SESSION_COOKIE, token, {
       httpOnly: true,
       secure: env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/',
       expires: expiresAt,
+      // In production share the cookie across api.* / admin.* / app.* subdomains.
+      domain: env.NODE_ENV === 'production' ? '.converflow.ai' : undefined,
     });
   }
 }

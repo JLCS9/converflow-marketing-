@@ -86,6 +86,7 @@ export class AuthController {
       sameSite: 'lax',
       path: '/',
       expires: expiresAt,
+      domain: env.NODE_ENV === 'production' ? '.converflow.ai' : undefined,
     });
   }
 }
