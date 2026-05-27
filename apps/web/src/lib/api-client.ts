@@ -9,17 +9,24 @@ type RequestOptions = Omit<RequestInit, 'body'> & { json?: unknown };
 
 export async function apiFetch<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
   const { json, headers, ...rest } = opts;
+  const rawBody = (rest as { body?: BodyInit }).body;
+  const body = json !== undefined ? JSON.stringify(json) : rawBody;
+
+  // Only declare content-type when we actually send a body. Otherwise Fastify
+  // throws FST_ERR_CTP_EMPTY_JSON_BODY on POST/PATCH requests with no payload
+  // (e.g. /admin/auth/2fa/enroll, /admin/auth/logout).
+  const finalHeaders: Record<string, string> = { ...((headers as Record<string, string>) ?? {}) };
+  if (body !== undefined && finalHeaders['content-type'] == null) {
+    finalHeaders['content-type'] = 'application/json';
+  }
 
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
       ...rest,
-      headers: {
-        'content-type': 'application/json',
-        ...(headers ?? {}),
-      },
+      headers: finalHeaders,
       credentials: 'include',
-      body: json !== undefined ? JSON.stringify(json) : (rest as { body?: BodyInit }).body,
+      body,
     });
   } catch (err) {
     // Network / CORS error before any HTTP response was received.
