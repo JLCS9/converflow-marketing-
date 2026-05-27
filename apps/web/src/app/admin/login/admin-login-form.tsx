@@ -6,7 +6,13 @@ import { apiFetch, ApiError } from '@/lib/api-client';
 
 interface LoginResponse {
   requires2fa?: boolean;
-  admin?: { id: string; email: string; name: string };
+  admin?: {
+    id: string;
+    email: string;
+    name: string;
+    totpEnabled?: boolean;
+    mustChangePassword?: boolean;
+  };
 }
 
 export function AdminLoginForm() {
@@ -35,7 +41,7 @@ export function AdminLoginForm() {
               setRequires2fa(true);
               return;
             }
-            router.push('/admin');
+            router.push(res.admin?.mustChangePassword ? '/admin/profile' : '/admin');
           } catch (err) {
             if (err instanceof ApiError) setError(err.message);
             else setError('Error inesperado');

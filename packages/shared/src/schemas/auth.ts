@@ -33,6 +33,13 @@ export const adminLoginSchema = loginSchema.extend({
 
 export type AdminLoginInput = z.infer<typeof adminLoginSchema>;
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(128),
+  newPassword: passwordSchema,
+});
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
 export const signupSchema = z.object({
   email: emailSchema,
   password: passwordSchema,

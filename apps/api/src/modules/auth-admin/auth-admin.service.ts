@@ -3,11 +3,14 @@ import { authenticator } from 'otplib';
 import argon2 from 'argon2';
 import QRCode from 'qrcode';
 import {
+  BadRequestError,
   Invalid2FAError,
   UnauthorizedError,
   adminLoginSchema,
+  changePasswordSchema,
   constants,
   type AdminLoginInput,
+  type ChangePasswordInput,
 } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import {
@@ -75,8 +78,65 @@ export class AuthAdminService {
       requires2fa: false as const,
       token,
       expiresAt,
-      admin: { id: admin.id, email: admin.email, name: admin.name, totpEnabled: admin.totpEnabled },
+      admin: {
+        id: admin.id,
+        email: admin.email,
+        name: admin.name,
+        totpEnabled: admin.totpEnabled,
+        mustChangePassword: admin.mustChangePassword,
+      },
     };
+  }
+
+  async findAdminForMe(adminId: string) {
+    return this.prisma.bypass((tx) =>
+      tx.platformAdmin.findUniqueOrThrow({
+        where: { id: adminId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          totpEnabled: true,
+          mustChangePassword: true,
+        },
+      }),
+    );
+  }
+
+  async changePassword(
+    input: ChangePasswordInput,
+    ctx: { adminId: string; ip?: string },
+  ): Promise<void> {
+    const { currentPassword, newPassword } = changePasswordSchema.parse(input);
+    if (currentPassword === newPassword) {
+      throw new BadRequestError('La nueva contraseña debe ser distinta');
+    }
+
+    const admin = await this.prisma.bypass((tx) =>
+      tx.platformAdmin.findUniqueOrThrow({ where: { id: ctx.adminId } }),
+    );
+    if (!(await argon2.verify(admin.passwordHash, currentPassword))) {
+      throw new UnauthorizedError('Contraseña actual incorrecta');
+    }
+
+    const hash = await argon2.hash(newPassword, { type: argon2.argon2id });
+
+    await this.prisma.bypass(async (tx) => {
+      await tx.platformAdmin.update({
+        where: { id: ctx.adminId },
+        data: { passwordHash: hash, mustChangePassword: false },
+      });
+      await tx.platformAdminSession.deleteMany({ where: { adminId: ctx.adminId } });
+      await tx.adminActionLog.create({
+        data: {
+          adminId: ctx.adminId,
+          action: 'change_password',
+          targetType: 'admin',
+          targetId: ctx.adminId,
+          ip: ctx.ip,
+        },
+      });
+    });
   }
 
   async logout(rawToken: string) {

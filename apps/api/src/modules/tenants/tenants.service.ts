@@ -149,6 +149,7 @@ export class TenantsService {
               passwordHash,
               role: 'OWNER',
               status: 'ACTIVE',
+              mustChangePassword: true,
             },
           },
         },

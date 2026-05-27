@@ -56,6 +56,7 @@ async function seedSuperAdmin() {
       email,
       name: 'Platform Admin',
       passwordHash,
+      mustChangePassword: true,
     },
   });
 

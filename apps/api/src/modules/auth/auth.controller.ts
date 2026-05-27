@@ -35,6 +35,7 @@ export class AuthController {
         name: result.user.name,
         role: result.user.role,
         tenantId: result.user.tenantId,
+        mustChangePassword: result.user.mustChangePassword,
       },
     };
   }
@@ -63,8 +64,29 @@ export class AuthController {
 
   @UseGuards(TenantAuthGuard)
   @Get('me')
-  me(@CurrentUser() user: AuthenticatedUser) {
-    return { user };
+  async me(@CurrentUser() user: AuthenticatedUser) {
+    // Include mustChangePassword from DB (not stored in the cookie).
+    const u = await this.auth.findUserForMe(user.userId);
+    return { user: { ...user, mustChangePassword: u.mustChangePassword } };
+  }
+
+  @UseGuards(TenantAuthGuard)
+  @Post('change-password')
+  async changePassword(
+    @Body() body: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    await this.auth.changePassword(body as never, {
+      userId: user.userId,
+      tenantId: user.tenantId,
+      email: user.email,
+      ip: req.ip,
+    });
+    // We invalidated all sessions including current. Clear cookie too.
+    res.clearCookie(TENANT_SESSION_COOKIE, { path: '/' });
+    return { ok: true };
   }
 
   @UseGuards(TenantAuthGuard)

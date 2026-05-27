@@ -34,6 +34,7 @@ model PlatformAdmin {
   totpEnabled  Boolean  @default(false)
   status       AdminStatus @default(ACTIVE)
   lastLoginAt  DateTime?
+  mustChangePassword Boolean @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -139,22 +140,22 @@ enum TenantStatus {
 }
 
 model User {
-  id              String     @id @default(cuid())
-  tenantId        String
-  tenant          Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  email           String
-  name            String
-  passwordHash    String
-  role            UserRole   @default(AGENT_USER)
-  status          UserStatus @default(ACTIVE)
-  emailVerifiedAt DateTime?
-  lastLoginAt     DateTime?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  id                 String     @id @default(cuid())
+  tenantId           String
+  tenant             Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email              String     @unique
+  name               String
+  passwordHash       String
+  role               UserRole   @default(AGENT_USER)
+  status             UserStatus @default(ACTIVE)
+  emailVerifiedAt    DateTime?
+  lastLoginAt        DateTime?
+  mustChangePassword Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
   sessions UserSession[]
 
-  @@unique([tenantId, email])
   @@index([tenantId])
   @@map("users")
 }

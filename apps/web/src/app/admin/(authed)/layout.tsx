@@ -4,7 +4,13 @@ import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { LogoutButton } from './logout-button';
 
 interface MeResponse {
-  admin: { adminId: string; email: string };
+  admin: {
+    adminId: string;
+    email: string;
+    name?: string;
+    totpEnabled?: boolean;
+    mustChangePassword?: boolean;
+  };
 }
 
 export default async function AdminAuthedLayout({ children }: { children: React.ReactNode }) {
@@ -33,11 +39,11 @@ export default async function AdminAuthedLayout({ children }: { children: React.
         <nav className="flex-1 space-y-1 px-3 py-4 text-sm">
           <NavLink href="/admin" label="Dashboard" />
           <NavLink href="/admin/tenants" label="Tenants" />
-          <NavLink href="/admin/tenants?status=ACTIVE" label="↳ Active" indent />
+          <NavLink href="/admin/bots" label="Bots (global)" />
+          <NavLink href="/admin/profile" label="Perfil + 2FA" />
           <div className="mt-6 px-3 text-[10px] font-mono uppercase tracking-wider text-ink-500">
             Soon
           </div>
-          <NavLink href="#" label="Bots (global)" disabled />
           <NavLink href="#" label="Users (global)" disabled />
           <NavLink href="#" label="Audit log" disabled />
           <NavLink href="#" label="System" disabled />
@@ -61,6 +67,24 @@ export default async function AdminAuthedLayout({ children }: { children: React.
           </Link>
           <span className="font-mono text-xs text-ink-300">v0.1.0</span>
         </header>
+        {me.admin.mustChangePassword && (
+          <div className="border-b border-amber-300 bg-amber-50 px-6 py-2 text-xs text-amber-900">
+            ⚠️ Estás usando una contraseña temporal.{' '}
+            <Link href="/admin/profile" className="underline">
+              Cámbiala
+            </Link>{' '}
+            antes de seguir.
+          </div>
+        )}
+        {!me.admin.totpEnabled && (
+          <div className="border-b border-yellow-200 bg-yellow-50 px-6 py-2 text-xs text-yellow-900">
+            🔐 Recomendado: activa 2FA TOTP en{' '}
+            <Link href="/admin/profile" className="underline">
+              tu perfil
+            </Link>
+            .
+          </div>
+        )}
         <div className="p-8">{children}</div>
       </main>
     </div>

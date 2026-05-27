@@ -5,6 +5,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { AuthAdminModule } from './modules/auth-admin/auth-admin.module.js';
 import { TenantsModule } from './modules/tenants/tenants.module.js';
 import { BotsModule } from './modules/bots/bots.module.js';
+import { AdminBotsModule } from './modules/admin-bots/admin-bots.module.js';
 import { AccessLogsModule } from './modules/access-logs/access-logs.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { MeModule } from './modules/me/me.module.js';
@@ -20,6 +21,7 @@ import { PrismaModule } from './common/prisma/prisma.module.js';
     AuthAdminModule,
     TenantsModule,
     BotsModule,
+    AdminBotsModule,
     AccessLogsModule,
     UsersModule,
     MeModule,

@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import argon2 from 'argon2';
 import {
+  BadRequestError,
   ConflictError,
   UnauthorizedError,
+  changePasswordSchema,
   loginSchema,
   signupSchema,
+  type ChangePasswordInput,
   type LoginInput,
   type SignupInput,
   constants,
@@ -198,5 +201,52 @@ export class AuthService {
 
     const { users: _users, ...tenantWithoutUsers } = tenant;
     return { token, expiresAt, tenant: tenantWithoutUsers, user: owner };
+  }
+
+  async findUserForMe(userId: string) {
+    return this.prisma.bypass((tx) =>
+      tx.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { id: true, mustChangePassword: true },
+      }),
+    );
+  }
+
+  async changePassword(
+    input: ChangePasswordInput,
+    ctx: { userId: string; tenantId: string; email: string; ip?: string },
+  ): Promise<void> {
+    const { currentPassword, newPassword } = changePasswordSchema.parse(input);
+
+    if (currentPassword === newPassword) {
+      throw new BadRequestError('La nueva contraseña debe ser distinta');
+    }
+
+    const user = await this.prisma.bypass((tx) =>
+      tx.user.findUniqueOrThrow({ where: { id: ctx.userId } }),
+    );
+    if (!(await argon2.verify(user.passwordHash, currentPassword))) {
+      throw new UnauthorizedError('Contraseña actual incorrecta');
+    }
+
+    const hash = await argon2.hash(newPassword, { type: argon2.argon2id });
+
+    await this.prisma.bypass(async (tx) => {
+      await tx.user.update({
+        where: { id: ctx.userId },
+        data: { passwordHash: hash, mustChangePassword: false },
+      });
+      // Invalidate all other sessions of this user (force re-login from other devices)
+      await tx.userSession.deleteMany({ where: { userId: ctx.userId } });
+      await tx.accessLog.create({
+        data: {
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+          email: ctx.email,
+          action: 'change_password',
+          ip: ctx.ip,
+        },
+      });
+    });
   }
 }

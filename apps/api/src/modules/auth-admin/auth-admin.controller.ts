@@ -36,8 +36,22 @@ export class AuthAdminController {
 
   @UseGuards(AdminAuthGuard)
   @Get('me')
-  me(@CurrentAdmin() admin: AuthenticatedAdmin) {
-    return { admin };
+  async me(@CurrentAdmin() admin: AuthenticatedAdmin) {
+    const fresh = await this.auth.findAdminForMe(admin.adminId);
+    return { admin: { ...admin, ...fresh } };
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post('change-password')
+  async changePassword(
+    @Body() body: unknown,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    await this.auth.changePassword(body as never, { adminId: admin.adminId, ip: req.ip });
+    res.clearCookie(ADMIN_SESSION_COOKIE, { path: '/' });
+    return { ok: true };
   }
 
   @UseGuards(AdminAuthGuard)

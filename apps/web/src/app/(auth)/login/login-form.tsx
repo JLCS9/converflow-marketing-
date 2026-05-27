@@ -20,8 +20,11 @@ export function LoginForm() {
         setError(null);
         startTransition(async () => {
           try {
-            await apiFetch('/auth/login', { method: 'POST', json: { email, password } });
-            router.push('/app');
+            const res = await apiFetch<{ user?: { mustChangePassword?: boolean } }>(
+              '/auth/login',
+              { method: 'POST', json: { email, password } },
+            );
+            router.push(res?.user?.mustChangePassword ? '/app/profile' : '/app');
           } catch (err) {
             if (err instanceof ApiError) setError(err.message);
             else setError('Error inesperado');
