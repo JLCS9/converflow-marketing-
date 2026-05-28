@@ -21,6 +21,13 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().email().default('noreply@converflow.ai'),
 
+  // Google Calendar OAuth (Sprint 5 — IA Reuniones). Optional: the feature is
+  // gated on these being present. Redirect URI must match what's registered in
+  // the Google Cloud OAuth client; defaults to `${API_PUBLIC_URL}/integrations/google/callback`.
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_OAUTH_REDIRECT_URI: z.string().url().optional(),
+
   BOT_RUNNER_PORT: z.coerce.number().int().positive().default(4100),
   BOT_RUNNER_INTERNAL_TOKEN: z.string().min(16).optional(),
 

@@ -1,5 +1,6 @@
 import { serverApiFetch } from '@/lib/server-api';
 import { Card } from '@/components/ui/primitives';
+import { GoogleCalendarCard } from './google-calendar-card';
 
 interface TenantDetail {
   id: string;
@@ -18,10 +19,25 @@ interface TenantDetail {
   createdAt: string;
 }
 
+interface GoogleStatus {
+  configured: boolean;
+  connected: boolean;
+  googleEmail: string | null;
+  connectedAt: string | null;
+}
+
 export const metadata = { title: 'Ajustes' };
 
-export default async function SettingsPage() {
-  const tenant = await serverApiFetch<TenantDetail>('/me/tenant');
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ google?: string }>;
+}) {
+  const { google } = await searchParams;
+  const [tenant, googleStatus] = await Promise.all([
+    serverApiFetch<TenantDetail>('/me/tenant'),
+    serverApiFetch<GoogleStatus>('/integrations/google/status'),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -80,6 +96,8 @@ export default async function SettingsPage() {
           </p>
         )}
       </Card>
+
+      <GoogleCalendarCard status={googleStatus} flash={google} />
     </div>
   );
 }

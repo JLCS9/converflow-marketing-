@@ -18,6 +18,8 @@ import { DocumentsModule } from './modules/documents/documents.module.js';
 import { NotesModule } from './modules/notes/notes.module.js';
 import { ReportsModule } from './modules/reports/reports.module.js';
 import { AlertsModule } from './modules/alerts/alerts.module.js';
+import { IntegrationsModule } from './modules/integrations/integrations.module.js';
+import { MeetingsModule } from './modules/meetings/meetings.module.js';
 import { AiModule } from './common/ai/ai.module.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
 
@@ -44,6 +46,8 @@ import { PrismaModule } from './common/prisma/prisma.module.js';
     NotesModule,
     ReportsModule,
     AlertsModule,
+    IntegrationsModule,
+    MeetingsModule,
   ],
 })
 export class AppModule {}

@@ -155,3 +155,24 @@ export const updateTaskSchema = createTaskSchema.partial();
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
+
+// ============================================
+// Meetings (Sprint 5 — IA Reuniones / Google Calendar)
+// ============================================
+export const proposeMeetingSchema = z.object({
+  leadId: z.string().cuid(),
+  durationMin: z.number().int().min(15).max(240).optional(),
+  notes: z.string().trim().max(1000).optional(),
+});
+
+export const scheduleMeetingSchema = z.object({
+  leadId: z.string().cuid(),
+  startIso: z.string().datetime({ offset: true }),
+  durationMin: z.number().int().min(15).max(240),
+  title: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2000).optional(),
+  createTask: z.boolean().optional(),
+});
+
+export type ProposeMeetingInput = z.infer<typeof proposeMeetingSchema>;
+export type ScheduleMeetingInput = z.infer<typeof scheduleMeetingSchema>;

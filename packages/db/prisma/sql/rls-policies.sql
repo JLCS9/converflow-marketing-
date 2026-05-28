@@ -185,3 +185,14 @@ CREATE POLICY tenant_isolation ON ai_usage
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- ---------------------------------------------------------------------
+-- calendar_connections (Sprint 5 — IA Reuniones)
+-- ---------------------------------------------------------------------
+ALTER TABLE calendar_connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE calendar_connections FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON calendar_connections;
+CREATE POLICY tenant_isolation ON calendar_connections
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

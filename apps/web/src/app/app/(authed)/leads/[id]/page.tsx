@@ -5,6 +5,7 @@ import { Card, Badge } from '@/components/ui/primitives';
 import { LeadActions } from './lead-actions';
 import { ScoreLeadButton } from './score-button';
 import { NotesSection } from './notes-section';
+import { MeetingScheduler } from './meeting-scheduler';
 
 interface NoteWithAi {
   id: string;
@@ -165,6 +166,17 @@ export default async function LeadDetailPage({
         </p>
         <div className="mt-4">
           <NotesSection leadId={lead.id} initial={lead.notes} />
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Reuniones IA</h2>
+        <p className="mt-1 text-xs text-ink-500">
+          La IA consulta tu disponibilidad en Google Calendar y propone los mejores huecos. Al
+          agendar, crea el evento (invitando al lead) y una tarea de seguimiento.
+        </p>
+        <div className="mt-4">
+          <MeetingScheduler leadId={lead.id} />
         </div>
       </Card>
 
