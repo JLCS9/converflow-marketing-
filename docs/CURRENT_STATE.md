@@ -90,6 +90,14 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 
 ## CRITICAL lessons (don't repeat these bugs)
 
+0. **The API must connect as a NON-superuser role (`converflow_app`).** The
+   default `converflow` user (POSTGRES_USER) is a SUPERUSER, and superusers
+   bypass RLS entirely — so tenant data leaked across tenants until we added
+   `converflow_app` (NOSUPERUSER NOBYPASSRLS). DATABASE_URL → `converflow_app`
+   (runtime, RLS enforced); DATABASE_DIRECT_URL → `converflow` (migrations via
+   Prisma directUrl). Role created by `packages/db/prisma/sql/create-app-role.sql`.
+   Verify isolation after any DB rebuild: `SELECT rolsuper FROM pg_roles WHERE
+   rolname='converflow_app'` must be `f`.
 1. **AI calls must NEVER be inside a Prisma transaction.** `withTenant()` opens an interactive transaction with a 5s timeout; Claude takes 5-15s → "Transaction already closed". Pattern: fetch (txn) → AI call (no txn) → save (txn). See `LeadsService.score` / `NotesService.analyze`.
 2. **`apiFetch` must not send `content-type: application/json` on bodyless POSTs** — Fastify rejects with `FST_ERR_CTP_EMPTY_JSON_BODY`. Already handled in `api-client.ts`.
 3. **Editing `app.module.ts` imports is error-prone** — a NotesModule import silently failed to apply twice; always `grep NotesModule app.module.ts` after. A module's controller routes only register if the module is in `imports[]`.
