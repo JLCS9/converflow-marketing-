@@ -136,6 +136,85 @@ export class AiService {
   }
 
   /**
+   * Agentic tool-use loop: calls Claude with the given tools, executes any tool
+   * calls via `executeTool`, feeds results back, and repeats until the model
+   * stops calling tools (or maxIterations). Returns the final text + the list of
+   * actions taken + aggregated usage.
+   */
+  async runAgentLoop(opts: {
+    model?: string;
+    system?: string;
+    userPrompt: string;
+    tools: { name: string; description: string; input_schema: Record<string, unknown> }[];
+    executeTool: (name: string, input: unknown) => Promise<string>;
+    maxIterations?: number;
+    maxTokens?: number;
+  }): Promise<AiCallResult<string> & { actions: { name: string; input: unknown; result: string }[] }> {
+    const client = this.getClient();
+    const model = opts.model ?? env.ANTHROPIC_DEFAULT_MODEL;
+    const start = Date.now();
+    const messages: Anthropic.MessageParam[] = [{ role: 'user', content: opts.userPrompt }];
+    const actions: { name: string; input: unknown; result: string }[] = [];
+    let text = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+    const maxIter = opts.maxIterations ?? 4;
+
+    for (let i = 0; i < maxIter; i++) {
+      const res = await client.messages.create({
+        model,
+        max_tokens: opts.maxTokens ?? 800,
+        system: opts.system,
+        tools: opts.tools as never,
+        messages,
+      });
+      inputTokens += res.usage.input_tokens;
+      outputTokens += res.usage.output_tokens;
+
+      const textPart = res.content
+        .map((b) => (b.type === 'text' ? b.text : ''))
+        .join('')
+        .trim();
+      if (textPart) text = textPart;
+
+      const toolUses = res.content.filter(
+        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
+      );
+      if (res.stop_reason !== 'tool_use' || toolUses.length === 0) break;
+
+      messages.push({ role: 'assistant', content: res.content as never });
+      const results: Anthropic.ToolResultBlockParam[] = [];
+      for (const tu of toolUses) {
+        let result: string;
+        try {
+          result = await opts.executeTool(tu.name, tu.input);
+        } catch (err) {
+          result = `Error: ${err instanceof Error ? err.message : 'fallo en la herramienta'}`;
+        }
+        actions.push({ name: tu.name, input: tu.input, result });
+        results.push({ type: 'tool_result', tool_use_id: tu.id, content: result });
+      }
+      messages.push({ role: 'user', content: results });
+    }
+
+    const totalTokens = inputTokens + outputTokens;
+    const prices = PRICING[model] ?? { input: 0, output: 0 };
+    const costUsd =
+      (inputTokens / 1_000_000) * prices.input + (outputTokens / 1_000_000) * prices.output;
+
+    return {
+      result: text,
+      actions,
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      costUsd,
+      durationMs: Date.now() - start,
+      model,
+    };
+  }
+
+  /**
    * Classify a note's content and suggest a reply. Returns structured output
    * via Claude tool calling. Callers should pass enough context (e.g., who's
    * the lead, recent notes) so the reply is relevant.

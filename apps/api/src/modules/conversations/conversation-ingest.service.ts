@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { AiService } from '../../common/ai/ai.service.js';
+import { AgentRuntimeService } from '../agents/agent-runtime.service.js';
 
 export const whatsappEventSchema = z.object({
   // Ignored for tenant routing — the tenant is derived from the bot (see below).
@@ -24,6 +25,7 @@ export class ConversationIngestService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
+    private readonly agentRuntime: AgentRuntimeService,
   ) {}
 
   /**
@@ -39,13 +41,14 @@ export class ConversationIngestService {
     // payload. This guarantees inbound data can only land under the bot's
     // owner tenant — no cross-tenant routing is possible.
     const bot = await this.prisma.bypass((tx) =>
-      tx.bot.findUnique({ where: { id: botId }, select: { tenantId: true } }),
+      tx.bot.findUnique({ where: { id: botId }, select: { tenantId: true, agentId: true } }),
     );
     if (!bot) {
       this.logger.warn(`inbound for unknown bot ${botId} — ignored`);
       return { ok: false, reason: 'unknown_bot' };
     }
     const tenantId = bot.tenantId;
+    const agentId = bot.agentId;
 
     const now = new Date();
     const digits = d.phone.replace(/\D/g, '');
@@ -144,13 +147,39 @@ export class ConversationIngestService {
     );
 
     if (d.direction === 'IN' && body && !result.dupe) {
-      void this.classifyMessage(
-        tenantId,
-        result.conv.id,
-        result.message.id,
-        body,
-        result.lead,
-      ).catch((err) => this.logger.warn({ err, messageId: result.message.id }, 'classify failed'));
+      const lead = result.lead;
+      const fallbackClassify = () =>
+        void this.classifyMessage(tenantId, result.conv.id, result.message.id, body, lead).catch(
+          (err) => this.logger.warn({ err, messageId: result.message.id }, 'classify failed'),
+        );
+
+      if (agentId) {
+        // An assigned agent powers the reply (and may run CRM tools). Falls back
+        // to generic classification if the agent is unavailable/errors.
+        void this.agentRuntime
+          .runForMessage({
+            tenantId,
+            agentId,
+            conversationId: result.conv.id,
+            messageId: result.message.id,
+            userText: body,
+            lead: lead
+              ? {
+                  id: lead.id,
+                  name: lead.name,
+                  company: lead.company,
+                  status: lead.status,
+                  score: lead.score,
+                }
+              : null,
+          })
+          .catch((err) => {
+            this.logger.warn({ err, agentId }, 'agent run failed — falling back to classify');
+            fallbackClassify();
+          });
+      } else {
+        fallbackClassify();
+      }
     }
 
     return { ok: true, conversationId: result.conv.id, messageId: result.message.id };
