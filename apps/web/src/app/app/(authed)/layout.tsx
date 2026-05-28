@@ -74,13 +74,10 @@ export default async function TenantAuthedLayout({
           <NavLink href="/app/tasks" label="Tareas" />
           <NavLink href="/app/documents" label="Documentos" />
           <NavLink href="/app/bots" label="Bots" />
+          <NavLink href="/app/agents" label="Agentes IA" />
           <NavLink href="/app/users" label="Usuarios" />
           <NavLink href="/app/profile" label="Perfil" />
           <NavLink href="/app/settings" label="Ajustes" />
-          <div className="mt-6 px-3 text-[10px] font-mono uppercase tracking-wider text-ink-500">
-            Soon
-          </div>
-          <NavLink href="#" label="Agentes IA" disabled />
         </nav>
 
         <div className="border-t border-ink-100 px-4 py-3 text-xs">

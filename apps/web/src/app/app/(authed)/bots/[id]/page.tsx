@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { Card } from '@/components/ui/primitives';
 import { BotConnection } from './bot-connection';
+import { BotAgentSelect } from './bot-agent-select';
 
 interface BotDetail {
   id: string;
@@ -42,6 +43,10 @@ export default async function BotDetailPage({
     throw err;
   }
 
+  const agents = await serverApiFetch<{ id: string; name: string; status: string }[]>(
+    '/agents',
+  ).catch(() => []);
+
   return (
     <div className="space-y-6">
       <div>
@@ -73,6 +78,21 @@ export default async function BotDetailPage({
           </p>
         </Card>
       )}
+
+      <Card>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Agente IA</h2>
+        <p className="mt-1 text-xs text-ink-500">
+          Asigna un agente para que gobierne las respuestas de este bot. Crea y configura
+          agentes en{' '}
+          <Link href="/app/agents" className="text-primary-700 hover:underline">
+            Agentes IA
+          </Link>
+          .
+        </p>
+        <div className="mt-4">
+          <BotAgentSelect botId={bot.id} currentAgentId={bot.agentId} agents={agents} />
+        </div>
+      </Card>
 
       <Card>
         <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Detalles</h2>

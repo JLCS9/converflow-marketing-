@@ -99,6 +99,43 @@ export class AiService {
   }
 
   /**
+   * Free-form completion (no forced tool). Returns the assistant text + usage.
+   * Used by the agent playground and agent replies.
+   */
+  async complete(opts: {
+    model?: string;
+    system?: string;
+    userPrompt: string;
+    maxTokens?: number;
+  }): Promise<AiCallResult<string>> {
+    const client = this.getClient();
+    const model = opts.model ?? env.ANTHROPIC_DEFAULT_MODEL;
+    const start = Date.now();
+
+    const response = await client.messages.create({
+      model,
+      max_tokens: opts.maxTokens ?? 600,
+      system: opts.system,
+      messages: [{ role: 'user', content: opts.userPrompt }],
+    });
+
+    const durationMs = Date.now() - start;
+    const text = response.content
+      .map((b) => (b.type === 'text' ? b.text : ''))
+      .join('')
+      .trim();
+
+    const inputTokens = response.usage.input_tokens;
+    const outputTokens = response.usage.output_tokens;
+    const totalTokens = inputTokens + outputTokens;
+    const prices = PRICING[model] ?? { input: 0, output: 0 };
+    const costUsd =
+      (inputTokens / 1_000_000) * prices.input + (outputTokens / 1_000_000) * prices.output;
+
+    return { result: text, inputTokens, outputTokens, totalTokens, costUsd, durationMs, model };
+  }
+
+  /**
    * Classify a note's content and suggest a reply. Returns structured output
    * via Claude tool calling. Callers should pass enough context (e.g., who's
    * the lead, recent notes) so the reply is relevant.

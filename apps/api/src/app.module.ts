@@ -21,6 +21,7 @@ import { AlertsModule } from './modules/alerts/alerts.module.js';
 import { IntegrationsModule } from './modules/integrations/integrations.module.js';
 import { MeetingsModule } from './modules/meetings/meetings.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
+import { AgentsModule } from './modules/agents/agents.module.js';
 import { InternalModule } from './modules/internal/internal.module.js';
 import { AiModule } from './common/ai/ai.module.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
@@ -51,6 +52,7 @@ import { PrismaModule } from './common/prisma/prisma.module.js';
     IntegrationsModule,
     MeetingsModule,
     ConversationsModule,
+    AgentsModule,
     InternalModule,
   ],
 })
