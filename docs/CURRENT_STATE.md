@@ -2,7 +2,7 @@
 
 > Single source of truth. Update after every sprint. If reading this in a new session, you can skip 100% of conversation history and rely on this file + the repo.
 
-**Last sync:** end of Sprint 2.2 (documents + R2)
+**Last sync:** end of Sprint 3.2 + UX/fixes (lead scoring + note classification + AI history live)
 
 ## TL;DR — what works in prod today
 
@@ -15,139 +15,126 @@ URLs:
 - `https://api.converflow.ai` — REST API
 - `https://api.converflow.ai/docs` — Swagger (dev only)
 
-Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postgres 16 + pgvector + RLS · Redis 7 · Prisma 6 · Tailwind · Cloudflare R2 (S3) · Anthropic Claude (pending Sprint 3).
+Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postgres 16 + pgvector + RLS · Redis 7 · Prisma 6 · Tailwind · Cloudflare R2 (S3-compatible) · Anthropic Claude (lead scoring + note classification LIVE).
 
 ## Containers in prod
 
-| Service | Image tag | Notes |
+| Service | Image | Notes |
 |---|---|---|
-| cfai-traefik | — | NOT used; Nginx host does TLS instead |
-| cfai-postgres | pgvector/pgvector:pg16 | exposed on 127.0.0.1:55432 for host migrations |
+| cfai-postgres | pgvector/pgvector:pg16 | exposed 127.0.0.1:55432 for host migrations |
 | cfai-redis | redis:7-alpine | internal only |
-| cfai-api | cfai-api:latest | NestJS, port 4000 → 127.0.0.1:8091 |
-| cfai-web | cfai-web:latest | Next.js standalone, port 3000 → 127.0.0.1:8090 |
+| cfai-api | cfai-api:latest | NestJS, 4000 → 127.0.0.1:8091 |
+| cfai-web | cfai-web:latest | Next.js standalone, 3000 → 127.0.0.1:8090 |
 | cfai-workers | cfai-workers:latest | BullMQ stub (no real workloads yet) |
-| cfai-bot-runner | cfai-bot-runner:latest | Baileys stub on port 4100 → 127.0.0.1:8092 |
+| cfai-bot-runner | cfai-bot-runner:latest | Baileys stub, 4100 → 127.0.0.1:8092 |
+
+> Traefik is defined in compose but NOT used — host Nginx terminates TLS.
 
 ## Feature coverage
 
 ### Platform / infra
-- ✅ Monorepo with apps/{api,web,workers,bot-runner} + packages/{db,shared,config}
-- ✅ pnpm + Turborepo + tsc + standalone Next.js
+- ✅ Monorepo apps/{api,web,workers,bot-runner} + packages/{db,shared,config}
 - ✅ Postgres RLS (pool model, FORCE) — `withTenant()` per request, `bypass()` for admin
 - ✅ Email globally unique on `User.email` (Option B)
-- ✅ Cloudflare R2 storage for documents (50 MB max)
+- ✅ S3-compatible storage (Cloudflare R2) for documents (50 MB max)
+- ✅ Anthropic Claude integration (`AiService`, tool-use structured output, cost tracking)
 - ✅ Nginx vhosts + Let's Encrypt for 5 hostnames
-- ✅ CSP, helmet, CORS allowlist (app + admin origins)
 
 ### Auth
-- ✅ Tenant auth: email + password (argon2id), session cookie `cf_tenant_session` (domain `.converflow.ai`, secure, httpOnly, sameSite=lax)
-- ✅ Admin auth: separate `platform_admins` table, cookie `cf_admin_session`
-- ✅ Multi-candidate password verify (when same email exists in N tenants we try the password against each)
-- ✅ Force password change on first login (`mustChangePassword` flag)
-- ✅ Password change endpoints invalidate all sessions
-- ✅ Admin 2FA TOTP (otplib + QR via qrcode npm)
+- ✅ Tenant + admin separate stacks, argon2id, cookies on `.converflow.ai`
+- ✅ Multi-candidate password verify, force-change-on-first-login, sessions invalidated on change
+- ✅ Admin 2FA TOTP (otplib + QR)
 
 ### Super admin (admin.converflow.ai/admin)
-- ✅ Dashboard with platform stats
-- ✅ Tenants: list + create + detail + edit limits + delete (cascade)
-- ✅ Bots global view (cross-tenant) with status/tenant filters
-- ✅ Access logs (Kit Digital evidence) cross-tenant + CSV export
-- ✅ Profile: change password + enroll 2FA TOTP with QR
-- ⏳ Audit log UI (data is in `admin_action_log`, just no UI yet)
+- ✅ Dashboard, Tenants CRUD + edit limits + delete, Bots global view, Access logs cross-tenant + CSV, Profile + 2FA
+- ⏳ Audit log UI (data in `admin_action_log`), AI usage dashboard
 
 ### Tenant area (app.converflow.ai/app)
-- ✅ Dashboard with usage vs limits
-- ✅ Leads: list + filters (status, search) + create + detail + status workflow + CSV import
-- ✅ Opportunities: list + pipeline 5-stage visual + create + detail + status/probability change + delete
-- ✅ Clients: list + filters + create + detail with associated leads/opps/tasks
-- ✅ Tasks: list + create with vincular a lead/cliente/opp + change status inline + auto-stamp `completedAt`
-- ✅ Documents: upload to R2 (multipart) + list + presigned download (10 min) + delete
-- ✅ Users: list + invite (admin/owner only) + remove
-- ✅ Bots: list + create (status PENDING until Baileys is real)
-- ✅ Profile: change password
-- ✅ Settings: tenant info + plan limits (read-only)
-- ❌ Access logs (moved to admin-only per user request)
+- ✅ Dashboard (usage vs limits)
+- ✅ Leads: list/filters/create/detail/status workflow/CSV import
+- ✅ **Lead Scoring IA**: POST /leads/:id/score → Claude returns score 0-100 + priority + reasoning + recommended actions; persisted; UI badge + button in lead detail
+- ✅ Opportunities: list/pipeline/create/detail/status change/delete. Create form uses **EntityPicker** (search by name, no cuid) + prefill via `?leadId=`/`?clientId=`
+- ✅ Clients: list/filters/create/detail
+- ✅ Tasks: list/create/status/delete
+- ✅ **Notes IA**: add note (link to lead/client/opp) + POST /notes/:id/analyze → Claude classifies (BUY_INTENT/OBJECTION/INFO_REQUEST/COMPLAINT/SCHEDULING/OFF_TOPIC/OTHER) + sentiment + confidence + suggested reply. Prompt fed with full context (lead data, prior notes + their classifications, opportunities, tasks) and instructed to be short + non-repetitive
+- ✅ **Historial IA** (`/app/ai-history`): all analyzed notes grouped by day, category filter, expandable
+- ✅ Documents: R2 upload/list/presigned download/delete
+- ✅ Users, Bots, Profile, Settings
+- ❌ Access logs (admin-only by decision)
 
-### Public pages (Kit Digital compliance baseline)
-- ✅ `/changelog` — reads `AppVersion` table
-- ✅ `/ai-disclosure` — AI Act compliance text
-- ✅ `/privacy` — RGPD + LOPDGDD policy
+### Public pages (Kit Digital)
+- ✅ `/changelog`, `/ai-disclosure`, `/privacy`
 
 ### Data model
-- Tenant-scoped (RLS enforced): Tenant, User, UserSession, TenantInvitation, AccessLog, Bot, BotSession, Agent, Client, Lead, Opportunity, Task, Document, Note, Alert
+- Tenant-scoped (RLS): Tenant, User, UserSession, TenantInvitation, AccessLog, Bot, BotSession, Agent, Client, Lead, Opportunity, Task, Document, Note, Alert, **AiUsage**
+- Lead has: score, aiScoreReasoning, aiScoreActions (Json), aiScoredAt
+- Note has: aiCategory, aiSentiment, aiConfidence, aiSuggestedReply, aiAnalyzedAt
 - Platform (no RLS): PlatformAdmin, PlatformAdminSession, AdminActionLog, AppVersion
 
 ### Kit Digital — Gestión de Clientes con IA
+| Requisito | Estado |
+|---|---|
+| Min usuarios (10/15) | ✅ |
+| Gestión clientes / leads / oportunidades / tareas | ✅ |
+| Reporting | 🟡 (pipeline básico; falta dashboard agregado) |
+| Alertas gráficas | ❌ (schema Alert listo) |
+| Gestión documental | ✅ (R2) |
+| Web responsive | ✅ |
+| Integración APIs | ✅ |
+| IA Lead Scoring | ✅ |
+| IA Journeys de venta (clasificación + respuesta) | ✅ |
+| IA Reuniones | ❌ (Sprint 4, Google Calendar) |
+| IA RGPD / AI Act / aviso | ✅ |
+| Logs acceso en BD | ✅ (admin-only) |
+| Capacitación 20h + diploma | ❌ (Sprint 6) |
 
-| Requisito | Estado | Implementación |
-|---|---|---|
-| Min usuarios suministrados (10/15 por segmento IV/V) | ✅ | `Tenant.maxUsers` enforce en create + updateLimits |
-| Gestión de clientes | ✅ | Client model + UI |
-| Gestión de clientes potenciales | ✅ | Lead model + manual + CSV import |
-| Gestión de oportunidades | ✅ | Opportunity + 5-stage pipeline |
-| Acciones / tareas comerciales | ✅ | Task model + UI (auto-workflow pendiente Sprint 3) |
-| Reporting / planificación | 🟡 | Pipeline básico, falta dashboard de aggregations completo |
-| Alertas gráficas | ❌ | Schema `Alert` ya, falta engine + UI |
-| Gestión documental | ✅ | Documents en R2 |
-| Web responsive (3 dispositivos) | ✅ | Tailwind responsive |
-| Integración APIs / WS / ficheros | ✅ | REST documentado en Swagger |
-| IA — Lead Scoring predictivo | ❌ | Sprint 3 |
-| IA — Automatización reuniones | ❌ | Sprint 4 (Google Calendar OAuth) |
-| IA — Automatización journeys de venta | ❌ | Sprint 3 |
-| IA — Integración con la plataforma | ✅ | (cubierto vía REST) |
-| IA — RGPD / AI Act | ✅ | `/privacy` + `/ai-disclosure` + banner persistente en `/app/*` |
-| IA — Aviso uso de IA | ✅ | Banner en layout `/app/(authed)` |
-| Logs de acceso por usuario en BD | ✅ | `access_logs` (admin-only por decisión Sprint 2.1) |
-| Versiones / changelog | ✅ | `/changelog` |
-| Capacitación 20h + diploma | ❌ | Sprint 6 (academy) |
+## CRITICAL lessons (don't repeat these bugs)
 
-## Open known issues / discrepancies
+1. **AI calls must NEVER be inside a Prisma transaction.** `withTenant()` opens an interactive transaction with a 5s timeout; Claude takes 5-15s → "Transaction already closed". Pattern: fetch (txn) → AI call (no txn) → save (txn). See `LeadsService.score` / `NotesService.analyze`.
+2. **`apiFetch` must not send `content-type: application/json` on bodyless POSTs** — Fastify rejects with `FST_ERR_CTP_EMPTY_JSON_BODY`. Already handled in `api-client.ts`.
+3. **Editing `app.module.ts` imports is error-prone** — a NotesModule import silently failed to apply twice; always `grep NotesModule app.module.ts` after. A module's controller routes only register if the module is in `imports[]`.
+4. **Docker layer cache serves stale code** — after pulling, if `dist/` in the container doesn't match source, rebuild `--no-cache`. Verify with `docker logs cfai-api | grep "Mapped"`.
+5. **Next.js standalone needs static/public copied** (done in web.Dockerfile). Without it, JS chunks 404 and forms fall back to native GET (leaks form fields in URL).
+6. **prisma camelCase columns need quotes in raw SQL**: `"tenantId"` not `tenant_id`.
+7. **Never paste secrets in chat.** Edit `infra/docker/.env.prod` directly on the VPS via nano. Verify with `grep -E '^X_' .env.prod | awk -F= '{print $1"=*** ("length($2)" chars)"}'`.
 
-1. **`docker-compose.prod.yml` does not propagate S3_* env vars to the api service explicitly** — they come via `env_file: ./.env.prod`. If anyone wonders why upload works, that's the path.
-2. **GHCR build workflow disabled**: `.github/workflows/build-images.yml` is now `workflow_dispatch` only (manual). The VPS builds locally via `docker compose build`. Re-enable the `push` trigger when we want CI/CD-deployed images.
+## Open known issues
+
+1. `score()` prompt enriched with notes but not yet with opportunities/tasks (analyze() has full context). Pending coherence pass.
+2. AI does NOT search the internet — only works with context we pass. Real web enrichment needs a tool (Tavily/Perplexity) — not built.
+3. AI usage dashboard for admin not built (data is in `ai_usage`).
+4. GHCR build workflow disabled (workflow_dispatch only).
 
 ## Operational runbook
 
-### Connect to VPS
-Hostinger web terminal as `root`. SSH key auth not yet set up.
-
-### Deploy a code change
+### Deploy
 ```bash
-cd /opt/converflow-ai
-git pull --ff-only
-docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env.prod \
-  build api web   # or other services
-docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env.prod \
-  up -d --force-recreate api web
+cd /opt/converflow-ai && git pull --ff-only
+docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env.prod build api web
+docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env.prod up -d --force-recreate api web
+# verify routes: docker logs cfai-api --since 30s 2>&1 | grep "Mapped"
 ```
 
-### Apply DB schema changes
+### Schema changes
 ```bash
 docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env.prod \
-  run --rm --no-deps \
-  -v /opt/converflow-ai/packages/db/prisma:/repo/packages/db/prisma:ro \
+  run --rm --no-deps -v /opt/converflow-ai/packages/db/prisma:/repo/packages/db/prisma:ro \
   api sh -c "cd /repo && pnpm --filter @converflow/db push"
 ```
-This runs `prisma db push --accept-data-loss && apply-rls`. Schema is enforced by Prisma `db push`; RLS by `prisma db execute --file rls-policies.sql`.
 
-### Reset a password (last-resort)
-Documented as `/tmp/reset-pass-v2.cjs` pattern in conversation. Use only via `docker exec`, never paste creds in chat.
+### Reset password (last resort)
+Write a `.cjs` to `/repo/apps/api/`, `require('@converflow/db')` + `require('argon2')`, run via `docker exec cfai-api node ...`. Never via /tmp (module resolution fails).
 
-### Recover from a stuck build
-- `docker compose ... build --no-cache <service>` to skip layer cache.
-- `docker rmi -f cfai-<service>:latest` before rebuild to be sure.
+### Stuck build
+`docker compose ... build --no-cache <svc>`; if needed `docker rmi -f cfai-<svc>:latest` first.
+
+### Secrets in .env.prod (on VPS only)
+DATABASE/REDIS, AUTH_SECRET, ENCRYPTION_KEY, S3_* (R2), ANTHROPIC_API_KEY, ANTHROPIC_DEFAULT_MODEL (claude-sonnet-4-6), ANTHROPIC_FAST_MODEL (claude-haiku-4-5).
 
 ## Sprint plan (live)
 
-- **Sprint 2.3** (next): Reporting tenant dashboard with real aggregations + alerts engine + UI. No external deps.
-- **Sprint 3**: AI — Lead Scoring + Sales Journeys. Requires `ANTHROPIC_API_KEY` in `.env.prod`.
-- **Sprint 4**: Google Calendar OAuth for meeting automation.
-- **Sprint 5**: Baileys real bot-runner + QR enrollment from UI.
-- **Sprint 6**: Capacitación / Academy module for Kit Digital evidence.
-
-## Memory files (for new Claude sessions)
-
-- `~/.claude/.../memory/project_converflow_ai.md` — high-level project context.
-- This file — full technical state.
-- The repo itself — source of truth for everything code-related.
+- **Sprint 3.3** (next, options): chat assistant per lead/client · auto-tasks from note classification · admin AI-usage dashboard · enrich score() prompt with opps/tasks.
+- **Sprint 4**: Google Calendar OAuth → meeting automation.
+- **Sprint 5**: Baileys real bot-runner + QR enrollment from UI (the originally-promised WhatsApp feature).
+- **Sprint 6**: Academy / capacitación 20h + diploma for Kit Digital evidence.
+- **Backlog**: alerts engine + UI, reporting dashboard, audit log UI, web search enrichment (Tavily), Resend transactional email.
