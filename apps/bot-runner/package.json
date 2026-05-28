@@ -13,7 +13,7 @@
   "dependencies": {
     "@converflow/db": "workspace:*",
     "@converflow/shared": "workspace:*",
-    "baileys": "^6.7.16",
+    "baileys": "7.0.0-rc13",
     "fastify": "^5.2.1",
     "ioredis": "5.10.1",
     "pino": "^9.6.0",

@@ -108,7 +108,7 @@ async function connect(botId: string, tenantId: string): Promise<void> {
   });
 
   sock.ev.on('messages.upsert', (upsert) => {
-    void handleIncomingMessages(botId, tenantId, upsert).catch((err) =>
+    void handleIncomingMessages(sock, botId, tenantId, upsert).catch((err) =>
       logger.warn({ err, botId }, 'inbound handler error'),
     );
   });

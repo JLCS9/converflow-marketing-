@@ -28,12 +28,15 @@ export class InboundService {
    */
   async handleWhatsappInbound(botId: string, input: WhatsappInboundInput) {
     const data = whatsappInboundSchema.parse(input);
+    // fromPhone is normalized by the bot-runner: a real phone arrives as
+    // `+<international digits>`; an unmappable LID arrives as bare digits.
     const digits = data.fromPhone.replace(/\D/g, '');
     if (!digits) return { ok: false, reason: 'invalid_phone' };
     const national = digits.length > 9 ? digits.slice(-9) : digits;
     const body = (data.text ?? '').trim();
 
-    // Find-or-create the lead within the tenant (RLS scoped).
+    // Find-or-create the lead within the tenant (RLS scoped). Match by the
+    // national significant number (handles formatting differences).
     const leadId = await this.prisma.withTenant(data.tenantId, async (tx) => {
       const existing = await tx.lead.findFirst({
         where: { phone: { contains: national } },
@@ -44,7 +47,7 @@ export class InboundService {
         data: {
           tenantId: data.tenantId,
           name: data.pushName?.trim() || `WhatsApp ${national}`,
-          phone: digits,
+          phone: data.fromPhone, // keep the '+' prefix when it's a real phone
           source: 'whatsapp',
           status: 'NEW',
         },
