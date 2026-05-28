@@ -97,10 +97,10 @@ export function AgentForm({ agent }: { agent?: AgentData }) {
         </div>
 
         <div className="grid gap-5 sm:grid-cols-3">
-          <Field label="Modelo">
+          <Field label="Calidad de respuesta">
             <Select name="model" defaultValue={agent?.model ?? 'claude-sonnet-4-6'}>
-              <option value="claude-sonnet-4-6">Sonnet (más capaz)</option>
-              <option value="claude-haiku-4-5-20251001">Haiku (más rápido/barato)</option>
+              <option value="claude-sonnet-4-6">Estándar (más capaz)</option>
+              <option value="claude-haiku-4-5-20251001">Rápida</option>
             </Select>
           </Field>
           <Field label="Modo" help="Sugerir = una persona envía. Auto = responde solo (llega en breve).">

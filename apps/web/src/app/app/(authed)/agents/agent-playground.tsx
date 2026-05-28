@@ -60,9 +60,6 @@ export function AgentPlayground({ agentId }: { agentId: string }) {
               Respuesta del agente
             </div>
             <p className="mt-1 whitespace-pre-wrap text-sm text-ink-900">{result.reply}</p>
-            <div className="mt-2 text-[10px] text-ink-400">
-              {result.model} · {result.durationMs} ms · ~${result.costUsd.toFixed(4)}
-            </div>
           </div>
         )}
 

@@ -52,7 +52,6 @@ export default async function AgentsPage() {
               <tr>
                 <th className="px-4 py-3">Nombre</th>
                 <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3">Modelo</th>
                 <th className="px-4 py-3">Actualizado</th>
               </tr>
             </thead>
@@ -68,7 +67,6 @@ export default async function AgentsPage() {
                   <td className="px-4 py-3">
                     <Badge color={statusColor[a.status] ?? 'gray'}>{statusLabel[a.status] ?? a.status}</Badge>
                   </td>
-                  <td className="px-4 py-3 text-xs text-ink-500">{a.model}</td>
                   <td className="px-4 py-3 text-xs text-ink-500">
                     {new Date(a.updatedAt).toLocaleDateString('es-ES')}
                   </td>

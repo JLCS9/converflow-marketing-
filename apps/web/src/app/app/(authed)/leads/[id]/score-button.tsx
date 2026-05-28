@@ -60,11 +60,7 @@ export function ScoreLeadButton({
             ? '↻ Recalcular score'
             : '✨ Calcular score con IA'}
       </button>
-      {lastCost && (
-        <p className="text-xs text-ink-500">
-          ✓ Calculado en {lastCost.ms} ms · {lastCost.model} · ~${lastCost.cost.toFixed(4)} USD
-        </p>
-      )}
+      {lastCost && <p className="text-xs text-ink-500">✓ Score actualizado con IA.</p>}
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}

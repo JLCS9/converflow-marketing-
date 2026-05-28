@@ -4,6 +4,7 @@ import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { LogoutButton } from './logout-button';
 import { SidebarNav } from './sidebar-nav';
 import { SectionTabs } from './section-tabs';
+import { PoliciesBanner } from './policies-banner';
 
 interface MeResponse {
   user: {
@@ -87,17 +88,7 @@ export default async function TenantAuthedLayout({
             antes de seguir.
           </div>
         )}
-        <div className="border-b border-amber-200 bg-amber-50 px-6 py-2 text-xs text-amber-900">
-          ⚠️ Esta plataforma utiliza Inteligencia Artificial. Lee la{' '}
-          <Link href="/ai-disclosure" className="underline">
-            política de uso de IA
-          </Link>{' '}
-          y la{' '}
-          <Link href="/privacy" className="underline">
-            política de privacidad
-          </Link>
-          .
-        </div>
+        <PoliciesBanner />
         <SectionTabs />
         <div className="p-8">{children}</div>
       </main>
