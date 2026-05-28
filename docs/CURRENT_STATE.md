@@ -2,7 +2,13 @@
 
 > Single source of truth. Update after every sprint. If reading this in a new session, you can skip 100% of conversation history and rely on this file + the repo.
 
-**Last sync:** end of Sprint 3.2 + UX/fixes (lead scoring + note classification + AI history live)
+**Last sync:** end of Sprint 3.2 + SECURITY fix (cross-tenant isolation confirmed working in prod)
+
+> **Cross-tenant isolation:** ✅ FIXED & VERIFIED. API now connects as non-superuser
+> `converflow_app` so RLS is enforced. A new tenant sees ONLY its own data. This was
+> a P0 leak (superuser bypassed RLS) — see lesson #0 below. If you ever rebuild the DB
+> from scratch, you MUST run `create-app-role.sql` + point DATABASE_URL at `converflow_app`
+> or the leak returns.
 
 ## TL;DR — what works in prod today
 
@@ -139,10 +145,55 @@ Write a `.cjs` to `/repo/apps/api/`, `require('@converflow/db')` + `require('arg
 ### Secrets in .env.prod (on VPS only)
 DATABASE/REDIS, AUTH_SECRET, ENCRYPTION_KEY, S3_* (R2), ANTHROPIC_API_KEY, ANTHROPIC_DEFAULT_MODEL (claude-sonnet-4-6), ANTHROPIC_FAST_MODEL (claude-haiku-4-5).
 
-## Sprint plan (live)
+## ROADMAP TO FULL KIT DIGITAL COMPLIANCE
 
-- **Sprint 3.3** (next, options): chat assistant per lead/client · auto-tasks from note classification · admin AI-usage dashboard · enrich score() prompt with opps/tasks.
-- **Sprint 4**: Google Calendar OAuth → meeting automation.
-- **Sprint 5**: Baileys real bot-runner + QR enrollment from UI (the originally-promised WhatsApp feature).
-- **Sprint 6**: Academy / capacitación 20h + diploma for Kit Digital evidence.
-- **Backlog**: alerts engine + UI, reporting dashboard, audit log UI, web search enrichment (Tavily), Resend transactional email.
+What's left to have every "Gestión de Clientes con IA" requirement working + ready
+for Red.es Phase I submission. Ordered by priority. Each sprint ends with a deploy
+(build api/web → up -d → schema push if needed) and a manual verification.
+
+### Sprint 3.3 — AI coherence (small, no deps)
+- [ ] Enrich `LeadsService.score()` prompt with opportunities + tasks (currently only notes). Makes scoring consistent with note analysis.
+- [ ] (optional) Auto-create a Task when a note is classified BUY_INTENT ("Llamar urgente") or SCHEDULING ("Agendar reunión") — closes the journey loop (req #5 auto-workflow + #13).
+
+### Sprint 4 — Reporting dashboard + Alerts engine (reqs #6 + #7) ← biggest compliance gap
+- [ ] Tenant dashboard with real aggregations: lead funnel by status, conversion rate, pipeline value by month, opportunities by stage, tasks pending/overdue, leads by source.
+- [ ] Alerts engine: rules (lead sin contactar >14d, opp con expectedCloseDate vencida, task overdue, lead con score ≥75). Worker (BullMQ) or on-read computation. Persist to `Alert` table (schema ready).
+- [ ] Alerts UI: bell badge in tenant layout + `/app/alerts` page with icons/severity (req #7 says "formato gráfico: iconos, mensajes emergentes").
+
+### Sprint 5 — IA Reuniones (req #12) — needs Google Calendar OAuth
+- [ ] Google Cloud project + OAuth consent + client ID/secret (USER provides, into .env.prod).
+- [ ] Connect Google Calendar per tenant/user (OAuth flow).
+- [ ] Schedule meeting from a lead/opp; AI proposes slots; create calendar event + Task.
+
+### Sprint 6 — Capacitación / Academy (req #18) — Phase II evidence
+- [ ] `/app/academy`: course modules (fundamentos IA, normativa, riesgos éticos, seguridad, automatización flujos, gestión financiera, interpretación datos, aprendizaje continuo — exact topics from PKD_G PDF).
+- [ ] Per-user hours tracking (min 20h) + completion.
+- [ ] Diploma PDF generation per user (req for Phase II justification).
+
+### Sprint 7 — WhatsApp Baileys (product core, originally promised; not a strict KD-Clientes req but key value)
+- [ ] Real bot-runner: spawn Baileys session per Bot, QR via SSE to UI, persist encrypted auth state, auto-reconnect.
+- [ ] Inbound messages → create/update Lead + auto-classify (reuse `AiService.classifyNote`).
+- [ ] Outbound: send suggested reply with rate-limit + warm-up (anti-ban).
+
+### Sprint 8 — Red.es Phase I submission prep (operational, not code)
+- [ ] Memoria técnica PDF (product description, AI governance, risk assessment).
+- [ ] Evidence screenshots per requirement (personalizada/genérica per the PDF spec).
+- [ ] Responsive validation on 3 device sizes (Playwright screenshots = evidence).
+- [ ] Export access-logs CSV (already works) as evidence.
+- [ ] Final compliance review against `docs/kit-digital/README.md`.
+
+### Backlog (nice-to-have, not blocking compliance)
+- Admin AI-usage dashboard (cost per tenant; data in `ai_usage`).
+- Admin audit-log UI (data in `admin_action_log`).
+- Chat assistant per lead/client (conversational Claude with full context).
+- Web-search lead enrichment (Tavily/Perplexity tool).
+- Resend transactional email (replace temp-password-in-UI with email invites).
+- Switch `prisma db push` → proper migrations once schema stabilizes.
+- SSH key auth to VPS (currently Hostinger web terminal only).
+- Re-enable GHCR CI/CD image builds.
+
+## COMPLIANCE SCORECARD (Gestión de Clientes con IA)
+
+Working today: reqs 1,2,3,4,5(manual),8,9,10,11,13,14,15,16,17 → **15 of 18**.
+Remaining: 6 (reporting, partial), 7 (alertas), 12 (reuniones IA), 18 (capacitación).
+→ Sprints 4 + 5 + 6 close the gap. Sprint 8 packages the evidence.
