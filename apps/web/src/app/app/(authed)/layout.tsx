@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { LogoutButton } from './logout-button';
+import { ConversationsNavLink } from './conversations-nav-link';
 
 interface MeResponse {
   user: {
@@ -65,7 +66,7 @@ export default async function TenantAuthedLayout({
 
         <nav className="flex-1 space-y-1 px-3 py-4 text-sm">
           <NavLink href="/app" label="Dashboard" />
-          <NavLink href="/app/conversations" label="Conversaciones" badge={convPending} />
+          <ConversationsNavLink initial={convPending} />
           <NavLink href="/app/alerts" label="Alertas" badge={alertCount} />
           <NavLink href="/app/leads" label="Leads" />
           <NavLink href="/app/opportunities" label="Oportunidades" />

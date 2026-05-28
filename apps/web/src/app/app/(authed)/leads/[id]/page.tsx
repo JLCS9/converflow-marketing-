@@ -5,7 +5,7 @@ import { Card, Badge } from '@/components/ui/primitives';
 import { LeadActions } from './lead-actions';
 import { ScoreLeadButton } from './score-button';
 import { NotesSection } from './notes-section';
-import { MeetingScheduler } from './meeting-scheduler';
+import { MeetingScheduler } from '@/components/meeting-scheduler';
 
 interface NoteWithAi {
   id: string;

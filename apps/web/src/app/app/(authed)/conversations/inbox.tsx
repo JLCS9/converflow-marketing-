@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { Badge, buttonClass } from '@/components/ui/primitives';
 import { CopyButton } from '@/components/ui/copy-button';
+import { MeetingScheduler } from '@/components/meeting-scheduler';
 
 interface ConvRow {
   id: string;
@@ -84,6 +85,7 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
   const [sendError, setSendError] = useState<string | null>(null);
   const [docs, setDocs] = useState<{ id: string; name: string }[] | null>(null);
   const [showDocs, setShowDocs] = useState(false);
+  const [showActions, setShowActions] = useState(false);
 
   const loadList = useCallback(async (st: string) => {
     try {
@@ -262,6 +264,15 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
                 </div>
               </div>
               <div className="flex shrink-0 gap-2">
+                {thread.lead && (
+                  <button
+                    type="button"
+                    className={buttonClass(showActions ? 'secondary' : 'ghost')}
+                    onClick={() => setShowActions((v) => !v)}
+                  >
+                    ⚡ Acciones
+                  </button>
+                )}
                 {thread.status === 'CLOSED' ? (
                   <button type="button" disabled={busy} className={buttonClass('secondary')} onClick={() => setConvStatus(thread.id, 'reopen')}>
                     Reabrir
@@ -273,6 +284,31 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
                 )}
               </div>
             </div>
+
+            {showActions && thread.lead && (
+              <div className="space-y-3 border-b border-ink-100 bg-ink-100/20 px-4 py-3">
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/app/tasks/new?leadId=${thread.lead.id}`}
+                    className={buttonClass('secondary')}
+                  >
+                    + Tarea
+                  </Link>
+                  <Link
+                    href={`/app/opportunities/new?leadId=${thread.lead.id}`}
+                    className={buttonClass('secondary')}
+                  >
+                    + Oportunidad
+                  </Link>
+                </div>
+                <div className="rounded-md border border-ink-100 bg-white p-3">
+                  <div className="mb-2 text-xs font-mono uppercase tracking-wider text-ink-500">
+                    Reunión IA
+                  </div>
+                  <MeetingScheduler leadId={thread.lead.id} />
+                </div>
+              </div>
+            )}
 
             <div className="flex-1 space-y-2 overflow-y-auto bg-ink-100/20 p-4">
               {thread.messages.map((m) => (
@@ -298,35 +334,6 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
             </div>
 
             <div className="space-y-2 border-t border-ink-100 bg-white p-3">
-              {lastSuggestion?.aiSuggestedReply && (
-                <div className="rounded-md border border-primary-200 bg-primary-50 p-2 text-sm">
-                  <div className="text-[10px] font-mono uppercase tracking-wider text-primary-700">
-                    💡 Respuesta sugerida por IA
-                  </div>
-                  <p className="mt-1 whitespace-pre-wrap text-ink-900">
-                    {lastSuggestion.aiSuggestedReply}
-                  </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={sending}
-                      className={buttonClass('primary')}
-                      onClick={() => void sendMessage(lastSuggestion.aiSuggestedReply ?? '')}
-                    >
-                      Enviar
-                    </button>
-                    <button
-                      type="button"
-                      className={buttonClass('ghost')}
-                      onClick={() => setComposeText(lastSuggestion.aiSuggestedReply ?? '')}
-                    >
-                      Editar
-                    </button>
-                    <CopyButton value={lastSuggestion.aiSuggestedReply} />
-                  </div>
-                </div>
-              )}
-
               {showDocs && (
                 <div className="max-h-40 overflow-y-auto rounded-md border border-ink-200">
                   {docs === null ? (
@@ -381,6 +388,35 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
                 </button>
               </div>
               {sendError && <p className="text-xs text-red-600">{sendError}</p>}
+
+              {lastSuggestion?.aiSuggestedReply && (
+                <div className="rounded-md border border-primary-200 bg-primary-50 p-2 text-sm">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-primary-700">
+                    💡 Respuesta sugerida por IA
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-ink-900">
+                    {lastSuggestion.aiSuggestedReply}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={sending}
+                      className={buttonClass('primary')}
+                      onClick={() => void sendMessage(lastSuggestion.aiSuggestedReply ?? '')}
+                    >
+                      Enviar
+                    </button>
+                    <button
+                      type="button"
+                      className={buttonClass('ghost')}
+                      onClick={() => setComposeText(lastSuggestion.aiSuggestedReply ?? '')}
+                    >
+                      Editar
+                    </button>
+                    <CopyButton value={lastSuggestion.aiSuggestedReply} />
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

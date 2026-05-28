@@ -5,7 +5,15 @@ import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, Textarea, buttonClass } from '@/components/ui/primitives';
 
-export function CreateTaskForm() {
+export function CreateTaskForm({
+  defaultLeadId,
+  defaultClientId,
+  defaultOpportunityId,
+}: {
+  defaultLeadId?: string;
+  defaultClientId?: string;
+  defaultOpportunityId?: string;
+} = {}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -73,9 +81,9 @@ export function CreateTaskForm() {
         <p className="text-xs text-ink-500">Opcional: vincula la tarea a un lead, cliente u oportunidad (pega su ID).</p>
 
         <div className="grid gap-5 sm:grid-cols-3">
-          <Field label="Lead ID"><Input name="leadId" type="text" className="font-mono text-xs" /></Field>
-          <Field label="Cliente ID"><Input name="clientId" type="text" className="font-mono text-xs" /></Field>
-          <Field label="Oportunidad ID"><Input name="opportunityId" type="text" className="font-mono text-xs" /></Field>
+          <Field label="Lead ID"><Input name="leadId" type="text" defaultValue={defaultLeadId} className="font-mono text-xs" /></Field>
+          <Field label="Cliente ID"><Input name="clientId" type="text" defaultValue={defaultClientId} className="font-mono text-xs" /></Field>
+          <Field label="Oportunidad ID"><Input name="opportunityId" type="text" defaultValue={defaultOpportunityId} className="font-mono text-xs" /></Field>
         </div>
 
         {error && (
