@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { LogoutButton } from './logout-button';
-import { ConversationsNavLink } from './conversations-nav-link';
+import { SidebarNav } from './sidebar-nav';
+import { SectionTabs } from './section-tabs';
 
 interface MeResponse {
   user: {
@@ -64,29 +65,7 @@ export default async function TenantAuthedLayout({
           <div className="mt-1 text-xs text-ink-500">{tenant.name}</div>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4 text-sm">
-          <NavLink href="/app" label="Dashboard" />
-          <ConversationsNavLink initial={convPending} />
-          <NavLink href="/app/alerts" label="Alertas" badge={alertCount} />
-
-          <NavGroup label="CRM" />
-          <NavLink href="/app/leads" label="Leads" />
-          <NavLink href="/app/opportunities" label="Oportunidades" />
-          <NavLink href="/app/clients" label="Clientes" />
-
-          <NavGroup label="Trabajo" />
-          <NavLink href="/app/tasks" label="Tareas" />
-          <NavLink href="/app/documents" label="Documentos" />
-
-          <NavGroup label="IA" />
-          <NavLink href="/app/bots" label="Bots" />
-          <NavLink href="/app/agents" label="Agentes IA" />
-
-          <NavGroup label="Configuración" />
-          <NavLink href="/app/users" label="Usuarios" />
-          <NavLink href="/app/profile" label="Perfil" />
-          <NavLink href="/app/settings" label="Ajustes" />
-        </nav>
+        <SidebarNav convPending={convPending} alertCount={alertCount} />
 
         <div className="border-t border-ink-100 px-4 py-3 text-xs">
           <div className="text-ink-500">Conectado como</div>
@@ -119,47 +98,9 @@ export default async function TenantAuthedLayout({
           </Link>
           .
         </div>
+        <SectionTabs />
         <div className="p-8">{children}</div>
       </main>
     </div>
-  );
-}
-
-function NavGroup({ label }: { label: string }) {
-  return (
-    <div className="px-3 pb-1 pt-5 text-[10px] font-mono uppercase tracking-wider text-ink-400">
-      {label}
-    </div>
-  );
-}
-
-function NavLink({
-  href,
-  label,
-  disabled,
-  badge,
-}: {
-  href: string;
-  label: string;
-  disabled?: boolean;
-  badge?: number;
-}) {
-  if (disabled) {
-    return (
-      <span className="block rounded px-3 py-1.5 text-ink-300">{label}</span>
-    );
-  }
-  return (
-    <Link
-      href={href}
-      className="flex items-center justify-between rounded px-3 py-1.5 text-ink-700 hover:bg-ink-100"
-    >
-      <span>{label}</span>
-      {badge != null && badge > 0 && (
-        <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-          {badge > 99 ? '99+' : badge}
-        </span>
-      )}
-    </Link>
   );
 }
