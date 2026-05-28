@@ -37,6 +37,16 @@ export default async function TenantAuthedLayout({
     throw err;
   }
 
+  // Unread alert count for the sidebar badge. Never let an alerts hiccup break
+  // the whole tenant area — fall back to 0.
+  let alertCount = 0;
+  try {
+    const res = await serverApiFetch<{ count: number }>('/alerts/count');
+    alertCount = res.count;
+  } catch {
+    alertCount = 0;
+  }
+
   return (
     <div className="flex min-h-screen bg-ink-100/30">
       <aside className="flex w-60 shrink-0 flex-col border-r border-ink-100 bg-white">
@@ -49,6 +59,7 @@ export default async function TenantAuthedLayout({
 
         <nav className="flex-1 space-y-1 px-3 py-4 text-sm">
           <NavLink href="/app" label="Dashboard" />
+          <NavLink href="/app/alerts" label="Alertas" badge={alertCount} />
           <NavLink href="/app/leads" label="Leads" />
           <NavLink href="/app/opportunities" label="Oportunidades" />
           <NavLink href="/app/clients" label="Clientes" />
@@ -107,10 +118,12 @@ function NavLink({
   href,
   label,
   disabled,
+  badge,
 }: {
   href: string;
   label: string;
   disabled?: boolean;
+  badge?: number;
 }) {
   if (disabled) {
     return (
@@ -120,9 +133,14 @@ function NavLink({
   return (
     <Link
       href={href}
-      className="block rounded px-3 py-1.5 text-ink-700 hover:bg-ink-100"
+      className="flex items-center justify-between rounded px-3 py-1.5 text-ink-700 hover:bg-ink-100"
     >
-      {label}
+      <span>{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </Link>
   );
 }

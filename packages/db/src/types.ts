@@ -26,4 +26,6 @@ export {
   BotStatus,
   AgentStatus,
   AdminStatus,
+  AlertType,
+  AlertSeverity,
 } from '@prisma/client';
