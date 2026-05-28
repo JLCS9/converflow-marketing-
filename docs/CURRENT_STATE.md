@@ -165,22 +165,18 @@ for Red.es Phase I submission. Ordered by priority. Each sprint ends with a depl
 - [ ] Connect Google Calendar per tenant/user (OAuth flow).
 - [ ] Schedule meeting from a lead/opp; AI proposes slots; create calendar event + Task.
 
-### Sprint 6 — Capacitación / Academy (req #18) — Phase II evidence
-- [ ] `/app/academy`: course modules (fundamentos IA, normativa, riesgos éticos, seguridad, automatización flujos, gestión financiera, interpretación datos, aprendizaje continuo — exact topics from PKD_G PDF).
-- [ ] Per-user hours tracking (min 20h) + completion.
-- [ ] Diploma PDF generation per user (req for Phase II justification).
+### Sprint 6 — Capacitación / Academy (req #18) — ⛔ OUT OF SCOPE
+> The USER handles capacitación, diploma, and all training content themselves.
+> Do NOT build this. Skip entirely.
 
 ### Sprint 7 — WhatsApp Baileys (product core, originally promised; not a strict KD-Clientes req but key value)
 - [ ] Real bot-runner: spawn Baileys session per Bot, QR via SSE to UI, persist encrypted auth state, auto-reconnect.
 - [ ] Inbound messages → create/update Lead + auto-classify (reuse `AiService.classifyNote`).
 - [ ] Outbound: send suggested reply with rate-limit + warm-up (anti-ban).
 
-### Sprint 8 — Red.es Phase I submission prep (operational, not code)
-- [ ] Memoria técnica PDF (product description, AI governance, risk assessment).
-- [ ] Evidence screenshots per requirement (personalizada/genérica per the PDF spec).
-- [ ] Responsive validation on 3 device sizes (Playwright screenshots = evidence).
-- [ ] Export access-logs CSV (already works) as evidence.
-- [ ] Final compliance review against `docs/kit-digital/README.md`.
+### Sprint 8 — Red.es Phase I submission prep — ⛔ OUT OF SCOPE
+> The USER handles memoria técnica, evidence screenshots, and the Red.es
+> submission themselves. Do NOT build/prepare these. Skip entirely.
 
 ### Backlog (nice-to-have, not blocking compliance)
 - Admin AI-usage dashboard (cost per tenant; data in `ai_usage`).
@@ -195,5 +191,7 @@ for Red.es Phase I submission. Ordered by priority. Each sprint ends with a depl
 ## COMPLIANCE SCORECARD (Gestión de Clientes con IA)
 
 Working today: reqs 1,2,3,4,5(manual),8,9,10,11,13,14,15,16,17 → **15 of 18**.
-Remaining: 6 (reporting, partial), 7 (alertas), 12 (reuniones IA), 18 (capacitación).
-→ Sprints 4 + 5 + 6 close the gap. Sprint 8 packages the evidence.
+PRODUCT scope remaining: 6 (reporting), 7 (alertas), 12 (reuniones IA) → Sprints 4 + 5.
+OUT OF SCOPE (user handles): 18 (capacitación/diploma) + all Red.es submission prep.
+→ Once Sprints 4 + 5 ship, the PRODUCT side of compliance is complete (17 of 18,
+  with #18 owned by the user). Sprint 7 (WhatsApp Baileys) is the core value-add.
