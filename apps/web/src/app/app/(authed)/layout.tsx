@@ -64,17 +64,25 @@ export default async function TenantAuthedLayout({
           <div className="mt-1 text-xs text-ink-500">{tenant.name}</div>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-4 text-sm">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4 text-sm">
           <NavLink href="/app" label="Dashboard" />
           <ConversationsNavLink initial={convPending} />
           <NavLink href="/app/alerts" label="Alertas" badge={alertCount} />
+
+          <NavGroup label="CRM" />
           <NavLink href="/app/leads" label="Leads" />
           <NavLink href="/app/opportunities" label="Oportunidades" />
           <NavLink href="/app/clients" label="Clientes" />
+
+          <NavGroup label="Trabajo" />
           <NavLink href="/app/tasks" label="Tareas" />
           <NavLink href="/app/documents" label="Documentos" />
+
+          <NavGroup label="IA" />
           <NavLink href="/app/bots" label="Bots" />
           <NavLink href="/app/agents" label="Agentes IA" />
+
+          <NavGroup label="Configuración" />
           <NavLink href="/app/users" label="Usuarios" />
           <NavLink href="/app/profile" label="Perfil" />
           <NavLink href="/app/settings" label="Ajustes" />
@@ -113,6 +121,14 @@ export default async function TenantAuthedLayout({
         </div>
         <div className="p-8">{children}</div>
       </main>
+    </div>
+  );
+}
+
+function NavGroup({ label }: { label: string }) {
+  return (
+    <div className="px-3 pb-1 pt-5 text-[10px] font-mono uppercase tracking-wider text-ink-400">
+      {label}
     </div>
   );
 }
