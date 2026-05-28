@@ -20,6 +20,7 @@ import { ReportsModule } from './modules/reports/reports.module.js';
 import { AlertsModule } from './modules/alerts/alerts.module.js';
 import { IntegrationsModule } from './modules/integrations/integrations.module.js';
 import { MeetingsModule } from './modules/meetings/meetings.module.js';
+import { InternalModule } from './modules/internal/internal.module.js';
 import { AiModule } from './common/ai/ai.module.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
 
@@ -48,6 +49,7 @@ import { PrismaModule } from './common/prisma/prisma.module.js';
     AlertsModule,
     IntegrationsModule,
     MeetingsModule,
+    InternalModule,
   ],
 })
 export class AppModule {}

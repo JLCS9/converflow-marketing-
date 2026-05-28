@@ -2,7 +2,7 @@
 
 > Single source of truth. Update after every sprint. If reading this in a new session, you can skip 100% of conversation history and rely on this file + the repo.
 
-**Last sync:** end of Sprint 5 — IA Reuniones (Google Calendar) live & verified in prod (req #12 closed). PRODUCT side of Kit Digital now complete (17/18; #18 user-owned).
+**Last sync:** Sprint 7 Phase A — real WhatsApp Baileys connection + QR enrollment **live & verified in prod**. Phase B (inbound → lead + note + IA classify) **built, pending deploy**. (Kit Digital product side was already complete at Sprint 5: 17/18, #18 user-owned. Sprint 7 is the WhatsApp value-add.)
 
 > **Cross-tenant isolation:** ✅ FIXED & VERIFIED. API now connects as non-superuser
 > `converflow_app` so RLS is enforced. A new tenant sees ONLY its own data. This was
@@ -21,7 +21,7 @@ URLs:
 - `https://api.converflow.ai` — REST API
 - `https://api.converflow.ai/docs` — Swagger (dev only)
 
-Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postgres 16 + pgvector + RLS · Redis 7 · Prisma 6 · Tailwind · Cloudflare R2 (S3-compatible) · Anthropic Claude (lead scoring + note classification + meeting-slot proposals LIVE) · Google Calendar OAuth (per-user, LIVE).
+Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postgres 16 + pgvector + RLS · Redis 7 · Prisma 6 · Tailwind · Cloudflare R2 (S3-compatible) · Anthropic Claude (lead scoring + note classification + meeting-slot proposals LIVE) · Google Calendar OAuth (per-user, LIVE) · WhatsApp via Baileys (bot-runner, real connection LIVE).
 
 ## Containers in prod
 
@@ -32,7 +32,7 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 | cfai-api | cfai-api:latest | NestJS, 4000 → 127.0.0.1:8091 |
 | cfai-web | cfai-web:latest | Next.js standalone, 3000 → 127.0.0.1:8090 |
 | cfai-workers | cfai-workers:latest | BullMQ stub (no real workloads yet) |
-| cfai-bot-runner | cfai-bot-runner:latest | Baileys stub, 4100 → 127.0.0.1:8092 |
+| cfai-bot-runner | cfai-bot-runner:latest | **Baileys real** (Sprint 7): per-bot WA socket, QR, encrypted auth state in bot_sessions, auto-reconnect. 4100 → 127.0.0.1:8092 |
 
 > Traefik is defined in compose but NOT used — host Nginx terminates TLS.
 
@@ -67,7 +67,8 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 - ✅ **Alertas** (req #7, `/app/alerts`): rule engine with 4 rules (lead sin contactar >14d, oportunidad con `expectedCloseDate` vencida, tarea con `dueAt` vencida, lead con score ≥75 sin convertir). Compute-on-read with **diff-only** persistence to the `Alert` table (creates new, updates changed, deletes resolved-but-not-dismissed — steady state is read-only). UI with icons + severity badges + marcar leída/descartar; unread-count badge in the nav. Endpoints: `GET /alerts`, `GET /alerts/count`, `POST /alerts/:id/read`, `/alerts/read-all`, `/alerts/:id/dismiss`
 - ✅ **IA Reuniones / Google Calendar** (req #12): per-user OAuth (connect/disconnect in Ajustes). `POST /meetings/propose` reads the user's free/busy + lead context → generates tz-aware business-hours slots (no date lib; `Intl`-based) → Claude picks up to 3 + suggests title/agenda. `POST /meetings/schedule` re-checks the slot is free, creates the Google Calendar event (inviting the lead) + a follow-up MEETING Task. Refresh tokens stored AES-256-GCM encrypted; OAuth `state` is HMAC-signed (cookie-independent). UI: "Reuniones IA" card on the lead detail page
 - ✅ Documents: R2 upload/list/presigned download/delete
-- ✅ Users, Bots, Profile, Settings
+- ✅ Users, Profile, Settings
+- ✅ **Bots / WhatsApp** (Sprint 7 Phase A, LIVE): bot CRUD + `/app/bots/[id]` detail with **Conectar** → QR pairing (polling) → live status → **Desconectar**. Real Baileys session in the bot-runner; encrypted auth state persisted in `bot_sessions`; auto-reconnect on boot. Endpoints `POST /bots/:id/connect|disconnect`, `GET /bots/:id/connection`. Phase B (inbound WhatsApp → find/create lead by phone + Note + IA classify via `NotesService.analyze`, internal webhook `POST /internal/bots/:id/inbound`) is **built, pending deploy**. Outbound is human-in-the-loop (suggested reply on the note), Phase C not built
 - ❌ Access logs (admin-only by decision)
 
 ### Public pages (Kit Digital)
@@ -124,6 +125,8 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 5. Alerts `recompute()` runs on every tenant-area page load (via the nav unread-count call). Writes only on diff, so steady state is just ~5 reads — fine at Pyme scale. If it grows, throttle per-tenant via Redis (we have Redis 7).
 6. **Google app verification**: the Calendar OAuth app is in *Testing* mode — only emails added as *test users* can connect. For real Pyme clients, the `calendar.events`/`calendar.freebusy` scopes are "sensitive" and need Google app verification (can take weeks). Start that before onboarding real customers. USER owns this.
 7. **Tech debt**: admin 2FA `totpSecret` is still stored in PLAINTEXT (auth-admin.service) despite the comment claiming otherwise. Now that `common/utils/crypto.ts` exists, encrypt it. Not urgent (admin-only table) but should be fixed.
+8. **WhatsApp inbound (Phase B) caveats**: lead matching is by phone heuristic (last 9 digits `contains`) — leads stored with odd formatting may create a duplicate; new WA leads store clean digits so subsequent messages match. Every inbound text triggers a Claude classify (fire-and-forget) — fine at Pyme scale, add throttling/dedup (by WA message id) if volume grows. Group chats / status / media-without-caption are skipped (media → lead captured, no note).
+9. **WhatsApp ban risk**: Baileys is an unofficial client; outbound auto-send is intentionally NOT built (human-in-the-loop). ADR #7: Cloud API adapter is the eventual upgrade for scale.
 
 ## Operational runbook
 
@@ -149,7 +152,7 @@ Write a `.cjs` to `/repo/apps/api/`, `require('@converflow/db')` + `require('arg
 `docker compose ... build --no-cache <svc>`; if needed `docker rmi -f cfai-<svc>:latest` first.
 
 ### Secrets in .env.prod (on VPS only)
-DATABASE/REDIS, AUTH_SECRET, ENCRYPTION_KEY, S3_* (R2), ANTHROPIC_API_KEY, ANTHROPIC_DEFAULT_MODEL (claude-sonnet-4-6), ANTHROPIC_FAST_MODEL (claude-haiku-4-5), **GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI** (= `https://api.converflow.ai/integrations/google/callback`, must match the Google Cloud OAuth client exactly). ENCRYPTION_KEY (64 hex) now actually used by `common/utils/crypto.ts` for calendar tokens.
+DATABASE/REDIS, AUTH_SECRET, ENCRYPTION_KEY, S3_* (R2), ANTHROPIC_API_KEY, ANTHROPIC_DEFAULT_MODEL (claude-sonnet-4-6), ANTHROPIC_FAST_MODEL (claude-haiku-4-5), **GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI** (= `https://api.converflow.ai/integrations/google/callback`, must match the Google Cloud OAuth client exactly). ENCRYPTION_KEY (64 hex) is used by `common/utils/crypto.ts` (calendar tokens) AND by the bot-runner's `crypto.ts` (Baileys auth state). **BOT_RUNNER_INTERNAL_TOKEN** (≥16 chars) — shared secret between api ↔ bot-runner; required for connect + the inbound webhook (fail-closed). Optional: BOT_RUNNER_URL (default `http://bot-runner:4100`), API_INTERNAL_URL (bot-runner → api, default `http://api:4000`).
 
 ## ROADMAP TO FULL KIT DIGITAL COMPLIANCE
 
@@ -175,10 +178,13 @@ for Red.es Phase I submission. Ordered by priority. Each sprint ends with a depl
 > The USER handles capacitación, diploma, and all training content themselves.
 > Do NOT build this. Skip entirely.
 
-### Sprint 7 — WhatsApp Baileys (product core, originally promised; not a strict KD-Clientes req but key value)
-- [ ] Real bot-runner: spawn Baileys session per Bot, QR via SSE to UI, persist encrypted auth state, auto-reconnect.
-- [ ] Inbound messages → create/update Lead + auto-classify (reuse `AiService.classifyNote`).
-- [ ] Outbound: send suggested reply with rate-limit + warm-up (anti-ban).
+### Sprint 7 — WhatsApp Baileys (product core; not a strict KD-Clientes req but key value)
+Decisions: QR via **polling** (not SSE); outbound is **human-in-the-loop** (suggested reply, no auto-send) to limit ban risk.
+- [x] **Phase A (LIVE & verified in prod)**: real bot-runner — Baileys socket per bot, QR enrollment from the UI, AES-256-GCM encrypted auth state in `bot_sessions`, status transitions + auto-reconnect (incl. reconnect-on-boot). API connect/disconnect/connection + `BotRunnerService`. UI `/app/bots/[id]`.
+- [x] **Phase B (built, pending deploy)**: inbound messages → find/create Lead by phone + store Note + auto-classify by reusing `NotesService.analyze`. bot-runner `messages.upsert` → internal webhook `POST /internal/bots/:id/inbound` (InternalTokenGuard, shared x-internal-token).
+- [ ] **Phase C (not built)**: outbound send with rate-limit + warm-up. Per decision, kept human-in-the-loop for now — the AI suggested reply shows on the note and a person sends it.
+
+> Deploy note for Sprint 7: rebuild **bot-runner** too (`build api web bot-runner`). No schema change. `BOT_RUNNER_INTERNAL_TOKEN` MUST be a real shared secret in `.env.prod` (api + bot-runner read it) or the internal calls 401 silently.
 
 ### Sprint 8 — Red.es Phase I submission prep — ⛔ OUT OF SCOPE
 > The USER handles memoria técnica, evidence screenshots, and the Red.es

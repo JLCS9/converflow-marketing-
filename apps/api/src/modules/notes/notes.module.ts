@@ -6,5 +6,6 @@ import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 @Module({
   controllers: [NotesController],
   providers: [NotesService, TenantAuthGuard],
+  exports: [NotesService],
 })
 export class NotesModule {}

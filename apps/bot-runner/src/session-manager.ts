@@ -8,6 +8,7 @@ import QRCode from 'qrcode';
 import pino from 'pino';
 import { useDbAuthState } from './auth-state';
 import { setBotStatus, listReconnectableBots } from './db';
+import { handleIncomingMessages } from './inbound';
 
 type RuntimeStatus =
   | 'AWAITING_QR'
@@ -104,6 +105,12 @@ async function connect(botId: string, tenantId: string): Promise<void> {
 
   sock.ev.on('connection.update', (update) => {
     void handleConnectionUpdate(botId, tenantId, rt, update, clear);
+  });
+
+  sock.ev.on('messages.upsert', (upsert) => {
+    void handleIncomingMessages(botId, tenantId, upsert).catch((err) =>
+      logger.warn({ err, botId }, 'inbound handler error'),
+    );
   });
 }
 
