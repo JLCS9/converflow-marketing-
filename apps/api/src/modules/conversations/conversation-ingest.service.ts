@@ -82,7 +82,8 @@ export class ConversationIngestService {
               lastMessagePreview: preview,
               lastInboundAt: d.direction === 'IN' ? now : existing.lastInboundAt,
               lastOutboundAt: d.direction === 'OUT' ? now : existing.lastOutboundAt,
-              unreadCount: d.direction === 'IN' ? existing.unreadCount + 1 : existing.unreadCount,
+              // Inbound bumps unread; an outbound (our reply) means it's handled → clear it.
+              unreadCount: d.direction === 'IN' ? existing.unreadCount + 1 : 0,
             },
           })
         : await tx.conversation.create({

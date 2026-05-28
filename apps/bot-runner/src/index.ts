@@ -10,7 +10,15 @@
  */
 import Fastify from 'fastify';
 import pino from 'pino';
-import { startBot, stopBot, getState, reconnectAll, activeSessionCount } from './session-manager';
+import {
+  startBot,
+  stopBot,
+  getState,
+  reconnectAll,
+  activeSessionCount,
+  sendText,
+  sendDocument,
+} from './session-manager';
 
 const logger = pino({ name: 'bot-runner' });
 const port = Number(process.env.BOT_RUNNER_PORT ?? 4100);
@@ -50,6 +58,33 @@ app.post<{ Params: { id: string } }>('/bots/:id/stop', async (req) => {
 
 app.get<{ Params: { id: string } }>('/bots/:id/state', async (req) => {
   return getState(req.params.id);
+});
+
+app.post<{ Params: { id: string }; Body: { jid: string; text: string } }>(
+  '/bots/:id/send',
+  async (req, reply) => {
+    try {
+      const r = await sendText(req.params.id, req.body.jid, req.body.text);
+      return { ok: true, ...r };
+    } catch (err) {
+      logger.warn({ err, botId: req.params.id }, 'send failed');
+      return reply.code(409).send({ ok: false, error: (err as Error).message });
+    }
+  },
+);
+
+app.post<{
+  Params: { id: string };
+  Body: { jid: string; url: string; fileName: string; mimetype: string };
+}>('/bots/:id/send-document', async (req, reply) => {
+  try {
+    const { jid, url, fileName, mimetype } = req.body;
+    const r = await sendDocument(req.params.id, jid, { url, fileName, mimetype });
+    return { ok: true, ...r };
+  } catch (err) {
+    logger.warn({ err, botId: req.params.id }, 'send-document failed');
+    return reply.code(409).send({ ok: false, error: (err as Error).message });
+  }
 });
 
 async function main(): Promise<void> {

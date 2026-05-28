@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 import {
@@ -33,6 +33,24 @@ export class ConversationsController {
   @Get(':id')
   thread(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.conversations.thread(user.tenantId, id);
+  }
+
+  @Post(':id/send')
+  send(
+    @Param('id') id: string,
+    @Body() body: { text?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.conversations.sendText(user.tenantId, id, body?.text ?? '');
+  }
+
+  @Post(':id/send-document')
+  sendDocument(
+    @Param('id') id: string,
+    @Body() body: { documentId?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.conversations.sendDocument(user.tenantId, id, body?.documentId ?? '');
   }
 
   @Post(':id/read')

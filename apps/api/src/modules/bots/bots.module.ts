@@ -6,5 +6,6 @@ import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 @Module({
   controllers: [BotsController],
   providers: [BotRunnerService, TenantAuthGuard],
+  exports: [BotRunnerService],
 })
 export class BotsModule {}

@@ -56,6 +56,28 @@ export async function startBot(botId: string, tenantId: string): Promise<{ statu
   return { status: getState(botId).status };
 }
 
+export async function sendText(botId: string, jid: string, text: string): Promise<{ id?: string }> {
+  const rt = sessions.get(botId);
+  if (!rt?.sock || rt.status !== 'CONNECTED') throw new Error('bot_not_connected');
+  const sent = await rt.sock.sendMessage(jid, { text });
+  return { id: sent?.key?.id ?? undefined };
+}
+
+export async function sendDocument(
+  botId: string,
+  jid: string,
+  opts: { url: string; fileName: string; mimetype: string },
+): Promise<{ id?: string }> {
+  const rt = sessions.get(botId);
+  if (!rt?.sock || rt.status !== 'CONNECTED') throw new Error('bot_not_connected');
+  const sent = await rt.sock.sendMessage(jid, {
+    document: { url: opts.url },
+    fileName: opts.fileName,
+    mimetype: opts.mimetype,
+  });
+  return { id: sent?.key?.id ?? undefined };
+}
+
 export async function stopBot(botId: string): Promise<void> {
   const rt = sessions.get(botId);
   if (!rt) return;

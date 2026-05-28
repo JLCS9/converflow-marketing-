@@ -79,6 +79,11 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [thread, setThread] = useState<Thread | null>(null);
   const [busy, setBusy] = useState(false);
+  const [composeText, setComposeText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [docs, setDocs] = useState<{ id: string; name: string }[] | null>(null);
+  const [showDocs, setShowDocs] = useState(false);
 
   const loadList = useCallback(async (st: string) => {
     try {
@@ -130,6 +135,52 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function sendMessage(text: string) {
+    if (!thread) return;
+    const t = text.trim();
+    if (!t) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      await apiFetch(`/conversations/${thread.id}/send`, { method: 'POST', json: { text: t } });
+      setComposeText('');
+      await Promise.all([loadList(status), loadThread(thread.id)]);
+    } catch {
+      setSendError('No se pudo enviar. ¿El bot sigue conectado?');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function sendDoc(documentId: string) {
+    if (!thread) return;
+    setSending(true);
+    setSendError(null);
+    setShowDocs(false);
+    try {
+      await apiFetch(`/conversations/${thread.id}/send-document`, {
+        method: 'POST',
+        json: { documentId },
+      });
+      await Promise.all([loadList(status), loadThread(thread.id)]);
+    } catch {
+      setSendError('No se pudo enviar el documento.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function toggleDocs() {
+    if (!showDocs && docs === null) {
+      try {
+        setDocs(await apiFetch<{ id: string; name: string }[]>('/documents'));
+      } catch {
+        setDocs([]);
+      }
+    }
+    setShowDocs((v) => !v);
   }
 
   const lastSuggestion = thread?.messages
@@ -246,19 +297,91 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
               ))}
             </div>
 
-            {lastSuggestion?.aiSuggestedReply && (
-              <div className="border-t border-ink-100 bg-white p-3">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-ink-500">
-                  Respuesta sugerida por IA — cópiala y pégala en WhatsApp
-                </div>
-                <div className="mt-1 flex items-start gap-2">
-                  <code className="flex-1 whitespace-pre-wrap rounded border border-ink-200 bg-ink-100/40 px-3 py-2 font-sans text-sm text-ink-900">
+            <div className="space-y-2 border-t border-ink-100 bg-white p-3">
+              {lastSuggestion?.aiSuggestedReply && (
+                <div className="rounded-md border border-primary-200 bg-primary-50 p-2 text-sm">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-primary-700">
+                    💡 Respuesta sugerida por IA
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-ink-900">
                     {lastSuggestion.aiSuggestedReply}
-                  </code>
-                  <CopyButton value={lastSuggestion.aiSuggestedReply} />
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={sending}
+                      className={buttonClass('primary')}
+                      onClick={() => void sendMessage(lastSuggestion.aiSuggestedReply ?? '')}
+                    >
+                      Enviar
+                    </button>
+                    <button
+                      type="button"
+                      className={buttonClass('ghost')}
+                      onClick={() => setComposeText(lastSuggestion.aiSuggestedReply ?? '')}
+                    >
+                      Editar
+                    </button>
+                    <CopyButton value={lastSuggestion.aiSuggestedReply} />
+                  </div>
                 </div>
+              )}
+
+              {showDocs && (
+                <div className="max-h-40 overflow-y-auto rounded-md border border-ink-200">
+                  {docs === null ? (
+                    <p className="p-2 text-xs text-ink-500">Cargando…</p>
+                  ) : docs.length === 0 ? (
+                    <p className="p-2 text-xs text-ink-500">No tienes documentos subidos.</p>
+                  ) : (
+                    docs.map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => void sendDoc(d.id)}
+                        className="block w-full truncate p-2 text-left text-sm hover:bg-ink-100"
+                      >
+                        📎 {d.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => void toggleDocs()}
+                  disabled={sending}
+                  title="Adjuntar un documento"
+                  className="shrink-0 rounded-md border border-ink-300 px-2 py-2 text-sm hover:bg-ink-100"
+                >
+                  📎
+                </button>
+                <textarea
+                  value={composeText}
+                  onChange={(e) => setComposeText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      void sendMessage(composeText);
+                    }
+                  }}
+                  rows={1}
+                  placeholder="Escribe un mensaje… (emojis 🙂, Enter para enviar)"
+                  className="flex-1 resize-none rounded-md border-ink-300 text-sm focus:border-primary-500 focus:ring-primary-500"
+                />
+                <button
+                  type="button"
+                  disabled={sending || !composeText.trim()}
+                  className={buttonClass('primary')}
+                  onClick={() => void sendMessage(composeText)}
+                >
+                  {sending ? '…' : 'Enviar'}
+                </button>
               </div>
-            )}
+              {sendError && <p className="text-xs text-red-600">{sendError}</p>}
+            </div>
           </>
         )}
       </div>

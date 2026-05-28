@@ -7,5 +7,6 @@ import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 @Module({
   controllers: [DocumentsController],
   providers: [DocumentsService, S3Service, TenantAuthGuard],
+  exports: [DocumentsService],
 })
 export class DocumentsModule {}

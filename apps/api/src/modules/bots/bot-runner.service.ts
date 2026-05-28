@@ -27,6 +27,18 @@ export class BotRunnerService {
     return this.call(`/bots/${botId}/state`, 'GET');
   }
 
+  sendText(botId: string, jid: string, text: string): Promise<{ ok: boolean; id?: string }> {
+    return this.call(`/bots/${botId}/send`, 'POST', { jid, text });
+  }
+
+  sendDocument(
+    botId: string,
+    jid: string,
+    doc: { url: string; fileName: string; mimetype: string },
+  ): Promise<{ ok: boolean; id?: string }> {
+    return this.call(`/bots/${botId}/send-document`, 'POST', { jid, ...doc });
+  }
+
   private async call<T>(path: string, method: 'GET' | 'POST', body?: unknown): Promise<T> {
     let res: Response;
     try {
