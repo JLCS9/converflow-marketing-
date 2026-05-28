@@ -29,7 +29,7 @@ interface Runtime {
 
 const MAX_RECONNECTS = 5;
 const sessions = new Map<string, Runtime>();
-const logger = pino({ name: 'bot-runner', level: process.env.BOT_RUNNER_LOG_LEVEL ?? 'warn' });
+const logger = pino({ name: 'bot-runner', level: process.env.BOT_RUNNER_LOG_LEVEL ?? 'info' });
 const baileysLogger = pino({ level: 'silent' });
 
 export function activeSessionCount(): number {

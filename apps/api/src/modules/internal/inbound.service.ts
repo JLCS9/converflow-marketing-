@@ -52,6 +52,10 @@ export class InboundService {
       return created.id;
     });
 
+    this.logger.log(
+      `inbound from ${national} (tenant ${data.tenantId}) → lead ${leadId}${body ? '' : ' [no text]'}`,
+    );
+
     // No usable text (e.g. media without caption) → lead captured, no note.
     if (!body) return { ok: true, leadId, noteId: null };
 
