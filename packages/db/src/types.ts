@@ -28,4 +28,6 @@ export {
   AdminStatus,
   AlertType,
   AlertSeverity,
+  ConversationStatus,
+  MessageDirection,
 } from '@prisma/client';

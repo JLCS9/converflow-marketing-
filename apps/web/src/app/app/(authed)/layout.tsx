@@ -37,14 +37,20 @@ export default async function TenantAuthedLayout({
     throw err;
   }
 
-  // Unread alert count for the sidebar badge. Never let an alerts hiccup break
-  // the whole tenant area — fall back to 0.
+  // Sidebar badge counts. Never let a hiccup break the whole tenant area.
   let alertCount = 0;
+  let convPending = 0;
   try {
     const res = await serverApiFetch<{ count: number }>('/alerts/count');
     alertCount = res.count;
   } catch {
     alertCount = 0;
+  }
+  try {
+    const res = await serverApiFetch<{ pending: number }>('/conversations/count');
+    convPending = res.pending;
+  } catch {
+    convPending = 0;
   }
 
   return (
@@ -59,6 +65,7 @@ export default async function TenantAuthedLayout({
 
         <nav className="flex-1 space-y-1 px-3 py-4 text-sm">
           <NavLink href="/app" label="Dashboard" />
+          <NavLink href="/app/conversations" label="Conversaciones" badge={convPending} />
           <NavLink href="/app/alerts" label="Alertas" badge={alertCount} />
           <NavLink href="/app/leads" label="Leads" />
           <NavLink href="/app/opportunities" label="Oportunidades" />
@@ -73,7 +80,6 @@ export default async function TenantAuthedLayout({
             Soon
           </div>
           <NavLink href="#" label="Agentes IA" disabled />
-          <NavLink href="#" label="Conversaciones" disabled />
         </nav>
 
         <div className="border-t border-ink-100 px-4 py-3 text-xs">

@@ -137,6 +137,8 @@ model Tenant {
   alerts        Alert[]
   aiUsage       AiUsage[]
   calendarConnections CalendarConnection[]
+  conversations Conversation[]
+  messages      Message[]
 
   @@map("tenants")
 }
@@ -263,6 +265,7 @@ model Bot {
   updatedAt DateTime @updatedAt
 
   session BotSession?
+  conversations Conversation[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -390,6 +393,7 @@ model Lead {
   opportunities Opportunity[]
   tasks         Task[]
   notes         Note[]
+  conversations Conversation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -666,4 +670,79 @@ model CalendarConnection {
 
   @@index([tenantId])
   @@map("calendar_connections")
+}
+
+// ============================================
+// Conversations inbox (Sprint 8 — Chats)
+// One conversation per (tenant, channel, contact). Messages are the transcript
+// (IN = received, OUT = sent — incl. replies the user sends from their own
+// WhatsApp, captured via Baileys fromMe). Classification lives on inbound msgs.
+// ============================================
+model Conversation {
+  id       String  @id @default(cuid())
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  botId    String?
+  bot      Bot?    @relation(fields: [botId], references: [id], onDelete: SetNull)
+  leadId   String?
+  lead     Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  channel      Channel            @default(WHATSAPP)
+  contactJid   String // stable WA identity (lid or pn jid)
+  contactName  String?
+  contactPhone String? // resolved real phone (+prefix) when available
+
+  status             ConversationStatus @default(PENDING)
+  lastMessageAt      DateTime?
+  lastMessagePreview String?
+  lastInboundAt      DateTime?
+  lastOutboundAt     DateTime?
+  unreadCount        Int                @default(0)
+  assignedUserId     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages Message[]
+
+  @@unique([tenantId, channel, contactJid])
+  @@index([tenantId, status, lastMessageAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  tenantId       String
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  direction   MessageDirection
+  waMessageId String?
+  body        String?
+  mediaType   String? // null = text; 'image'|'video'|'document'|… otherwise
+
+  // AI classification (inbound only)
+  aiCategory       NoteCategory?
+  aiSentiment      NoteSentiment?
+  aiConfidence     Float?
+  aiSuggestedReply String?
+  aiAnalyzedAt     DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([tenantId, waMessageId])
+  @@map("messages")
+}
+
+enum ConversationStatus {
+  PENDING // last message inbound, awaiting reply
+  ANSWERED // replied
+  CLOSED // manually archived
+}
+
+enum MessageDirection {
+  IN
+  OUT
 }

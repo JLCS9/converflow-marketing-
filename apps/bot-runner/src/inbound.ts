@@ -2,13 +2,12 @@ import { proto, type BaileysEventMap, type WAMessageKey, type WASocket } from 'b
 import pino from 'pino';
 
 /**
- * Forwards inbound WhatsApp messages to the API internal webhook, which
- * find-or-creates the lead, stores the message as a Note, and classifies it.
- * The bot-runner stays a thin transport — no business/AI logic here.
+ * Forwards WhatsApp messages (inbound AND our own outbound echoes) to the API
+ * internal webhook, which upserts the conversation + message and classifies
+ * inbound text. The bot-runner stays a thin transport — no business/AI logic.
  *
- * Baileys 7 uses LID addressing: a message's remoteJid may be `<lid>@lid`. The
- * real phone (PN) is exposed via `key.remoteJidAlt` (sync) or, as a fallback,
- * `signalRepository.lidMapping.getPNForLID()` (async).
+ * Baileys 7 LID addressing: remoteJid may be `<lid>@lid`; the real phone (PN)
+ * comes from `key.remoteJidAlt` (sync) or `lidMapping.getPNForLID()` (async).
  */
 const logger = pino({ name: 'bot-runner-inbound', level: process.env.BOT_RUNNER_LOG_LEVEL ?? 'info' });
 const API_INTERNAL_URL = process.env.API_INTERNAL_URL ?? 'http://api:4000';
@@ -35,6 +34,19 @@ function extractText(message: proto.IMessage | null | undefined): string {
   );
 }
 
+function detectMediaType(message: proto.IMessage | null | undefined): string | undefined {
+  const m = unwrap(message);
+  if (!m) return undefined;
+  if (m.imageMessage) return 'image';
+  if (m.videoMessage) return 'video';
+  if (m.audioMessage) return 'audio';
+  if (m.documentMessage) return 'document';
+  if (m.stickerMessage) return 'sticker';
+  if (m.locationMessage) return 'location';
+  if (m.contactMessage) return 'contact';
+  return undefined;
+}
+
 function isNonLeadJid(jid: string): boolean {
   return (
     jid.endsWith('@g.us') || // groups
@@ -45,14 +57,16 @@ function isNonLeadJid(jid: string): boolean {
 }
 
 /**
- * Resolve the contact's phone (preferred) or LID fallback identity.
- * Returns the value to store + whether it's a real phone (so we can prefix it).
+ * Resolve a stable conversation identity + lead phone for a contact.
+ * Prefers the real phone (PN); falls back to the LID.
  */
 async function resolveContact(
   sock: WASocket,
   key: WAMessageKey,
-): Promise<{ value: string; isRealPhone: boolean } | null> {
+): Promise<{ contactJid: string; phone: string; isRealPhone: boolean } | null> {
   const remoteJid = key.remoteJid ?? '';
+  if (!remoteJid) return null;
+
   const pnFromJid = remoteJid.endsWith('@s.whatsapp.net') ? (remoteJid.split('@')[0] ?? '') : '';
   const altJid = key.remoteJidAlt ?? '';
   const pnFromAlt = altJid.endsWith('@s.whatsapp.net') ? (altJid.split('@')[0] ?? '') : '';
@@ -67,15 +81,18 @@ async function resolveContact(
     }
   }
 
-  if (pn) return { value: `+${pn}`, isRealPhone: true };
-  // No PN resolvable → use the LID as a stable contact identity (no prefix).
-  if (remoteJid.endsWith('@lid')) return { value: remoteJid.split('@')[0] ?? '', isRealPhone: false };
+  if (pn) {
+    return { contactJid: `${pn}@s.whatsapp.net`, phone: `+${pn}`, isRealPhone: true };
+  }
+  if (remoteJid.endsWith('@lid')) {
+    return { contactJid: remoteJid, phone: remoteJid.split('@')[0] ?? '', isRealPhone: false };
+  }
   return null;
 }
 
-async function postInbound(
+async function postEvent(
   botId: string,
-  payload: { tenantId: string; fromPhone: string; pushName?: string; text: string },
+  payload: Record<string, unknown>,
 ): Promise<{ ok: boolean; status?: number }> {
   try {
     const res = await fetch(`${API_INTERNAL_URL}/internal/bots/${botId}/inbound`, {
@@ -102,32 +119,39 @@ export async function handleIncomingMessages(
 
   for (const msg of upsert.messages) {
     const jid = msg.key?.remoteJid ?? '';
-    const fromMe = msg.key?.fromMe ?? false;
-    if (!jid || fromMe || isNonLeadJid(jid)) continue;
+    if (!jid || isNonLeadJid(jid)) continue;
 
+    const direction = msg.key?.fromMe ? 'OUT' : 'IN';
     const text = extractText(msg.message).trim();
+    const mediaType = detectMediaType(msg.message);
     const contact = await resolveContact(sock, msg.key);
+    if (!contact) continue;
+
     logger.info(
       {
         botId,
+        direction,
         jid,
         addressingMode: msg.key.addressingMode ?? null,
-        resolved: contact?.value ?? null,
-        isRealPhone: contact?.isRealPhone ?? false,
-        pushName: msg.pushName ?? null,
+        contactJid: contact.contactJid,
+        isRealPhone: contact.isRealPhone,
         hasText: text.length > 0,
+        mediaType: mediaType ?? null,
       },
-      'inbound message',
+      'wa message',
     );
 
-    if (!contact?.value) continue;
-
-    const res = await postInbound(botId, {
+    const res = await postEvent(botId, {
       tenantId,
-      fromPhone: contact.value,
+      direction,
+      waMessageId: msg.key.id ?? undefined,
+      contactJid: contact.contactJid,
+      phone: contact.phone,
+      isRealPhone: contact.isRealPhone,
       pushName: msg.pushName ?? undefined,
       text,
+      mediaType,
     });
-    logger.info({ botId, jid, forwarded: res.ok, status: res.status }, 'inbound forwarded');
+    logger.info({ botId, direction, forwarded: res.ok, status: res.status }, 'wa forwarded');
   }
 }

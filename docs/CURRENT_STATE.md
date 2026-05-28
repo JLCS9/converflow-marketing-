@@ -2,7 +2,7 @@
 
 > Single source of truth. Update after every sprint. If reading this in a new session, you can skip 100% of conversation history and rely on this file + the repo.
 
-**Last sync:** Sprint 7 Phase A — real WhatsApp Baileys connection + QR enrollment **live & verified in prod**. Phase B (inbound → lead + note + IA classify) **built, pending deploy**. (Kit Digital product side was already complete at Sprint 5: 17/18, #18 user-owned. Sprint 7 is the WhatsApp value-add.)
+**Last sync:** Sprint 7 (A+B) **live in prod** — WhatsApp Baileys connection + QR + inbound→lead/classify, on **Baileys 7** (LID→real phone resolved). Sprint 8 (Conversaciones inbox: Conversation/Message model, capture OUT, two-pane UI) **built, pending deploy** (needs schema push). (Kit Digital product side complete since Sprint 5: 17/18, #18 user-owned.)
 
 > **Cross-tenant isolation:** ✅ FIXED & VERIFIED. API now connects as non-superuser
 > `converflow_app` so RLS is enforced. A new tenant sees ONLY its own data. This was
@@ -32,7 +32,7 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 | cfai-api | cfai-api:latest | NestJS, 4000 → 127.0.0.1:8091 |
 | cfai-web | cfai-web:latest | Next.js standalone, 3000 → 127.0.0.1:8090 |
 | cfai-workers | cfai-workers:latest | BullMQ stub (no real workloads yet) |
-| cfai-bot-runner | cfai-bot-runner:latest | **Baileys real** (Sprint 7): per-bot WA socket, QR, encrypted auth state in bot_sessions, auto-reconnect. 4100 → 127.0.0.1:8092 |
+| cfai-bot-runner | cfai-bot-runner:latest | **Baileys 7** (Sprint 7): per-bot WA socket, QR, encrypted auth state in bot_sessions, auto-reconnect, inbound+OUT echo → API webhook. 4100 → 127.0.0.1:8092 |
 
 > Traefik is defined in compose but NOT used — host Nginx terminates TLS.
 
@@ -68,14 +68,15 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 - ✅ **IA Reuniones / Google Calendar** (req #12): per-user OAuth (connect/disconnect in Ajustes). `POST /meetings/propose` reads the user's free/busy + lead context → generates tz-aware business-hours slots (no date lib; `Intl`-based) → Claude picks up to 3 + suggests title/agenda. `POST /meetings/schedule` re-checks the slot is free, creates the Google Calendar event (inviting the lead) + a follow-up MEETING Task. Refresh tokens stored AES-256-GCM encrypted; OAuth `state` is HMAC-signed (cookie-independent). UI: "Reuniones IA" card on the lead detail page
 - ✅ Documents: R2 upload/list/presigned download/delete
 - ✅ Users, Profile, Settings
-- ✅ **Bots / WhatsApp** (Sprint 7 Phase A, LIVE): bot CRUD + `/app/bots/[id]` detail with **Conectar** → QR pairing (polling) → live status → **Desconectar**. Real Baileys session in the bot-runner; encrypted auth state persisted in `bot_sessions`; auto-reconnect on boot. Endpoints `POST /bots/:id/connect|disconnect`, `GET /bots/:id/connection`. Phase B (inbound WhatsApp → find/create lead by phone + Note + IA classify via `NotesService.analyze`, internal webhook `POST /internal/bots/:id/inbound`) is **built, pending deploy**. Outbound is human-in-the-loop (suggested reply on the note), Phase C not built
+- ✅ **Bots / WhatsApp** (Sprint 7, LIVE on Baileys 7): bot CRUD + `/app/bots/[id]` with **Conectar** → QR pairing (polling) → status → **Desconectar**. Per-bot Baileys session in the bot-runner; AES-256-GCM auth state in `bot_sessions`; auto-reconnect on boot. Inbound + our own OUT echoes forwarded to the API. LID→real phone resolved via `key.remoteJidAlt` / `lidMapping.getPNForLID`
+- 🟡 **Conversaciones / Inbox** (Sprint 8, BUILT pending deploy): `/app/conversations` two-pane bandeja — list (tabs Sin responder / Todas / Cerradas, unread badges) + thread (IN/OUT bubbles) + AI suggested-reply with Copy (human-in-the-loop). Inbound writes `Conversation`+`Message` (replacing the old note-per-message), classifies inbound text (reuses `AiService.classifyNote`); OUT (fromMe) flips status to ANSWERED. Internal webhook `POST /internal/bots/:id/inbound` → `ConversationIngestService`. Tenant API `GET /conversations[/:id|/count]`, `POST /conversations/:id/{read,close,reopen}`. Pendientes badge in nav. Outbound auto-send (Phase C) still not built
 - ❌ Access logs (admin-only by decision)
 
 ### Public pages (Kit Digital)
 - ✅ `/changelog`, `/ai-disclosure`, `/privacy`
 
 ### Data model
-- Tenant-scoped (RLS): Tenant, User, UserSession, TenantInvitation, AccessLog, Bot, BotSession, Agent, Client, Lead, Opportunity, Task, Document, Note, Alert, AiUsage, **CalendarConnection**
+- Tenant-scoped (RLS): Tenant, User, UserSession, TenantInvitation, AccessLog, Bot, BotSession, Agent, Client, Lead, Opportunity, Task, Document, Note, Alert, AiUsage, CalendarConnection, **Conversation, Message**
 - Lead has: score, aiScoreReasoning, aiScoreActions (Json), aiScoredAt
 - Note has: aiCategory, aiSentiment, aiConfidence, aiSuggestedReply, aiAnalyzedAt
 - CalendarConnection (one per user, @unique userId): googleEmail, refreshTokenEnc + accessTokenEnc (AES-256-GCM), accessTokenExpiresAt, scope, calendarId
@@ -181,12 +182,19 @@ for Red.es Phase I submission. Ordered by priority. Each sprint ends with a depl
 ### Sprint 7 — WhatsApp Baileys (product core; not a strict KD-Clientes req but key value)
 Decisions: QR via **polling** (not SSE); outbound is **human-in-the-loop** (suggested reply, no auto-send) to limit ban risk.
 - [x] **Phase A (LIVE & verified in prod)**: real bot-runner — Baileys socket per bot, QR enrollment from the UI, AES-256-GCM encrypted auth state in `bot_sessions`, status transitions + auto-reconnect (incl. reconnect-on-boot). API connect/disconnect/connection + `BotRunnerService`. UI `/app/bots/[id]`.
-- [x] **Phase B (built, pending deploy)**: inbound messages → find/create Lead by phone + store Note + auto-classify by reusing `NotesService.analyze`. bot-runner `messages.upsert` → internal webhook `POST /internal/bots/:id/inbound` (InternalTokenGuard, shared x-internal-token).
-- [ ] **Phase C (not built)**: outbound send with rate-limit + warm-up. Per decision, kept human-in-the-loop for now — the AI suggested reply shows on the note and a person sends it.
+- [x] **Phase B (LIVE in prod)**: inbound messages → find/create Lead by phone + classify. Then **upgraded to Baileys 7** to resolve LID→real phone (`key.remoteJidAlt` / `lidMapping.getPNForLID`). Inbound now writes to the inbox model (below) rather than notes.
+- [ ] **Phase C (not built, by decision)**: outbound auto-send with rate-limit + warm-up. Kept human-in-the-loop — the AI suggested reply shows in the inbox and a person sends it from WhatsApp.
 
-> Deploy note for Sprint 7: rebuild **bot-runner** too (`build api web bot-runner`). No schema change. `BOT_RUNNER_INTERNAL_TOKEN` MUST be a real shared secret in `.env.prod` (api + bot-runner read it) or the internal calls 401 silently.
+> Deploy note for Sprint 7: rebuild **bot-runner** too. `BOT_RUNNER_INTERNAL_TOKEN` MUST be a real shared secret in `.env.prod` (api + bot-runner read it). Baileys 7 is an RC; may need a one-time re-pair (clear `bot_sessions`).
 
-### Sprint 8 — Red.es Phase I submission prep — ⛔ OUT OF SCOPE
+### Sprint 8 — Conversaciones / Inbox (BUILT, pending deploy — needs schema push)
+Decisions: own **Conversation/Message** model (not notes); **capture OUT** (fromMe) to auto-mark answered; QR/phone via Baileys 7.
+- [x] Schema: `Conversation` (per tenant+channel+contactJid, status PENDING/ANSWERED/CLOSED, lead link, unread, last*) + `Message` (IN/OUT, body, mediaType, AI fields) + RLS.
+- [x] Inbound refactor → `ConversationIngestService`: upsert conversation, append message, classify inbound (reuse `AiService.classifyNote`), OUT→ANSWERED. waMessageId dedup.
+- [x] Tenant API `ConversationsModule` (list/thread/count/read/close/reopen) + two-pane inbox UI `/app/conversations` + pendientes badge in nav.
+- [ ] Pending: deploy (schema push for `conversations`+`messages`) + prod verification.
+
+### Red.es Phase I submission prep — ⛔ OUT OF SCOPE
 > The USER handles memoria técnica, evidence screenshots, and the Red.es
 > submission themselves. Do NOT build/prepare these. Skip entirely.
 
