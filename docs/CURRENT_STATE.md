@@ -116,6 +116,7 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 5. **Next.js standalone needs static/public copied** (done in web.Dockerfile). Without it, JS chunks 404 and forms fall back to native GET (leaks form fields in URL).
 6. **prisma camelCase columns need quotes in raw SQL**: `"tenantId"` not `tenant_id`.
 7. **Never paste secrets in chat.** Edit `infra/docker/.env.prod` directly on the VPS via nano. Verify with `grep -E '^X_' .env.prod | awk -F= '{print $1"=*** ("length($2)" chars)"}'`.
+8. **Internal webhooks must DERIVE the tenant from the resource, never trust the payload.** The bot-runner→API inbound webhook now resolves `tenantId` from the bot row (`bot.tenantId` via bypass) keyed by the `:botId` in the URL — it ignores any `tenantId` in the body. Trusting a caller-supplied tenantId is a cross-tenant routing risk. Tenant-facing routes already derive tenant from the session (TenantAuthGuard). RLS covers every tenant table (verified: only the 4 platform tables lack RLS, by design).
 
 ## Open known issues
 

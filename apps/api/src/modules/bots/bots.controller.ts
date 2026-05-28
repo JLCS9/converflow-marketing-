@@ -130,10 +130,15 @@ export class BotsController {
     const bot = await this.getOwnedBot(user.tenantId, id);
     try {
       const state = await this.botRunner.state(id);
-      return { status: state.status, qr: state.qr ?? null, persistedStatus: bot.status };
+      return {
+        status: state.status,
+        qr: state.qr ?? null,
+        persistedStatus: bot.status,
+        phoneNumber: bot.phoneNumber,
+      };
     } catch {
       // bot-runner unreachable — fall back to the persisted status.
-      return { status: bot.status, qr: null, persistedStatus: bot.status };
+      return { status: bot.status, qr: null, persistedStatus: bot.status, phoneNumber: bot.phoneNumber };
     }
   }
 }

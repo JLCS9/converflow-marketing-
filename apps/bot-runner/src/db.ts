@@ -5,7 +5,7 @@ export async function setBotStatus(
   tenantId: string,
   botId: string,
   status: BotStatus,
-  opts?: { connected?: boolean; disconnectReason?: string },
+  opts?: { connected?: boolean; disconnectReason?: string; phoneNumber?: string },
 ): Promise<void> {
   await withTenant(prisma, tenantId, (tx) =>
     tx.bot.update({
@@ -13,6 +13,7 @@ export async function setBotStatus(
       data: {
         status,
         ...(opts?.connected ? { lastConnectedAt: new Date() } : {}),
+        ...(opts?.phoneNumber ? { phoneNumber: opts.phoneNumber } : {}),
         ...(opts?.disconnectReason !== undefined
           ? { lastDisconnectAt: new Date(), lastDisconnectReason: opts.disconnectReason }
           : {}),

@@ -36,6 +36,14 @@ export function activeSessionCount(): number {
   return sessions.size;
 }
 
+// The own-account jid looks like `34600111222:7@s.whatsapp.net` (device suffix).
+// Return it as a normalized `+<digits>` phone, or undefined if it's not a PN.
+function normalizeOwnNumber(id?: string | null): string | undefined {
+  if (!id || !id.includes('@s.whatsapp.net')) return undefined;
+  const digits = (id.split('@')[0]?.split(':')[0] ?? '').replace(/\D/g, '');
+  return digits ? `+${digits}` : undefined;
+}
+
 export function getState(botId: string): { status: RuntimeStatus; qr: string | null } {
   const rt = sessions.get(botId);
   if (!rt) return { status: 'DISCONNECTED', qr: null };
@@ -163,8 +171,11 @@ async function handleConnectionUpdate(
     rt.status = 'CONNECTED';
     rt.qr = undefined;
     rt.reconnectAttempts = 0;
-    await setBotStatus(tenantId, botId, 'CONNECTED', { connected: true });
-    logger.info({ botId }, 'connected');
+    // Capture the linked WhatsApp account's own number so the system knows
+    // which number this bot is bound to (and can tell own vs client apart).
+    const ownPhone = normalizeOwnNumber(rt.sock?.user?.id);
+    await setBotStatus(tenantId, botId, 'CONNECTED', { connected: true, phoneNumber: ownPhone });
+    logger.info({ botId, ownPhone: ownPhone ?? null }, 'connected');
   }
 
   if (connection === 'close') {

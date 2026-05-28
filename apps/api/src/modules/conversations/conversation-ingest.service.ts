@@ -4,7 +4,8 @@ import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { AiService } from '../../common/ai/ai.service.js';
 
 export const whatsappEventSchema = z.object({
-  tenantId: z.string().cuid(),
+  // Ignored for tenant routing — the tenant is derived from the bot (see below).
+  tenantId: z.string().cuid().optional(),
   direction: z.enum(['IN', 'OUT']),
   waMessageId: z.string().max(128).optional(),
   contactJid: z.string().min(1).max(128),
@@ -33,6 +34,19 @@ export class ConversationIngestService {
    */
   async ingestWhatsapp(botId: string, input: unknown) {
     const d = whatsappEventSchema.parse(input);
+
+    // SECURITY: the tenant is resolved from the bot, NEVER trusted from the
+    // payload. This guarantees inbound data can only land under the bot's
+    // owner tenant — no cross-tenant routing is possible.
+    const bot = await this.prisma.bypass((tx) =>
+      tx.bot.findUnique({ where: { id: botId }, select: { tenantId: true } }),
+    );
+    if (!bot) {
+      this.logger.warn(`inbound for unknown bot ${botId} — ignored`);
+      return { ok: false, reason: 'unknown_bot' };
+    }
+    const tenantId = bot.tenantId;
+
     const now = new Date();
     const digits = d.phone.replace(/\D/g, '');
     if (!digits) return { ok: false, reason: 'invalid_phone' };
@@ -40,7 +54,7 @@ export class ConversationIngestService {
     const body = (d.text ?? '').trim();
     const preview = body ? body.slice(0, 140) : d.mediaType ? `[${d.mediaType}]` : '';
 
-    const result = await this.prisma.withTenant(d.tenantId, async (tx) => {
+    const result = await this.prisma.withTenant(tenantId, async (tx) => {
       // Link (or, for inbound, create) the CRM lead.
       let lead = await tx.lead.findFirst({
         where: { phone: { contains: national } },
@@ -49,7 +63,7 @@ export class ConversationIngestService {
       if (!lead && d.direction === 'IN') {
         lead = await tx.lead.create({
           data: {
-            tenantId: d.tenantId,
+            tenantId: tenantId,
             name: d.pushName?.trim() || `WhatsApp ${national}`,
             phone: d.phone,
             source: 'whatsapp',
@@ -61,7 +75,7 @@ export class ConversationIngestService {
       const existing = await tx.conversation.findUnique({
         where: {
           tenantId_channel_contactJid: {
-            tenantId: d.tenantId,
+            tenantId: tenantId,
             channel: 'WHATSAPP',
             contactJid: d.contactJid,
           },
@@ -88,7 +102,7 @@ export class ConversationIngestService {
           })
         : await tx.conversation.create({
             data: {
-              tenantId: d.tenantId,
+              tenantId: tenantId,
               botId,
               channel: 'WHATSAPP',
               contactJid: d.contactJid,
@@ -114,7 +128,7 @@ export class ConversationIngestService {
 
       const message = await tx.message.create({
         data: {
-          tenantId: d.tenantId,
+          tenantId: tenantId,
           conversationId: conv.id,
           direction: d.direction,
           waMessageId: d.waMessageId,
@@ -131,7 +145,7 @@ export class ConversationIngestService {
 
     if (d.direction === 'IN' && body && !result.dupe) {
       void this.classifyMessage(
-        d.tenantId,
+        tenantId,
         result.conv.id,
         result.message.id,
         body,

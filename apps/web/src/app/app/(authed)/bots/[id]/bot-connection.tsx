@@ -8,6 +8,7 @@ interface Connection {
   status: string;
   qr: string | null;
   persistedStatus: string;
+  phoneNumber: string | null;
 }
 
 const statusColor: Record<string, 'gray' | 'green' | 'yellow' | 'red' | 'blue'> = {
@@ -33,6 +34,7 @@ const statusLabel: Record<string, string> = {
 export function BotConnection({ botId, initialStatus }: { botId: string; initialStatus: string }) {
   const [status, setStatus] = useState(initialStatus);
   const [qr, setQr] = useState<string | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +43,7 @@ export function BotConnection({ botId, initialStatus }: { botId: string; initial
       const c = await apiFetch<Connection>(`/bots/${botId}/connection`);
       setStatus(c.status);
       setQr(c.qr);
+      setPhoneNumber(c.phoneNumber);
     } catch {
       // transient — keep last known state
     }
@@ -124,7 +127,13 @@ export function BotConnection({ botId, initialStatus }: { botId: string; initial
 
       {connected && (
         <p className="text-sm text-green-700">
-          ✓ Tu WhatsApp está conectado. La sesión se mantiene aunque se reinicie el servidor.
+          ✓ Tu WhatsApp está conectado
+          {phoneNumber ? (
+            <>
+              {' '}al número <strong>{phoneNumber}</strong>
+            </>
+          ) : null}
+          . La sesión se mantiene aunque se reinicie el servidor.
         </p>
       )}
 
