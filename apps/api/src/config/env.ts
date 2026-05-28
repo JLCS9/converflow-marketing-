@@ -30,6 +30,9 @@ const envSchema = z.object({
 
   BOT_RUNNER_PORT: z.coerce.number().int().positive().default(4100),
   BOT_RUNNER_INTERNAL_TOKEN: z.string().min(16).optional(),
+  // Internal URL of the bot-runner service (Docker network). Used by the API to
+  // start/stop bots and poll QR/status.
+  BOT_RUNNER_URL: z.string().url().default('http://bot-runner:4100'),
 
   // Generic S3-compatible storage (Cloudflare R2, Backblaze B2, AWS S3, MinIO, Wasabi…).
   // S3_REGION='auto' for R2; for AWS use the actual region ('eu-west-1', etc.).

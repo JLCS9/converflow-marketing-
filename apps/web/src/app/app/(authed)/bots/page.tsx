@@ -60,8 +60,8 @@ export default async function BotsPage() {
             </Link>
           </div>
           <p className="mt-3 text-xs text-ink-500">
-            La conexión real de WhatsApp por QR llega en Fase 3 (próximas semanas). De
-            momento el bot se queda en estado PENDING.
+            Tras crear un bot de WhatsApp, ábrelo y pulsa <strong>Conectar</strong> para
+            escanear el QR desde tu teléfono.
           </p>
         </Card>
       ) : (
@@ -80,7 +80,11 @@ export default async function BotsPage() {
             <tbody>
               {bots.map((b) => (
                 <tr key={b.id} className="border-b border-ink-100 last:border-0 hover:bg-ink-100/40">
-                  <td className="px-4 py-3 font-medium">{b.name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <Link href={`/app/bots/${b.id}`} className="text-primary-700 hover:underline">
+                      {b.name}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 text-xs">{channelLabel[b.channel] ?? b.channel}</td>
                   <td className="px-4 py-3">
                     <Badge color={statusColor[b.status] ?? 'gray'}>{b.status}</Badge>

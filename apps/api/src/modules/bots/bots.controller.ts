@@ -1,7 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
-import { createBotSchema, NotFoundError, TenantLimitReachedError } from '@converflow/shared';
+import {
+  createBotSchema,
+  BadRequestError,
+  NotFoundError,
+  TenantLimitReachedError,
+} from '@converflow/shared';
 import type { Bot } from '@converflow/db';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 import {
@@ -9,6 +14,7 @@ import {
   type AuthenticatedUser,
 } from '../../common/decorators/current-user.decorator.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { BotRunnerService } from './bot-runner.service.js';
 
 const updateBotSchema = z.object({
   name: z.string().trim().min(2).max(60).optional(),
@@ -24,7 +30,18 @@ const updateBotSchema = z.object({
 @UseGuards(TenantAuthGuard)
 @Controller('bots')
 export class BotsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly botRunner: BotRunnerService,
+  ) {}
+
+  private getOwnedBot(tenantId: string, id: string): Promise<Bot> {
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const bot = await tx.bot.findUnique({ where: { id } });
+      if (!bot) throw new NotFoundError('Bot no encontrado');
+      return bot;
+    });
+  }
 
   @Get()
   list(@CurrentUser() user: AuthenticatedUser): Promise<Bot[]> {
@@ -87,5 +104,36 @@ export class BotsController {
       await tx.bot.delete({ where: { id } });
       return { ok: true };
     });
+  }
+
+  // --- WhatsApp connection (Baileys, via bot-runner) -------------------------
+
+  @Post(':id/connect')
+  async connect(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    const bot = await this.getOwnedBot(user.tenantId, id);
+    if (bot.channel !== 'WHATSAPP') {
+      throw new BadRequestError('Solo los bots de WhatsApp se conectan por QR');
+    }
+    return this.botRunner.start(id, user.tenantId);
+  }
+
+  @Post(':id/disconnect')
+  async disconnect(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    await this.getOwnedBot(user.tenantId, id);
+    await this.botRunner.stop(id);
+    return { ok: true };
+  }
+
+  // Polled by the UI (~2s) while pairing: returns live status + QR data URL.
+  @Get(':id/connection')
+  async connection(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    const bot = await this.getOwnedBot(user.tenantId, id);
+    try {
+      const state = await this.botRunner.state(id);
+      return { status: state.status, qr: state.qr ?? null, persistedStatus: bot.status };
+    } catch {
+      // bot-runner unreachable — fall back to the persisted status.
+      return { status: bot.status, qr: null, persistedStatus: bot.status };
+    }
   }
 }
