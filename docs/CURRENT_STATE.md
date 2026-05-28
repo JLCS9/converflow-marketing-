@@ -2,7 +2,7 @@
 
 > Single source of truth. Update after every sprint. If reading this in a new session, you can skip 100% of conversation history and rely on this file + the repo.
 
-**Last sync:** end of Sprint 3.2 + SECURITY fix (cross-tenant isolation confirmed working in prod)
+**Last sync:** end of Sprint 4 — reporting dashboard + alerts engine live in prod (reqs #6 + #7 closed)
 
 > **Cross-tenant isolation:** ✅ FIXED & VERIFIED. API now connects as non-superuser
 > `converflow_app` so RLS is enforced. A new tenant sees ONLY its own data. This was
@@ -56,7 +56,7 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 - ⏳ Audit log UI (data in `admin_action_log`), AI usage dashboard
 
 ### Tenant area (app.converflow.ai/app)
-- ✅ Dashboard (usage vs limits)
+- ✅ **Dashboard reporting** (req #6): KPIs (leads, tasa de conversión, pipeline abierto €, tareas vencidas) + embudo de leads por estado, oportunidades por etapa, leads por fuente, pipeline abierto por mes de cierre. Una sola llamada `GET /reports/overview` (agregaciones con Prisma groupBy/count dentro de `withTenant`)
 - ✅ Leads: list/filters/create/detail/status workflow/CSV import
 - ✅ **Lead Scoring IA**: POST /leads/:id/score → Claude returns score 0-100 + priority + reasoning + recommended actions; persisted; UI badge + button in lead detail
 - ✅ Opportunities: list/pipeline/create/detail/status change/delete. Create form uses **EntityPicker** (search by name, no cuid) + prefill via `?leadId=`/`?clientId=`
@@ -64,6 +64,7 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 - ✅ Tasks: list/create/status/delete
 - ✅ **Notes IA**: add note (link to lead/client/opp) + POST /notes/:id/analyze → Claude classifies (BUY_INTENT/OBJECTION/INFO_REQUEST/COMPLAINT/SCHEDULING/OFF_TOPIC/OTHER) + sentiment + confidence + suggested reply. Prompt fed with full context (lead data, prior notes + their classifications, opportunities, tasks) and instructed to be short + non-repetitive
 - ✅ **Historial IA** (`/app/ai-history`): all analyzed notes grouped by day, category filter, expandable
+- ✅ **Alertas** (req #7, `/app/alerts`): rule engine with 4 rules (lead sin contactar >14d, oportunidad con `expectedCloseDate` vencida, tarea con `dueAt` vencida, lead con score ≥75 sin convertir). Compute-on-read with **diff-only** persistence to the `Alert` table (creates new, updates changed, deletes resolved-but-not-dismissed — steady state is read-only). UI with icons + severity badges + marcar leída/descartar; unread-count badge in the nav. Endpoints: `GET /alerts`, `GET /alerts/count`, `POST /alerts/:id/read`, `/alerts/read-all`, `/alerts/:id/dismiss`
 - ✅ Documents: R2 upload/list/presigned download/delete
 - ✅ Users, Bots, Profile, Settings
 - ❌ Access logs (admin-only by decision)
@@ -82,14 +83,14 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 |---|---|
 | Min usuarios (10/15) | ✅ |
 | Gestión clientes / leads / oportunidades / tareas | ✅ |
-| Reporting | 🟡 (pipeline básico; falta dashboard agregado) |
-| Alertas gráficas | ❌ (schema Alert listo) |
+| Reporting | ✅ (dashboard agregado: KPIs + embudo + pipeline) |
+| Alertas gráficas | ✅ (motor de reglas + UI iconos/severidad) |
 | Gestión documental | ✅ (R2) |
 | Web responsive | ✅ |
 | Integración APIs | ✅ |
 | IA Lead Scoring | ✅ |
 | IA Journeys de venta (clasificación + respuesta) | ✅ |
-| IA Reuniones | ❌ (Sprint 4, Google Calendar) |
+| IA Reuniones | ❌ (Sprint 5, Google Calendar) |
 | IA RGPD / AI Act / aviso | ✅ |
 | Logs acceso en BD | ✅ (admin-only) |
 | Capacitación 20h + diploma | ❌ (Sprint 6) |
@@ -118,6 +119,7 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 2. AI does NOT search the internet — only works with context we pass. Real web enrichment needs a tool (Tavily/Perplexity) — not built.
 3. AI usage dashboard for admin not built (data is in `ai_usage`).
 4. GHCR build workflow disabled (workflow_dispatch only).
+5. Alerts `recompute()` runs on every tenant-area page load (via the nav unread-count call). Writes only on diff, so steady state is just ~5 reads — fine at Pyme scale. If it grows, throttle per-tenant via Redis (we have Redis 7).
 
 ## Operational runbook
 
@@ -155,10 +157,10 @@ for Red.es Phase I submission. Ordered by priority. Each sprint ends with a depl
 - [ ] Enrich `LeadsService.score()` prompt with opportunities + tasks (currently only notes). Makes scoring consistent with note analysis.
 - [ ] (optional) Auto-create a Task when a note is classified BUY_INTENT ("Llamar urgente") or SCHEDULING ("Agendar reunión") — closes the journey loop (req #5 auto-workflow + #13).
 
-### Sprint 4 — Reporting dashboard + Alerts engine (reqs #6 + #7) ← biggest compliance gap
-- [ ] Tenant dashboard with real aggregations: lead funnel by status, conversion rate, pipeline value by month, opportunities by stage, tasks pending/overdue, leads by source.
-- [ ] Alerts engine: rules (lead sin contactar >14d, opp con expectedCloseDate vencida, task overdue, lead con score ≥75). Worker (BullMQ) or on-read computation. Persist to `Alert` table (schema ready).
-- [ ] Alerts UI: bell badge in tenant layout + `/app/alerts` page with icons/severity (req #7 says "formato gráfico: iconos, mensajes emergentes").
+### Sprint 4 — Reporting dashboard + Alerts engine (reqs #6 + #7) ✅ DONE (live in prod)
+- [x] Tenant dashboard with real aggregations: lead funnel by status, conversion rate, open pipeline value + by month, opportunities by stage, tasks pending/overdue, leads by source. `ReportsModule` → `GET /reports/overview`.
+- [x] Alerts engine: 4 rules (lead sin contactar >14d, opp con expectedCloseDate vencida, task overdue, lead con score ≥75). **Compute-on-read with diff-only persistence** to the `Alert` table (no BullMQ worker — kept simple; recompute is read-only in steady state). `AlertsModule`.
+- [x] Alerts UI: `/app/alerts` page with icons + severity badges + marcar leída/descartar, and unread-count badge in the tenant nav. (No separate schema change — `Alert` model already had every field.)
 
 ### Sprint 5 — IA Reuniones (req #12) — needs Google Calendar OAuth
 - [ ] Google Cloud project + OAuth consent + client ID/secret (USER provides, into .env.prod).
@@ -190,8 +192,8 @@ for Red.es Phase I submission. Ordered by priority. Each sprint ends with a depl
 
 ## COMPLIANCE SCORECARD (Gestión de Clientes con IA)
 
-Working today: reqs 1,2,3,4,5(manual),8,9,10,11,13,14,15,16,17 → **15 of 18**.
-PRODUCT scope remaining: 6 (reporting), 7 (alertas), 12 (reuniones IA) → Sprints 4 + 5.
+Working today: reqs 1,2,3,4,5(manual),6,7,8,9,10,11,13,14,15,16,17 → **16 of 18**.
+PRODUCT scope remaining: 12 (reuniones IA) → Sprint 5.
 OUT OF SCOPE (user handles): 18 (capacitación/diploma) + all Red.es submission prep.
-→ Once Sprints 4 + 5 ship, the PRODUCT side of compliance is complete (17 of 18,
-  with #18 owned by the user). Sprint 7 (WhatsApp Baileys) is the core value-add.
+→ Once Sprint 5 (IA Reuniones) ships, the PRODUCT side of compliance is complete
+  (17 of 18, with #18 owned by the user). Sprint 7 (WhatsApp Baileys) is the core value-add.
