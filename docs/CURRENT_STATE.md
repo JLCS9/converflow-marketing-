@@ -2,7 +2,7 @@
 
 > Single source of truth. Update after every sprint. If reading this in a new session, you can skip 100% of conversation history and rely on this file + the repo.
 
-**Last sync:** end of Sprint 4 — reporting dashboard + alerts engine live in prod (reqs #6 + #7 closed)
+**Last sync:** end of Sprint 5 — IA Reuniones (Google Calendar) live & verified in prod (req #12 closed). PRODUCT side of Kit Digital now complete (17/18; #18 user-owned).
 
 > **Cross-tenant isolation:** ✅ FIXED & VERIFIED. API now connects as non-superuser
 > `converflow_app` so RLS is enforced. A new tenant sees ONLY its own data. This was
@@ -21,7 +21,7 @@ URLs:
 - `https://api.converflow.ai` — REST API
 - `https://api.converflow.ai/docs` — Swagger (dev only)
 
-Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postgres 16 + pgvector + RLS · Redis 7 · Prisma 6 · Tailwind · Cloudflare R2 (S3-compatible) · Anthropic Claude (lead scoring + note classification LIVE).
+Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postgres 16 + pgvector + RLS · Redis 7 · Prisma 6 · Tailwind · Cloudflare R2 (S3-compatible) · Anthropic Claude (lead scoring + note classification + meeting-slot proposals LIVE) · Google Calendar OAuth (per-user, LIVE).
 
 ## Containers in prod
 
@@ -65,6 +65,7 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 - ✅ **Notes IA**: add note (link to lead/client/opp) + POST /notes/:id/analyze → Claude classifies (BUY_INTENT/OBJECTION/INFO_REQUEST/COMPLAINT/SCHEDULING/OFF_TOPIC/OTHER) + sentiment + confidence + suggested reply. Prompt fed with full context (lead data, prior notes + their classifications, opportunities, tasks) and instructed to be short + non-repetitive
 - ✅ **Historial IA** (`/app/ai-history`): all analyzed notes grouped by day, category filter, expandable
 - ✅ **Alertas** (req #7, `/app/alerts`): rule engine with 4 rules (lead sin contactar >14d, oportunidad con `expectedCloseDate` vencida, tarea con `dueAt` vencida, lead con score ≥75 sin convertir). Compute-on-read with **diff-only** persistence to the `Alert` table (creates new, updates changed, deletes resolved-but-not-dismissed — steady state is read-only). UI with icons + severity badges + marcar leída/descartar; unread-count badge in the nav. Endpoints: `GET /alerts`, `GET /alerts/count`, `POST /alerts/:id/read`, `/alerts/read-all`, `/alerts/:id/dismiss`
+- ✅ **IA Reuniones / Google Calendar** (req #12): per-user OAuth (connect/disconnect in Ajustes). `POST /meetings/propose` reads the user's free/busy + lead context → generates tz-aware business-hours slots (no date lib; `Intl`-based) → Claude picks up to 3 + suggests title/agenda. `POST /meetings/schedule` re-checks the slot is free, creates the Google Calendar event (inviting the lead) + a follow-up MEETING Task. Refresh tokens stored AES-256-GCM encrypted; OAuth `state` is HMAC-signed (cookie-independent). UI: "Reuniones IA" card on the lead detail page
 - ✅ Documents: R2 upload/list/presigned download/delete
 - ✅ Users, Bots, Profile, Settings
 - ❌ Access logs (admin-only by decision)
@@ -73,9 +74,10 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 - ✅ `/changelog`, `/ai-disclosure`, `/privacy`
 
 ### Data model
-- Tenant-scoped (RLS): Tenant, User, UserSession, TenantInvitation, AccessLog, Bot, BotSession, Agent, Client, Lead, Opportunity, Task, Document, Note, Alert, **AiUsage**
+- Tenant-scoped (RLS): Tenant, User, UserSession, TenantInvitation, AccessLog, Bot, BotSession, Agent, Client, Lead, Opportunity, Task, Document, Note, Alert, AiUsage, **CalendarConnection**
 - Lead has: score, aiScoreReasoning, aiScoreActions (Json), aiScoredAt
 - Note has: aiCategory, aiSentiment, aiConfidence, aiSuggestedReply, aiAnalyzedAt
+- CalendarConnection (one per user, @unique userId): googleEmail, refreshTokenEnc + accessTokenEnc (AES-256-GCM), accessTokenExpiresAt, scope, calendarId
 - Platform (no RLS): PlatformAdmin, PlatformAdminSession, AdminActionLog, AppVersion
 
 ### Kit Digital — Gestión de Clientes con IA
@@ -90,7 +92,7 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 | Integración APIs | ✅ |
 | IA Lead Scoring | ✅ |
 | IA Journeys de venta (clasificación + respuesta) | ✅ |
-| IA Reuniones | ❌ (Sprint 5, Google Calendar) |
+| IA Reuniones | ✅ (Google Calendar OAuth + IA propone slots + crea evento/tarea) |
 | IA RGPD / AI Act / aviso | ✅ |
 | Logs acceso en BD | ✅ (admin-only) |
 | Capacitación 20h + diploma | ❌ (Sprint 6) |
@@ -120,6 +122,8 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 3. AI usage dashboard for admin not built (data is in `ai_usage`).
 4. GHCR build workflow disabled (workflow_dispatch only).
 5. Alerts `recompute()` runs on every tenant-area page load (via the nav unread-count call). Writes only on diff, so steady state is just ~5 reads — fine at Pyme scale. If it grows, throttle per-tenant via Redis (we have Redis 7).
+6. **Google app verification**: the Calendar OAuth app is in *Testing* mode — only emails added as *test users* can connect. For real Pyme clients, the `calendar.events`/`calendar.freebusy` scopes are "sensitive" and need Google app verification (can take weeks). Start that before onboarding real customers. USER owns this.
+7. **Tech debt**: admin 2FA `totpSecret` is still stored in PLAINTEXT (auth-admin.service) despite the comment claiming otherwise. Now that `common/utils/crypto.ts` exists, encrypt it. Not urgent (admin-only table) but should be fixed.
 
 ## Operational runbook
 
@@ -145,7 +149,7 @@ Write a `.cjs` to `/repo/apps/api/`, `require('@converflow/db')` + `require('arg
 `docker compose ... build --no-cache <svc>`; if needed `docker rmi -f cfai-<svc>:latest` first.
 
 ### Secrets in .env.prod (on VPS only)
-DATABASE/REDIS, AUTH_SECRET, ENCRYPTION_KEY, S3_* (R2), ANTHROPIC_API_KEY, ANTHROPIC_DEFAULT_MODEL (claude-sonnet-4-6), ANTHROPIC_FAST_MODEL (claude-haiku-4-5).
+DATABASE/REDIS, AUTH_SECRET, ENCRYPTION_KEY, S3_* (R2), ANTHROPIC_API_KEY, ANTHROPIC_DEFAULT_MODEL (claude-sonnet-4-6), ANTHROPIC_FAST_MODEL (claude-haiku-4-5), **GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI** (= `https://api.converflow.ai/integrations/google/callback`, must match the Google Cloud OAuth client exactly). ENCRYPTION_KEY (64 hex) now actually used by `common/utils/crypto.ts` for calendar tokens.
 
 ## ROADMAP TO FULL KIT DIGITAL COMPLIANCE
 
@@ -162,10 +166,10 @@ for Red.es Phase I submission. Ordered by priority. Each sprint ends with a depl
 - [x] Alerts engine: 4 rules (lead sin contactar >14d, opp con expectedCloseDate vencida, task overdue, lead con score ≥75). **Compute-on-read with diff-only persistence** to the `Alert` table (no BullMQ worker — kept simple; recompute is read-only in steady state). `AlertsModule`.
 - [x] Alerts UI: `/app/alerts` page with icons + severity badges + marcar leída/descartar, and unread-count badge in the tenant nav. (No separate schema change — `Alert` model already had every field.)
 
-### Sprint 5 — IA Reuniones (req #12) — needs Google Calendar OAuth
-- [ ] Google Cloud project + OAuth consent + client ID/secret (USER provides, into .env.prod).
-- [ ] Connect Google Calendar per tenant/user (OAuth flow).
-- [ ] Schedule meeting from a lead/opp; AI proposes slots; create calendar event + Task.
+### Sprint 5 — IA Reuniones (req #12) ✅ DONE (live & verified in prod)
+- [x] Google Cloud project + OAuth client/consent (USER set up; creds in .env.prod). App still in *Testing* mode — needs verification before non-test-user clients (see open issue #6).
+- [x] Connect Google Calendar **per user** (OAuth flow): `IntegrationsModule` — connect/callback/status/disconnect, HMAC-signed state, AES-256-GCM token storage, auto refresh.
+- [x] Schedule meeting from a lead: `MeetingsModule` — `propose` (tz-aware free slots via `Intl`, Claude picks 3 + title/agenda), `schedule` (conflict re-check + create event inviting the lead + follow-up Task). UI on the lead detail page + connect card in Ajustes.
 
 ### Sprint 6 — Capacitación / Academy (req #18) — ⛔ OUT OF SCOPE
 > The USER handles capacitación, diploma, and all training content themselves.
@@ -192,8 +196,8 @@ for Red.es Phase I submission. Ordered by priority. Each sprint ends with a depl
 
 ## COMPLIANCE SCORECARD (Gestión de Clientes con IA)
 
-Working today: reqs 1,2,3,4,5(manual),6,7,8,9,10,11,13,14,15,16,17 → **16 of 18**.
-PRODUCT scope remaining: 12 (reuniones IA) → Sprint 5.
-OUT OF SCOPE (user handles): 18 (capacitación/diploma) + all Red.es submission prep.
-→ Once Sprint 5 (IA Reuniones) ships, the PRODUCT side of compliance is complete
-  (17 of 18, with #18 owned by the user). Sprint 7 (WhatsApp Baileys) is the core value-add.
+Working today: reqs 1,2,3,4,5(manual),6,7,8,9,10,11,12,13,14,15,16,17 → **17 of 18**.
+PRODUCT side of compliance is **COMPLETE**. The only remaining req is #18 (capacitación
+20h + diploma), which is USER-owned and OUT OF SCOPE — same as all Red.es submission prep.
+→ Nothing product-side is blocking Kit Digital compliance now. Next priority is Sprint 7
+  (WhatsApp Baileys) — the core product value-add, not a strict KD-Clientes requirement.
