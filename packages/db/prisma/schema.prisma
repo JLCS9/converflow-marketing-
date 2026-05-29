@@ -139,6 +139,7 @@ model Tenant {
   calendarConnections CalendarConnection[]
   conversations Conversation[]
   messages      Message[]
+  emailConnections EmailConnection[]
 
   @@map("tenants")
 }
@@ -266,6 +267,7 @@ model Bot {
 
   session BotSession?
   conversations Conversation[]
+  emailConnection EmailConnection?
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -747,4 +749,35 @@ enum ConversationStatus {
 enum MessageDirection {
   IN
   OUT
+}
+
+// ============================================
+// Email channel connection (tenant connects their own mailbox via IMAP/SMTP).
+// One per EMAIL bot. Credentials stored encrypted (aes-256-gcm).
+// ============================================
+model EmailConnection {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  botId    String @unique
+  bot      Bot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  email       String
+  imapHost    String
+  imapPort    Int     @default(993)
+  smtpHost    String
+  smtpPort    Int     @default(465)
+  username    String
+  passwordEnc String // encrypted IMAP/SMTP password
+  secure      Boolean @default(true)
+
+  status      String  @default("CONNECTED") // CONNECTED | ERROR
+  lastError   String?
+  lastSeenUid Int? // IMAP INBOX incremental cursor
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("email_connections")
 }

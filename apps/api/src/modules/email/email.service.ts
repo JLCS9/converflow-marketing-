@@ -1,7 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
+import nodemailer from 'nodemailer';
 import { AppError, NotFoundError } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { decryptSecret } from '../../common/utils/crypto.js';
 import { env } from '../../config/env.js';
+
+interface SmtpConn {
+  email: string;
+  smtpHost: string;
+  smtpPort: number;
+  username: string;
+  passwordEnc: string;
+  secure: boolean;
+}
 
 @Injectable()
 export class EmailService {
@@ -9,23 +20,39 @@ export class EmailService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  isConfigured(): boolean {
-    return Boolean(env.RESEND_API_KEY);
+  /** Send via the tenant's own SMTP mailbox. */
+  async sendSmtp(
+    conn: SmtpConn,
+    opts: { to: string; subject: string; text: string; inReplyTo?: string },
+  ): Promise<{ id?: string }> {
+    const transporter = nodemailer.createTransport({
+      host: conn.smtpHost,
+      port: conn.smtpPort,
+      secure: conn.secure,
+      auth: { user: conn.username, pass: decryptSecret(conn.passwordEnc) },
+    });
+    const info = await transporter.sendMail({
+      from: conn.email,
+      to: opts.to,
+      subject: opts.subject,
+      text: opts.text,
+      inReplyTo: opts.inReplyTo,
+      references: opts.inReplyTo,
+    });
+    return { id: info.messageId };
   }
 
-  /** Low-level send via Resend. `from` uses EMAIL_FROM (must be a verified domain). */
-  async send(opts: {
+  /** Fallback: send via Resend (Converflow system sender). */
+  async sendResend(opts: {
     to: string;
     subject: string;
     text: string;
-    fromName?: string;
     replyTo?: string;
     inReplyTo?: string;
   }): Promise<{ id?: string }> {
     if (!env.RESEND_API_KEY) {
       throw new AppError('INTERNAL', 'Email no configurado (falta RESEND_API_KEY)', 503);
     }
-    const from = opts.fromName ? `${opts.fromName} <${env.EMAIL_FROM}>` : env.EMAIL_FROM;
     const headers: Record<string, string> = {};
     if (opts.inReplyTo) {
       headers['In-Reply-To'] = opts.inReplyTo;
@@ -35,7 +62,7 @@ export class EmailService {
       method: 'POST',
       headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
       body: JSON.stringify({
-        from,
+        from: env.EMAIL_FROM,
         to: [opts.to],
         subject: opts.subject,
         text: opts.text,
@@ -53,8 +80,8 @@ export class EmailService {
   }
 
   /**
-   * Reply to an EMAIL conversation: derives recipient, threaded subject,
-   * Reply-To (the bot's inbound address) and In-Reply-To from the conversation.
+   * Reply to an EMAIL conversation. Prefers the tenant's own mailbox (SMTP
+   * connection on the bot); falls back to Resend if none is connected.
    */
   async replyToConversation(
     tenantId: string,
@@ -64,7 +91,11 @@ export class EmailService {
     const conv = await this.prisma.withTenant(tenantId, (tx) =>
       tx.conversation.findUnique({
         where: { id: conversationId },
-        select: { contactJid: true, emailSubject: true, bot: { select: { phoneNumber: true } } },
+        select: {
+          contactJid: true,
+          emailSubject: true,
+          bot: { select: { phoneNumber: true, emailConnection: true } },
+        },
       }),
     );
     if (!conv) throw new NotFoundError('Conversación no encontrada');
@@ -76,16 +107,20 @@ export class EmailService {
         select: { waMessageId: true },
       }),
     );
-
     const base = conv.emailSubject?.trim();
     const subject = base ? (/^re:/i.test(base) ? base : `Re: ${base}`) : 'Tu consulta';
+    const inReplyTo = lastIn?.waMessageId ?? undefined;
 
-    return this.send({
+    const conn = conv.bot?.emailConnection;
+    if (conn) {
+      return this.sendSmtp(conn, { to: conv.contactJid, subject, text, inReplyTo });
+    }
+    return this.sendResend({
       to: conv.contactJid,
       subject,
       text,
       replyTo: conv.bot?.phoneNumber ?? undefined,
-      inReplyTo: lastIn?.waMessageId ?? undefined,
+      inReplyTo,
     });
   }
 }

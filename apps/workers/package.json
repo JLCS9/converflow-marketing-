@@ -14,11 +14,14 @@
     "@converflow/db": "workspace:*",
     "@converflow/shared": "workspace:*",
     "bullmq": "^5.34.10",
+    "imapflow": "^1.3.3",
     "ioredis": "5.10.1",
+    "mailparser": "^3.9.8",
     "pino": "^9.6.0"
   },
   "devDependencies": {
     "@converflow/config": "workspace:*",
+    "@types/mailparser": "^3.4.6",
     "@types/node": "^22.10.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"

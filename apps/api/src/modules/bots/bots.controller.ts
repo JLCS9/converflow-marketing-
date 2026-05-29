@@ -15,6 +15,7 @@ import {
 } from '../../common/decorators/current-user.decorator.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { BotRunnerService } from './bot-runner.service.js';
+import { EmailConnectionService } from '../email/email-connection.service.js';
 
 const updateBotSchema = z.object({
   name: z.string().trim().min(2).max(60).optional(),
@@ -33,6 +34,7 @@ export class BotsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly botRunner: BotRunnerService,
+    private readonly emailConnections: EmailConnectionService,
   ) {}
 
   private getOwnedBot(tenantId: string, id: string): Promise<Bot> {
@@ -127,6 +129,30 @@ export class BotsController {
     await this.getOwnedBot(user.tenantId, id);
     await this.botRunner.stop(id);
     return { ok: true };
+  }
+
+  // --- Email channel (tenant's own mailbox via IMAP/SMTP) -------------------
+
+  @Post(':id/email/connect')
+  async emailConnect(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.getOwnedBot(user.tenantId, id);
+    return this.emailConnections.connect(user.tenantId, id, body);
+  }
+
+  @Get(':id/email/status')
+  async emailStatus(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    await this.getOwnedBot(user.tenantId, id);
+    return this.emailConnections.status(user.tenantId, id);
+  }
+
+  @Delete(':id/email')
+  async emailDisconnect(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    await this.getOwnedBot(user.tenantId, id);
+    return this.emailConnections.disconnect(user.tenantId, id);
   }
 
   // Polled by the UI (~2s) while pairing: returns live status + QR data URL.

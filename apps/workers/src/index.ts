@@ -11,6 +11,7 @@
 import { Queue, Worker, type Processor } from 'bullmq';
 import IORedis from 'ioredis';
 import pino from 'pino';
+import { startEmailPoller } from './email-poller';
 
 const logger = pino({ name: 'workers', level: process.env.LOG_LEVEL ?? 'info' });
 
@@ -58,5 +59,8 @@ async function shutdown(signal: NodeJS.Signals) {
 
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+
+// Inbound email poller (IMAP) for tenant-connected mailboxes.
+startEmailPoller();
 
 logger.info({ queues }, 'workers ready');

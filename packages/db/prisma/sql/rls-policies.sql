@@ -215,3 +215,14 @@ CREATE POLICY tenant_isolation ON messages
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- ---------------------------------------------------------------------
+-- email_connections (tenant-owned mailbox via IMAP/SMTP)
+-- ---------------------------------------------------------------------
+ALTER TABLE email_connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_connections FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON email_connections;
+CREATE POLICY tenant_isolation ON email_connections
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

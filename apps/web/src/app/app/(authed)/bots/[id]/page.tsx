@@ -4,6 +4,7 @@ import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { Card } from '@/components/ui/primitives';
 import { BotConnection } from './bot-connection';
 import { BotAgentSelect } from './bot-agent-select';
+import { BotEmailConnect } from './bot-email-connect';
 
 interface BotDetail {
   id: string;
@@ -71,10 +72,32 @@ export default async function BotDetailPage({
             <BotConnection botId={bot.id} initialStatus={bot.status} />
           </div>
         </Card>
+      ) : bot.channel === 'EMAIL' ? (
+        <Card>
+          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Conexión Email</h2>
+          <p className="mt-1 text-xs text-ink-500">
+            Conecta tu propio buzón por IMAP/SMTP. Los emails entrantes entran en Conversaciones y
+            las respuestas salen desde tu dirección.
+          </p>
+          <div className="mt-4">
+            <BotEmailConnect botId={bot.id} />
+          </div>
+        </Card>
+      ) : bot.channel === 'WEBCHAT' ? (
+        <Card>
+          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Web Chat</h2>
+          <p className="mt-1 text-xs text-ink-500">
+            Embebe el widget en tu web con un iframe a{' '}
+            <code className="rounded bg-ink-100 px-1 font-mono text-xs">
+              /widget/{bot.id}
+            </code>
+            . Asigna un agente para que responda automáticamente.
+          </p>
+        </Card>
       ) : (
         <Card>
           <p className="text-sm text-ink-500">
-            Este canal todavía no soporta conexión automática. De momento solo WhatsApp.
+            Este canal todavía no soporta conexión automática.
           </p>
         </Card>
       )}
