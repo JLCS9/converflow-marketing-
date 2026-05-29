@@ -97,6 +97,30 @@ export class LeadsService {
 
       // Auto-stamp transitions
       const now = new Date();
+
+      // When a lead is won (CONVERTED) it becomes a client: link to an existing
+      // client by email, or create one from the lead's data.
+      let clientId = lead.clientId ?? undefined;
+      if (data.status === 'CONVERTED' && !lead.clientId) {
+        const existing = lead.email
+          ? await tx.client.findFirst({ where: { email: lead.email } })
+          : null;
+        const client =
+          existing ??
+          (await tx.client.create({
+            data: {
+              tenantId,
+              name: lead.company?.trim() || lead.name,
+              email: lead.email,
+              phone: lead.phone,
+              source: lead.source,
+              ownerId: lead.ownerId,
+              status: 'ACTIVE',
+            },
+          }));
+        clientId = client.id;
+      }
+
       const dataWithStamps = {
         ...data,
         customFields: data.customFields !== undefined ? (data.customFields as never) : undefined,
@@ -104,6 +128,7 @@ export class LeadsService {
           !lead.contactedAt && data.status && data.status !== 'NEW' ? now : undefined,
         qualifiedAt:
           !lead.qualifiedAt && data.status === 'QUALIFIED' ? now : undefined,
+        clientId,
       };
       return tx.lead.update({ where: { id }, data: dataWithStamps });
     });
