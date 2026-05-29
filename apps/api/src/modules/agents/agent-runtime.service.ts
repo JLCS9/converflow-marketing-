@@ -167,11 +167,11 @@ export class AgentRuntimeService {
     const mode = config.mode ?? 'SUGGEST';
     let delivered = false;
 
-    // AUTO mode: the agent sends the reply itself over WhatsApp (with the AI
-    // disclosure on first contact + a per-bot rate limit). Otherwise it's stored
-    // as a suggested reply for a human to send (SUGGEST).
-    if (mode === 'AUTO' && reply) {
-      delivered = await this.tryAutoSend(tenantId, conversationId, config, reply);
+    // Deliver the reply when the agent is in AUTO mode, or always for WEBCHAT
+    // (our own surface — the widget shows the reply). tryAutoSend decides by
+    // channel; otherwise the reply is stored as a suggestion for a human.
+    if (reply) {
+      delivered = await this.tryAutoSend(tenantId, conversationId, config, reply, mode);
     }
 
     if (!delivered) {
@@ -203,16 +203,22 @@ export class AgentRuntimeService {
     conversationId: string,
     config: AgentConfig,
     reply: string,
+    mode: string,
   ): Promise<boolean> {
     const conv = await this.prisma.withTenant(tenantId, (tx) =>
       tx.conversation.findUnique({
         where: { id: conversationId },
-        select: { botId: true, contactJid: true },
+        select: { botId: true, contactJid: true, channel: true },
       }),
     );
     if (!conv?.botId) return false;
 
-    if (!(await this.withinRateLimit(tenantId, conv.botId))) {
+    // WEBCHAT always auto-delivers (our own surface). External channels only in AUTO mode.
+    const isWebchat = conv.channel === 'WEBCHAT';
+    if (!isWebchat && mode !== 'AUTO') return false;
+
+    // Rate limit only applies to external transports (WhatsApp).
+    if (conv.channel === 'WHATSAPP' && !(await this.withinRateLimit(tenantId, conv.botId))) {
       this.logger.warn(`auto-send rate-limited for bot ${conv.botId}; falling back to suggestion`);
       return false;
     }
@@ -220,17 +226,22 @@ export class AgentRuntimeService {
     const priorOut = await this.prisma.withTenant(tenantId, (tx) =>
       tx.message.count({ where: { conversationId, direction: 'OUT' } }),
     );
+    // WEBCHAT shows the AI disclosure persistently in the widget header, so we
+    // don't prepend it there; external channels get it on first contact.
     const disclosure = (config.aiDisclosure ?? DEFAULT_AI_DISCLOSURE).trim();
-    const text = priorOut === 0 && disclosure ? `${disclosure}\n\n${reply}` : reply;
+    const text = !isWebchat && priorOut === 0 && disclosure ? `${disclosure}\n\n${reply}` : reply;
 
     let sentId: string | undefined;
-    try {
-      const res = await this.botRunner.sendText(conv.botId, conv.contactJid, text);
-      sentId = res.id;
-    } catch (err) {
-      this.logger.warn({ err }, 'auto-send failed; falling back to suggestion');
-      return false;
+    if (conv.channel === 'WHATSAPP') {
+      try {
+        const res = await this.botRunner.sendText(conv.botId, conv.contactJid, text);
+        sentId = res.id;
+      } catch (err) {
+        this.logger.warn({ err }, 'auto-send failed; falling back to suggestion');
+        return false;
+      }
     }
+    // WEBCHAT: no transport — the OUT message below is what the widget polls.
 
     await this.prisma.withTenant(tenantId, async (tx) => {
       const now = new Date();

@@ -147,42 +147,164 @@ export class ConversationIngestService {
     );
 
     if (d.direction === 'IN' && body && !result.dupe) {
-      const lead = result.lead;
-      const fallbackClassify = () =>
-        void this.classifyMessage(tenantId, result.conv.id, result.message.id, body, lead).catch(
-          (err) => this.logger.warn({ err, messageId: result.message.id }, 'classify failed'),
-        );
-
-      if (agentId) {
-        // An assigned agent powers the reply (and may run CRM tools). Falls back
-        // to generic classification if the agent is unavailable/errors.
-        void this.agentRuntime
-          .runForMessage({
-            tenantId,
-            agentId,
-            conversationId: result.conv.id,
-            messageId: result.message.id,
-            userText: body,
-            lead: lead
-              ? {
-                  id: lead.id,
-                  name: lead.name,
-                  company: lead.company,
-                  status: lead.status,
-                  score: lead.score,
-                }
-              : null,
-          })
-          .catch((err) => {
-            this.logger.warn({ err, agentId }, 'agent run failed — falling back to classify');
-            fallbackClassify();
-          });
-      } else {
-        fallbackClassify();
-      }
+      this.dispatchInbound(tenantId, agentId, result.conv.id, result.message.id, body, result.lead);
     }
 
     return { ok: true, conversationId: result.conv.id, messageId: result.message.id };
+  }
+
+  /**
+   * Ingest one inbound web-chat message from the embeddable widget. The bot
+   * (channel WEBCHAT) is the widget; the visitor session id is the contact key.
+   */
+  async ingestWebchat(
+    botId: string,
+    input: { sessionId: string; text: string; visitorName?: string },
+  ) {
+    const bot = await this.prisma.bypass((tx) =>
+      tx.bot.findUnique({
+        where: { id: botId },
+        select: { tenantId: true, agentId: true, channel: true },
+      }),
+    );
+    if (!bot || bot.channel !== 'WEBCHAT') return { ok: false, reason: 'unknown_widget' };
+
+    const tenantId = bot.tenantId;
+    const sessionId = input.sessionId.slice(0, 128);
+    const body = (input.text ?? '').trim();
+    if (!body) return { ok: false, reason: 'empty' };
+    const now = new Date();
+    const preview = body.slice(0, 140);
+
+    const result = await this.prisma.withTenant(tenantId, async (tx) => {
+      const existing = await tx.conversation.findUnique({
+        where: { tenantId_channel_contactJid: { tenantId, channel: 'WEBCHAT', contactJid: sessionId } },
+      });
+
+      let leadId = existing?.leadId ?? null;
+      if (!leadId) {
+        const lead = await tx.lead.create({
+          data: {
+            tenantId,
+            name: input.visitorName?.trim() || 'Visitante web',
+            source: 'webchat',
+            status: 'NEW',
+          },
+        });
+        leadId = lead.id;
+      }
+
+      const conv = existing
+        ? await tx.conversation.update({
+            where: { id: existing.id },
+            data: {
+              botId: existing.botId ?? botId,
+              leadId,
+              contactName: input.visitorName?.trim() || existing.contactName,
+              status: 'PENDING',
+              lastMessageAt: now,
+              lastMessagePreview: preview,
+              lastInboundAt: now,
+              unreadCount: existing.unreadCount + 1,
+            },
+          })
+        : await tx.conversation.create({
+            data: {
+              tenantId,
+              botId,
+              channel: 'WEBCHAT',
+              contactJid: sessionId,
+              contactName: input.visitorName?.trim() || 'Visitante web',
+              leadId,
+              status: 'PENDING',
+              lastMessageAt: now,
+              lastMessagePreview: preview,
+              lastInboundAt: now,
+              unreadCount: 1,
+            },
+          });
+
+      const message = await tx.message.create({
+        data: { tenantId, conversationId: conv.id, direction: 'IN', body },
+      });
+      const lead = await tx.lead.findUnique({ where: { id: leadId } });
+      return { conv, message, lead };
+    });
+
+    this.dispatchInbound(tenantId, bot.agentId, result.conv.id, result.message.id, body, result.lead);
+    return { ok: true, conversationId: result.conv.id, messageId: result.message.id };
+  }
+
+  /** Public: messages of a web-chat session, for the widget to poll. */
+  async getWebchatMessages(botId: string, sessionId: string) {
+    const bot = await this.prisma.bypass((tx) =>
+      tx.bot.findUnique({ where: { id: botId }, select: { tenantId: true, channel: true } }),
+    );
+    if (!bot || bot.channel !== 'WEBCHAT' || !sessionId) return { messages: [] };
+    return this.prisma.withTenant(bot.tenantId, async (tx) => {
+      const conv = await tx.conversation.findUnique({
+        where: {
+          tenantId_channel_contactJid: {
+            tenantId: bot.tenantId,
+            channel: 'WEBCHAT',
+            contactJid: sessionId.slice(0, 128),
+          },
+        },
+        select: { id: true },
+      });
+      if (!conv) return { messages: [] };
+      const messages = await tx.message.findMany({
+        where: { conversationId: conv.id },
+        orderBy: { createdAt: 'asc' },
+        take: 100,
+        select: { id: true, direction: true, body: true, createdAt: true },
+      });
+      return { messages };
+    });
+  }
+
+  /** Run the assigned agent (tools + reply) or fall back to generic classification. */
+  private dispatchInbound(
+    tenantId: string,
+    agentId: string | null,
+    conversationId: string,
+    messageId: string,
+    body: string,
+    lead: {
+      id: string;
+      name: string;
+      company: string | null;
+      status: string;
+      score: number | null;
+      email: string | null;
+      phone: string | null;
+      source: string | null;
+    } | null,
+  ) {
+    const fallbackClassify = () =>
+      void this.classifyMessage(tenantId, conversationId, messageId, body, lead).catch((err) =>
+        this.logger.warn({ err, messageId }, 'classify failed'),
+      );
+
+    if (agentId) {
+      void this.agentRuntime
+        .runForMessage({
+          tenantId,
+          agentId,
+          conversationId,
+          messageId,
+          userText: body,
+          lead: lead
+            ? { id: lead.id, name: lead.name, company: lead.company, status: lead.status, score: lead.score }
+            : null,
+        })
+        .catch((err) => {
+          this.logger.warn({ err, agentId }, 'agent run failed — falling back to classify');
+          fallbackClassify();
+        });
+    } else {
+      fallbackClassify();
+    }
   }
 
   private async classifyMessage(

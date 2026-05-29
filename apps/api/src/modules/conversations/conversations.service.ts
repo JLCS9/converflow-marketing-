@@ -61,19 +61,23 @@ export class ConversationsService {
     });
   }
 
-  /** Send a text reply via the bot-runner and record it as an OUT message. */
+  /** Send a text reply through the conversation's channel and record it. */
   async sendText(tenantId: string, id: string, text: string) {
     const body = text.trim();
     if (!body) throw new BadRequestError('Mensaje vacío');
     const conv = await this.requireSendable(tenantId, id);
 
     let sentId: string | undefined;
-    try {
-      const res = await this.botRunner.sendText(conv.botId, conv.contactJid, body);
-      sentId = res.id;
-    } catch {
-      throw new AppError('INTERNAL', 'No se pudo enviar — ¿el bot sigue conectado?', 502);
+    if (conv.channel === 'WHATSAPP') {
+      try {
+        const res = await this.botRunner.sendText(conv.botId, conv.contactJid, body);
+        sentId = res.id;
+      } catch {
+        throw new AppError('INTERNAL', 'No se pudo enviar — ¿el bot sigue conectado?', 502);
+      }
     }
+    // WEBCHAT: no transport — the visitor's widget polls and picks up the OUT
+    // message. (EMAIL delivery via Resend is added with the email channel.)
 
     return this.recordOutbound(tenantId, id, { body, waMessageId: sentId, preview: body.slice(0, 140) });
   }
@@ -81,6 +85,9 @@ export class ConversationsService {
   /** Send one of the tenant's stored documents via WhatsApp. */
   async sendDocument(tenantId: string, id: string, documentId: string) {
     const conv = await this.requireSendable(tenantId, id);
+    if (conv.channel !== 'WHATSAPP') {
+      throw new BadRequestError('El envío de documentos solo está disponible en WhatsApp por ahora');
+    }
     const doc = await this.documents.downloadUrl(tenantId, documentId); // presigned URL + name + mime
 
     try {
@@ -105,7 +112,7 @@ export class ConversationsService {
       const conv = await tx.conversation.findUnique({ where: { id } });
       if (!conv) throw new NotFoundError('Conversación no encontrada');
       if (!conv.botId) throw new BadRequestError('La conversación no tiene bot asociado');
-      return { botId: conv.botId, contactJid: conv.contactJid };
+      return { botId: conv.botId, contactJid: conv.contactJid, channel: conv.channel };
     });
   }
 
