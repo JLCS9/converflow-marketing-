@@ -3,6 +3,7 @@ import { AppError, BadRequestError, NotFoundError } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { BotRunnerService } from '../bots/bot-runner.service.js';
 import { DocumentsService } from '../documents/documents.service.js';
+import { EmailService } from '../email/email.service.js';
 
 const STATUSES = ['PENDING', 'ANSWERED', 'CLOSED'] as const;
 type Status = (typeof STATUSES)[number];
@@ -13,6 +14,7 @@ export class ConversationsService {
     private readonly prisma: PrismaService,
     private readonly botRunner: BotRunnerService,
     private readonly documents: DocumentsService,
+    private readonly email: EmailService,
   ) {}
 
   list(tenantId: string, opts: { status?: string; limit?: number } = {}) {
@@ -75,9 +77,15 @@ export class ConversationsService {
       } catch {
         throw new AppError('INTERNAL', 'No se pudo enviar — ¿el bot sigue conectado?', 502);
       }
+    } else if (conv.channel === 'EMAIL') {
+      try {
+        const res = await this.email.replyToConversation(tenantId, id, body);
+        sentId = res.id;
+      } catch {
+        throw new AppError('INTERNAL', 'No se pudo enviar el email', 502);
+      }
     }
-    // WEBCHAT: no transport — the visitor's widget polls and picks up the OUT
-    // message. (EMAIL delivery via Resend is added with the email channel.)
+    // WEBCHAT: no transport — the visitor's widget polls and picks up the OUT message.
 
     return this.recordOutbound(tenantId, id, { body, waMessageId: sentId, preview: body.slice(0, 140) });
   }

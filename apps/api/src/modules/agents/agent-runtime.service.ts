@@ -3,6 +3,7 @@ import { DEFAULT_AI_DISCLOSURE, type AgentConfig } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { AiService } from '../../common/ai/ai.service.js';
 import { BotRunnerService } from '../bots/bot-runner.service.js';
+import { EmailService } from '../email/email.service.js';
 import { AgentsService } from './agents.service.js';
 
 interface ToolDef {
@@ -86,6 +87,7 @@ export class AgentRuntimeService {
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
     private readonly botRunner: BotRunnerService,
+    private readonly email: EmailService,
     private readonly agents: AgentsService,
   ) {}
 
@@ -238,6 +240,14 @@ export class AgentRuntimeService {
         sentId = res.id;
       } catch (err) {
         this.logger.warn({ err }, 'auto-send failed; falling back to suggestion');
+        return false;
+      }
+    } else if (conv.channel === 'EMAIL') {
+      try {
+        const res = await this.email.replyToConversation(tenantId, conversationId, text);
+        sentId = res.id;
+      } catch (err) {
+        this.logger.warn({ err }, 'auto email-send failed; falling back to suggestion');
         return false;
       }
     }

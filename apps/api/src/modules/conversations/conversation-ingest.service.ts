@@ -235,6 +235,113 @@ export class ConversationIngestService {
     return { ok: true, conversationId: result.conv.id, messageId: result.message.id };
   }
 
+  /**
+   * Ingest one inbound email (from a provider's inbound webhook). The tenant +
+   * agent are derived from the EMAIL bot whose address matches the recipient.
+   */
+  async ingestEmail(input: {
+    to?: string;
+    from?: string;
+    fromName?: string;
+    subject?: string;
+    text?: string;
+    messageId?: string;
+  }) {
+    const to = (input.to ?? '').trim().toLowerCase();
+    const from = (input.from ?? '').trim().toLowerCase();
+    if (!to || !from) return { ok: false, reason: 'bad_payload' };
+
+    const bot = await this.prisma.bypass((tx) =>
+      tx.bot.findFirst({
+        where: { channel: 'EMAIL', phoneNumber: to },
+        select: { id: true, tenantId: true, agentId: true },
+      }),
+    );
+    if (!bot) {
+      this.logger.warn(`email inbound to unknown address ${to} — ignored`);
+      return { ok: false, reason: 'unknown_address' };
+    }
+
+    const tenantId = bot.tenantId;
+    const subject = (input.subject ?? '').slice(0, 300);
+    const body = (input.text ?? '').trim();
+    const now = new Date();
+    const preview = (body || subject).slice(0, 140);
+
+    const result = await this.prisma.withTenant(tenantId, async (tx) => {
+      let lead = await tx.lead.findFirst({ where: { email: from } });
+      if (!lead) {
+        lead = await tx.lead.create({
+          data: {
+            tenantId,
+            name: input.fromName?.trim() || from,
+            email: from,
+            source: 'email',
+            status: 'NEW',
+          },
+        });
+      }
+
+      const existing = await tx.conversation.findUnique({
+        where: { tenantId_channel_contactJid: { tenantId, channel: 'EMAIL', contactJid: from } },
+      });
+      const conv = existing
+        ? await tx.conversation.update({
+            where: { id: existing.id },
+            data: {
+              botId: existing.botId ?? bot.id,
+              leadId: existing.leadId ?? lead.id,
+              contactName: input.fromName?.trim() || existing.contactName,
+              emailSubject: existing.emailSubject ?? (subject || null),
+              status: 'PENDING',
+              lastMessageAt: now,
+              lastMessagePreview: preview,
+              lastInboundAt: now,
+              unreadCount: existing.unreadCount + 1,
+            },
+          })
+        : await tx.conversation.create({
+            data: {
+              tenantId,
+              botId: bot.id,
+              channel: 'EMAIL',
+              contactJid: from,
+              contactName: input.fromName?.trim() || from,
+              emailSubject: subject || null,
+              leadId: lead.id,
+              status: 'PENDING',
+              lastMessageAt: now,
+              lastMessagePreview: preview,
+              lastInboundAt: now,
+              unreadCount: 1,
+            },
+          });
+
+      if (input.messageId) {
+        const dupe = await tx.message.findFirst({
+          where: { conversationId: conv.id, waMessageId: input.messageId },
+        });
+        if (dupe) return { conv, message: dupe, dupe: true, lead };
+      }
+      const message = await tx.message.create({
+        data: {
+          tenantId,
+          conversationId: conv.id,
+          direction: 'IN',
+          waMessageId: input.messageId,
+          body: body || subject || null,
+        },
+      });
+      return { conv, message, dupe: false, lead };
+    });
+
+    this.logger.log(`email IN from ${from} → conv ${result.conv.id}${result.dupe ? ' (dupe)' : ''}`);
+    if (body && !result.dupe) {
+      this.dispatchInbound(tenantId, bot.agentId, result.conv.id, result.message.id, body, result.lead);
+    }
+    return { ok: true, conversationId: result.conv.id, messageId: result.message.id };
+  }
+
   /** Public: messages of a web-chat session, for the widget to poll. */
   async getWebchatMessages(botId: string, sessionId: string) {
     const bot = await this.prisma.bypass((tx) =>

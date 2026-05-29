@@ -5,6 +5,7 @@ export const channelSchema = z.enum([
   'INSTAGRAM',
   'MESSENGER',
   'WEBCHAT',
+  'EMAIL',
 ]);
 
 export const botStatusSchema = z.enum([
@@ -21,6 +22,9 @@ export const createBotSchema = z.object({
   name: z.string().trim().min(2).max(60),
   channel: channelSchema,
   agentId: z.string().cuid().optional(),
+  // Channel address. For EMAIL = the inbound address that receives customer
+  // emails (and is the Reply-To). For WhatsApp it's captured on connect.
+  phoneNumber: z.string().trim().max(160).optional(),
 });
 
 export type CreateBotInput = z.infer<typeof createBotSchema>;

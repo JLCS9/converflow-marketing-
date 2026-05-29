@@ -77,6 +77,11 @@ export class BotsController {
           name: data.name,
           channel: data.channel,
           agentId: data.agentId,
+          phoneNumber: data.phoneNumber
+            ? data.channel === 'EMAIL'
+              ? data.phoneNumber.trim().toLowerCase()
+              : data.phoneNumber.trim()
+            : undefined,
         },
       });
     });

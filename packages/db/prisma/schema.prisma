@@ -277,6 +277,7 @@ enum Channel {
   INSTAGRAM
   MESSENGER
   WEBCHAT
+  EMAIL
 }
 
 enum BotStatus {
@@ -688,9 +689,10 @@ model Conversation {
   lead     Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
 
   channel      Channel            @default(WHATSAPP)
-  contactJid   String // stable WA identity (lid or pn jid)
+  contactJid   String // stable contact id per channel (WA lid/pn, email address, webchat session)
   contactName  String?
   contactPhone String? // resolved real phone (+prefix) when available
+  emailSubject String? // original subject (EMAIL channel) for reply threading
 
   status             ConversationStatus @default(PENDING)
   lastMessageAt      DateTime?
