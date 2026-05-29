@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { AgentConfig } from '@converflow/shared';
+import { DEFAULT_AI_DISCLOSURE, type AgentConfig } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { AiService } from '../../common/ai/ai.service.js';
+import { BotRunnerService } from '../bots/bot-runner.service.js';
 import { AgentsService } from './agents.service.js';
 
 interface ToolDef {
@@ -84,6 +85,7 @@ export class AgentRuntimeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
+    private readonly botRunner: BotRunnerService,
     private readonly agents: AgentsService,
   ) {}
 
@@ -161,12 +163,25 @@ export class AgentRuntimeService {
       maxTokens: 800,
     });
 
-    await this.prisma.withTenant(tenantId, (tx) =>
-      tx.message.update({
-        where: { id: messageId },
-        data: { aiSuggestedReply: call.result || null, aiAnalyzedAt: new Date() },
-      }),
-    );
+    const reply = call.result?.trim() ?? '';
+    const mode = config.mode ?? 'SUGGEST';
+    let delivered = false;
+
+    // AUTO mode: the agent sends the reply itself over WhatsApp (with the AI
+    // disclosure on first contact + a per-bot rate limit). Otherwise it's stored
+    // as a suggested reply for a human to send (SUGGEST).
+    if (mode === 'AUTO' && reply) {
+      delivered = await this.tryAutoSend(tenantId, conversationId, config, reply);
+    }
+
+    if (!delivered) {
+      await this.prisma.withTenant(tenantId, (tx) =>
+        tx.message.update({
+          where: { id: messageId },
+          data: { aiSuggestedReply: reply || null, aiAnalyzedAt: new Date() },
+        }),
+      );
+    }
 
     void this.ai.recordUsage({
       tenantId,
@@ -174,14 +189,81 @@ export class AgentRuntimeService {
       callResult: call,
       resourceType: 'message',
       resourceId: messageId,
-      metadata: { actions: call.actions },
+      metadata: { actions: call.actions, mode, delivered },
     });
 
     if (call.actions.length) {
-      this.logger.log(
-        `agent ${agentId} acted: ${call.actions.map((a) => a.name).join(', ')}`,
-      );
+      this.logger.log(`agent ${agentId} acted: ${call.actions.map((a) => a.name).join(', ')}`);
     }
+  }
+
+  /** AUTO mode delivery: rate-limit → AI disclosure on first contact → send + record. */
+  private async tryAutoSend(
+    tenantId: string,
+    conversationId: string,
+    config: AgentConfig,
+    reply: string,
+  ): Promise<boolean> {
+    const conv = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.conversation.findUnique({
+        where: { id: conversationId },
+        select: { botId: true, contactJid: true },
+      }),
+    );
+    if (!conv?.botId) return false;
+
+    if (!(await this.withinRateLimit(tenantId, conv.botId))) {
+      this.logger.warn(`auto-send rate-limited for bot ${conv.botId}; falling back to suggestion`);
+      return false;
+    }
+
+    const priorOut = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.message.count({ where: { conversationId, direction: 'OUT' } }),
+    );
+    const disclosure = (config.aiDisclosure ?? DEFAULT_AI_DISCLOSURE).trim();
+    const text = priorOut === 0 && disclosure ? `${disclosure}\n\n${reply}` : reply;
+
+    let sentId: string | undefined;
+    try {
+      const res = await this.botRunner.sendText(conv.botId, conv.contactJid, text);
+      sentId = res.id;
+    } catch (err) {
+      this.logger.warn({ err }, 'auto-send failed; falling back to suggestion');
+      return false;
+    }
+
+    await this.prisma.withTenant(tenantId, async (tx) => {
+      const now = new Date();
+      await tx.message.create({
+        data: { tenantId, conversationId, direction: 'OUT', waMessageId: sentId, body: text },
+      });
+      await tx.conversation.update({
+        where: { id: conversationId },
+        data: {
+          status: 'ANSWERED',
+          lastMessageAt: now,
+          lastMessagePreview: text.slice(0, 140),
+          lastOutboundAt: now,
+          unreadCount: 0,
+        },
+      });
+    });
+    return true;
+  }
+
+  private async withinRateLimit(tenantId: string, botId: string): Promise<boolean> {
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const bot = await tx.bot.findUnique({
+        where: { id: botId },
+        select: { maxMessagesPerMinute: true },
+      });
+      const limit = bot?.maxMessagesPerMinute ?? 60;
+      const since = new Date(Date.now() - 60_000);
+      const count = await tx.message.count({
+        where: { direction: 'OUT', createdAt: { gte: since }, conversation: { botId } },
+      });
+      return count < limit;
+    });
   }
 
   private async executeTool(ctx: ToolCtx, name: string, input: unknown): Promise<string> {

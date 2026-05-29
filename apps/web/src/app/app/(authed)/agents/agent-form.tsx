@@ -103,10 +103,13 @@ export function AgentForm({ agent }: { agent?: AgentData }) {
               <option value="claude-haiku-4-5-20251001">Rápida</option>
             </Select>
           </Field>
-          <Field label="Modo" help="Sugerir = una persona envía. Auto = responde solo (llega en breve).">
+          <Field
+            label="Modo"
+            help="Sugerir = una persona revisa y envía. Auto = el agente responde solo por WhatsApp (con aviso de IA). Pruébalo primero con un número de test."
+          >
             <Select name="mode" defaultValue={cfg.mode ?? 'SUGGEST'}>
               <option value="SUGGEST">Sugerir (human-in-the-loop)</option>
-              <option value="AUTO">Responder solo</option>
+              <option value="AUTO">Responder solo (auto)</option>
             </Select>
           </Field>
           <Field label="Estado">
