@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { LogoutButton } from './logout-button';
 import { SidebarNav } from './sidebar-nav';
-import { SectionTabs } from './section-tabs';
 import { PoliciesBanner } from './policies-banner';
 
 interface MeResponse {
@@ -57,9 +56,9 @@ export default async function TenantAuthedLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-ink-100/30">
+    <div className="flex h-screen overflow-hidden bg-ink-100/30">
       <aside className="flex w-60 shrink-0 flex-col border-r border-ink-100 bg-white">
-        <div className="border-b border-ink-100 px-6 py-5">
+        <div className="shrink-0 border-b border-ink-100 px-6 py-[18px]">
           <div className="font-semibold tracking-tight">
             converflow<span className="text-primary-600">.ai</span>
           </div>
@@ -68,7 +67,7 @@ export default async function TenantAuthedLayout({
 
         <SidebarNav convPending={convPending} alertCount={alertCount} />
 
-        <div className="border-t border-ink-100 px-4 py-3 text-xs">
+        <div className="shrink-0 border-t border-ink-100 px-4 py-3 text-xs">
           <div className="text-ink-500">Conectado como</div>
           <div className="truncate font-medium text-ink-900">{me.user.email}</div>
           <div className="text-[10px] font-mono uppercase tracking-wider text-ink-500">
@@ -78,9 +77,9 @@ export default async function TenantAuthedLayout({
         </div>
       </aside>
 
-      <main className="flex-1 overflow-x-auto">
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {me.user.mustChangePassword && (
-          <div className="border-b border-amber-300 bg-amber-100 px-6 py-2 text-xs text-amber-900">
+          <div className="shrink-0 border-b border-amber-300 bg-amber-100 px-6 py-2 text-xs text-amber-900">
             ⚠️ Estás usando una contraseña temporal.{' '}
             <Link href="/app/profile" className="underline">
               Cámbiala
@@ -89,8 +88,7 @@ export default async function TenantAuthedLayout({
           </div>
         )}
         <PoliciesBanner />
-        <SectionTabs />
-        <div className="p-8">{children}</div>
+        <div className="flex-1 overflow-y-auto p-8">{children}</div>
       </main>
     </div>
   );
