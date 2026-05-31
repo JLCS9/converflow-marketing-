@@ -3,6 +3,7 @@ import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
+import { TabBar, IA_TABS } from '@/components/ui/tab-bar';
 import { AGENT_STATUS, AGENT_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
 
 interface AgentRow {
@@ -21,6 +22,7 @@ export default async function AgentsPage() {
 
   return (
     <div className="space-y-6">
+      <TabBar items={IA_TABS} />
       <PageHeader
         title="Agentes IA"
         description="Crea asistentes con tu información, pruébalos y asígnalos a un bot."

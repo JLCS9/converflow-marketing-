@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
 import { buttonClass } from '@/components/ui/primitives';
+import { TabBar, CRM_TABS } from '@/components/ui/tab-bar';
 import { OpportunitiesBoard } from './opportunities-board';
 import type { OppCard, Pipeline } from './types';
 
@@ -24,6 +25,7 @@ export default async function OpportunitiesPage({
 
   return (
     <div className="space-y-6">
+      <TabBar items={CRM_TABS} />
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Oportunidades</h1>

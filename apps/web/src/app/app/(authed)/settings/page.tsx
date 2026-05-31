@@ -1,6 +1,7 @@
 import { serverApiFetch } from '@/lib/server-api';
 import { Card } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
+import { TabBar, SETTINGS_TABS } from '@/components/ui/tab-bar';
 import { GoogleCalendarCard } from './google-calendar-card';
 
 interface TenantDetail {
@@ -42,6 +43,7 @@ export default async function SettingsPage({
 
   return (
     <div className="space-y-6">
+      <TabBar items={SETTINGS_TABS} />
       <PageHeader
         title="Ajustes"
         description={

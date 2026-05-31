@@ -3,6 +3,7 @@ import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
+import { TabBar, CRM_TABS } from '@/components/ui/tab-bar';
 import { LEAD_STATUS, LEAD_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
 
 interface LeadRow {
@@ -35,6 +36,7 @@ export default async function LeadsPage({
 
   return (
     <div className="space-y-6">
+      <TabBar items={CRM_TABS} />
       <PageHeader
         title="Leads"
         description={`${leads.length} ${leads.length === 1 ? 'lead' : 'leads'}. Da de alta manualmente o importa por CSV.`}

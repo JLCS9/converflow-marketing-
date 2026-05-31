@@ -6,54 +6,50 @@ export interface NavItem {
 export interface NavSection {
   key: string;
   label: string;
-  items: NavItem[];
+  /** Default landing route when the section is clicked. */
+  defaultHref: string;
+  /** Routes that belong to this section (used for active highlight). */
+  routes: string[];
 }
 
-// Grouped sidebar sections — each is a single sidebar entry; its pages show as
-// a top submenu (tabs) within the content area.
+// Flat sidebar: each section is a single entry. The actual sub-navigation
+// lives in the page-level <TabBar> on top of every listing page (see
+// /components/ui/tab-bar.tsx for the CRM_TABS, IA_TABS, SETTINGS_TABS sets).
+//
+// Trabajo (Tareas + Documentos) doesn't get a sidebar entry — it surfaces as
+// blocks on /app (Inicio). Their full pages are still reachable directly.
 export const NAV_SECTIONS: NavSection[] = [
   {
     key: 'crm',
     label: 'CRM',
-    items: [
-      { href: '/app/leads', label: 'Leads' },
-      { href: '/app/opportunities', label: 'Oportunidades' },
-      { href: '/app/clients', label: 'Clientes' },
-    ],
-  },
-  {
-    key: 'trabajo',
-    label: 'Trabajo',
-    items: [
-      { href: '/app/tasks', label: 'Tareas' },
-      { href: '/app/documents', label: 'Documentos' },
-    ],
+    defaultHref: '/app/leads',
+    routes: ['/app/leads', '/app/opportunities', '/app/clients'],
   },
   {
     key: 'ia',
     label: 'IA',
-    items: [
-      { href: '/app/bots', label: 'Bots' },
-      { href: '/app/agents', label: 'Agentes IA' },
-    ],
-  },
-  {
-    key: 'config',
-    label: 'Configuración',
-    items: [
-      { href: '/app/users', label: 'Usuarios' },
-      { href: '/app/profile', label: 'Perfil' },
-      { href: '/app/settings', label: 'Ajustes' },
-      { href: '/app/settings/custom-fields', label: 'Campos personalizados' },
-      { href: '/app/settings/pipelines', label: 'Tableros' },
-    ],
+    defaultHref: '/app/bots',
+    routes: ['/app/bots', '/app/agents'],
   },
 ];
+
+export const SETTINGS_SECTION: NavSection = {
+  key: 'config',
+  label: 'Configuración',
+  defaultHref: '/app/settings',
+  routes: [
+    '/app/settings',
+    '/app/users',
+    '/app/profile',
+    '/app/settings/custom-fields',
+    '/app/settings/pipelines',
+  ],
+};
 
 export function isItemActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function findSection(pathname: string): NavSection | undefined {
-  return NAV_SECTIONS.find((s) => s.items.some((it) => isItemActive(pathname, it.href)));
+export function isSectionActive(pathname: string, section: NavSection): boolean {
+  return section.routes.some((r) => isItemActive(pathname, r));
 }

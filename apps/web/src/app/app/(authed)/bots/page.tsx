@@ -3,6 +3,7 @@ import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
+import { TabBar, IA_TABS } from '@/components/ui/tab-bar';
 import { BOT_STATUS, BOT_STATUS_COLOR, CHANNEL, statusColor, statusLabel } from '@/lib/labels';
 
 interface BotRow {
@@ -23,6 +24,7 @@ export default async function BotsPage() {
 
   return (
     <div className="space-y-6">
+      <TabBar items={IA_TABS} />
       <PageHeader
         title="Bots"
         description={`${bots.length} ${bots.length === 1 ? 'bot configurado' : 'bots configurados'}.`}

@@ -19,6 +19,7 @@ export class OpportunitiesController {
     @Query('status') status?: string,
     @Query('ownerId') ownerId?: string,
     @Query('pipelineId') pipelineId?: string,
+    @Query('search') search?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
@@ -26,6 +27,7 @@ export class OpportunitiesController {
       status,
       ownerId,
       pipelineId,
+      search,
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
     });

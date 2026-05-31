@@ -15,6 +15,7 @@ interface ListOpts {
   status?: string;
   ownerId?: string;
   pipelineId?: string;
+  search?: string;
   limit?: number;
   offset?: number;
 }
@@ -41,6 +42,9 @@ export class OpportunitiesService {
           status: (opts.status as never) || undefined,
           ownerId: opts.ownerId || undefined,
           pipelineId: opts.pipelineId || undefined,
+          name: opts.search
+            ? { contains: opts.search, mode: 'insensitive' }
+            : undefined,
         },
         orderBy: { createdAt: 'desc' },
         take: opts.limit ?? 200,

@@ -6,6 +6,7 @@ import {
   Flame,
   ListChecks,
   Bell,
+  FileText,
   type LucideIcon,
 } from 'lucide-react';
 import { serverApiFetch } from '@/lib/server-api';
@@ -123,8 +124,35 @@ interface QueueItem {
   action: string;
 }
 
+interface TaskPreview {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  dueAt: string | null;
+  lead: { id: string; name: string } | null;
+  client: { id: string; name: string } | null;
+  opportunity: { id: string; name: string } | null;
+}
+
+interface DocPreview {
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+  client: { id: string; name: string } | null;
+  opportunity: { id: string; name: string } | null;
+}
+
+function formatBytes(b: number): string {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export default async function TodayHome() {
-  const [data, alerts, convs, bots, agents, googleStatus] = await Promise.all([
+  const [data, alerts, convs, bots, agents, googleStatus, tasks, docs] = await Promise.all([
     serverApiFetch<Overview>('/reports/overview'),
     serverApiFetch<AlertItem[]>('/alerts').catch(() => [] as AlertItem[]),
     serverApiFetch<ConvRow[]>('/conversations?status=PENDING').catch(() => [] as ConvRow[]),
@@ -133,7 +161,12 @@ export default async function TodayHome() {
     serverApiFetch<{ connected: boolean }>('/integrations/google/status').catch(() => ({
       connected: false,
     })),
+    serverApiFetch<TaskPreview[]>('/tasks?status=PENDING').catch(() => [] as TaskPreview[]),
+    serverApiFetch<DocPreview[]>('/documents').catch(() => [] as DocPreview[]),
   ]);
+
+  const upcomingTasks = tasks.slice(0, 5);
+  const recentDocs = docs.slice(0, 5);
 
   const steps: OnboardingStep[] = [
     {
@@ -242,6 +275,85 @@ export default async function TodayHome() {
             ))}
           </div>
         )}
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="text-base font-semibold">Tu trabajo</h2>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-sm font-mono uppercase tracking-wider text-ink-500">
+                <ListChecks size={14} strokeWidth={1.75} aria-hidden /> Tareas pendientes
+              </h3>
+              <Link href="/app/tasks" className="text-xs text-primary-700 hover:underline">
+                Ver todas →
+              </Link>
+            </div>
+            {upcomingTasks.length === 0 ? (
+              <p className="text-sm text-ink-500">Sin tareas pendientes. 🎉</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {upcomingTasks.map((t) => (
+                  <li key={t.id} className="flex items-baseline justify-between gap-2 text-sm">
+                    <Link
+                      href={`/app/tasks`}
+                      className="min-w-0 flex-1 truncate text-ink-900 hover:text-primary-700"
+                      title={t.title}
+                    >
+                      {t.title}
+                    </Link>
+                    <span className="shrink-0 font-mono text-[11px] text-ink-500">
+                      {t.dueAt
+                        ? new Date(t.dueAt).toLocaleDateString('es-ES', {
+                            day: '2-digit',
+                            month: 'short',
+                          })
+                        : '—'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+          <Card>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-sm font-mono uppercase tracking-wider text-ink-500">
+                <FileText size={14} strokeWidth={1.75} aria-hidden /> Documentos recientes
+              </h3>
+              <Link href="/app/documents" className="text-xs text-primary-700 hover:underline">
+                Ver todos →
+              </Link>
+            </div>
+            {recentDocs.length === 0 ? (
+              <p className="text-sm text-ink-500">
+                Sin documentos.{' '}
+                <Link href="/app/documents" className="text-primary-700 hover:underline">
+                  Sube el primero
+                </Link>
+                .
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {recentDocs.map((d) => (
+                  <li key={d.id} className="flex items-baseline justify-between gap-2 text-sm">
+                    <Link
+                      href="/app/documents"
+                      className="min-w-0 flex-1 truncate text-ink-900 hover:text-primary-700"
+                      title={d.name}
+                    >
+                      {d.name}
+                    </Link>
+                    <span className="shrink-0 font-mono text-[11px] text-ink-500">
+                      {formatBytes(d.sizeBytes)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
       </section>
 
       <section>

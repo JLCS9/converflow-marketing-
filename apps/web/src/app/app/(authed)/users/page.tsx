@@ -3,6 +3,7 @@ import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
+import { TabBar, SETTINGS_TABS } from '@/components/ui/tab-bar';
 import { UserActions } from './user-actions';
 
 interface UserRow {
@@ -40,6 +41,7 @@ export default async function UsersPage() {
 
   return (
     <div className="space-y-6">
+      <TabBar items={SETTINGS_TABS} />
       <PageHeader
         title="Usuarios"
         description={`${users.length} ${users.length === 1 ? 'usuario' : 'usuarios'} en tu cuenta.`}

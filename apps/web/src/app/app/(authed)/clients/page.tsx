@@ -3,6 +3,7 @@ import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
+import { TabBar, CRM_TABS } from '@/components/ui/tab-bar';
 import { CLIENT_STATUS, CLIENT_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
 
 interface ClientRow {
@@ -32,6 +33,7 @@ export default async function ClientsPage({
 
   return (
     <div className="space-y-6">
+      <TabBar items={CRM_TABS} />
       <PageHeader
         title="Clientes"
         description={`${clients.length} ${clients.length === 1 ? 'cliente' : 'clientes'}.`}

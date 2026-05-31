@@ -1,5 +1,7 @@
 import { serverApiFetch } from '@/lib/server-api';
 import { Card } from '@/components/ui/primitives';
+import { PageHeader } from '@/components/ui/page-header';
+import { TabBar, SETTINGS_TABS } from '@/components/ui/tab-bar';
 import { ChangePasswordForm } from './change-password-form';
 
 interface MeResponse {
@@ -13,12 +15,8 @@ export default async function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Perfil</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Datos de tu cuenta y seguridad.
-        </p>
-      </header>
+      <TabBar items={SETTINGS_TABS} />
+      <PageHeader title="Perfil" description="Datos de tu cuenta y seguridad." />
 
       {me.user.mustChangePassword && (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
