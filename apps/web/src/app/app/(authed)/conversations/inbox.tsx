@@ -6,12 +6,14 @@ import { apiFetch } from '@/lib/api-client';
 import { Badge, buttonClass } from '@/components/ui/primitives';
 import { CopyButton } from '@/components/ui/copy-button';
 import { MeetingScheduler } from '@/components/meeting-scheduler';
+import { ChannelBadge } from '@/components/ui/channel-badge';
 
 interface ConvRow {
   id: string;
   contactName: string | null;
   contactPhone: string | null;
   contactJid: string;
+  channel: string;
   status: string;
   lastMessageAt: string | null;
   lastMessagePreview: string | null;
@@ -35,6 +37,7 @@ interface Thread {
   contactName: string | null;
   contactPhone: string | null;
   contactJid: string;
+  channel: string;
   status: string;
   lead: { id: string; name: string; score: number | null; status: string; company: string | null } | null;
   messages: ThreadMsg[];
@@ -217,7 +220,10 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
                 className={`block w-full border-b border-ink-100 p-3 text-left hover:bg-ink-100/40 ${selectedId === c.id ? 'bg-ink-100/60' : ''}`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium text-ink-900">{contactTitle(c)}</span>
+                  <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <ChannelBadge channel={c.channel} size={12} />
+                    <span className="truncate text-sm font-medium text-ink-900">{contactTitle(c)}</span>
+                  </span>
                   <span className="shrink-0 text-[10px] text-ink-400">{timeLabel(c.lastMessageAt)}</span>
                 </div>
                 <div className="mt-0.5 flex items-center gap-2">
@@ -249,7 +255,10 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
           <>
             <div className="flex items-center justify-between gap-3 border-b border-ink-100 px-4 py-3">
               <div className="min-w-0">
-                <div className="truncate font-medium text-ink-900">{contactTitle(thread)}</div>
+                <div className="flex items-center gap-2">
+                  <ChannelBadge channel={thread.channel} size={14} showLabel />
+                </div>
+                <div className="mt-1 truncate font-medium text-ink-900">{contactTitle(thread)}</div>
                 <div className="text-xs text-ink-500">
                   {thread.contactPhone ?? thread.contactJid}
                   {thread.lead && (

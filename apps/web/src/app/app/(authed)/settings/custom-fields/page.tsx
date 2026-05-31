@@ -1,5 +1,6 @@
 import { serverApiFetch } from '@/lib/server-api';
 import { Card } from '@/components/ui/primitives';
+import { PageHeader } from '@/components/ui/page-header';
 import { CustomFieldsAdmin } from './custom-fields-admin';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
@@ -12,13 +13,14 @@ export default async function CustomFieldsSettingsPage() {
   ).catch(() => []);
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Campos personalizados</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Define los atributos que quieres capturar en tus leads, clientes y oportunidades.
-          Aparecerán automáticamente en los formularios y fichas.
-        </p>
-      </header>
+      <PageHeader
+        title="Campos personalizados"
+        description="Define los atributos que quieres capturar en tus leads, clientes y oportunidades. Aparecerán automáticamente en los formularios y fichas."
+        breadcrumbs={[
+          { href: '/app/settings', label: 'Configuración' },
+          { label: 'Campos personalizados' },
+        ]}
+      />
       <Card>
         <CustomFieldsAdmin initial={definitions} />
       </Card>

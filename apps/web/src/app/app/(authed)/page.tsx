@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card, StatCard, buttonClass } from '@/components/ui/primitives';
+import { OnboardingChecklist, type OnboardingStep } from '@/components/ui/onboarding-checklist';
 
 interface Overview {
   leads: {
@@ -123,11 +124,51 @@ interface QueueItem {
 }
 
 export default async function TodayHome() {
-  const [data, alerts, convs] = await Promise.all([
+  const [data, alerts, convs, bots, agents, googleStatus] = await Promise.all([
     serverApiFetch<Overview>('/reports/overview'),
     serverApiFetch<AlertItem[]>('/alerts').catch(() => [] as AlertItem[]),
     serverApiFetch<ConvRow[]>('/conversations?status=PENDING').catch(() => [] as ConvRow[]),
+    serverApiFetch<{ id: string }[]>('/bots').catch(() => [] as { id: string }[]),
+    serverApiFetch<{ id: string }[]>('/agents').catch(() => [] as { id: string }[]),
+    serverApiFetch<{ connected: boolean }>('/integrations/google/status').catch(() => ({
+      connected: false,
+    })),
   ]);
+
+  const steps: OnboardingStep[] = [
+    {
+      key: 'bot',
+      label: 'Conecta un canal',
+      description: 'WhatsApp, Email o Web Chat — el sitio donde te van a escribir.',
+      done: bots.length > 0,
+      href: '/app/bots/new',
+      cta: 'Crear bot →',
+    },
+    {
+      key: 'agent',
+      label: 'Crea tu primer agente IA',
+      description: 'El asistente que clasifica, propone respuestas y agenda reuniones.',
+      done: agents.length > 0,
+      href: '/app/agents/new',
+      cta: 'Crear agente →',
+    },
+    {
+      key: 'lead',
+      label: 'Da de alta un lead o cliente',
+      description: 'Para empezar a trackear conversaciones y oportunidades en el CRM.',
+      done: data.leads.total > 0 || data.clients.total > 0,
+      href: '/app/leads/new',
+      cta: 'Nuevo lead →',
+    },
+    {
+      key: 'calendar',
+      label: 'Conecta Google Calendar',
+      description: 'Para que tu IA pueda proponer y agendar reuniones.',
+      done: googleStatus.connected,
+      href: '/app/settings',
+      cta: 'Conectar →',
+    },
+  ];
 
   const queue: QueueItem[] = [
     ...convs.slice(0, 4).map((c) => ({
@@ -164,6 +205,8 @@ export default async function TodayHome() {
           })}
         </p>
       </header>
+
+      <OnboardingChecklist steps={steps} />
 
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Conversión" value={`${Math.round(data.leads.conversionRate * 100)}%`} hint="Leads convertidos / total" />

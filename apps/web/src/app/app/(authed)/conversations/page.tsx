@@ -1,4 +1,5 @@
 import { serverApiFetch } from '@/lib/server-api';
+import { PageHeader } from '@/components/ui/page-header';
 import { Inbox } from './inbox';
 
 interface ConvRow {
@@ -6,6 +7,7 @@ interface ConvRow {
   contactName: string | null;
   contactPhone: string | null;
   contactJid: string;
+  channel: string;
   status: string;
   lastMessageAt: string | null;
   lastMessagePreview: string | null;
@@ -20,13 +22,10 @@ export default async function ConversationsPage() {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Conversaciones</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Bandeja de WhatsApp. Las que están <strong>sin responder</strong> esperan tu contestación;
-          al responder desde tu WhatsApp se marcan como respondidas automáticamente.
-        </p>
-      </header>
+      <PageHeader
+        title="Conversaciones"
+        description="Bandeja unificada de WhatsApp, Email y Web Chat. Las marcadas sin responder esperan tu contestación; al responder se marcan como respondidas automáticamente."
+      />
       <Inbox initial={initial} />
     </div>
   );

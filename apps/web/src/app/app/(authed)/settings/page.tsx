@@ -1,5 +1,6 @@
 import { serverApiFetch } from '@/lib/server-api';
 import { Card } from '@/components/ui/primitives';
+import { PageHeader } from '@/components/ui/page-header';
 import { GoogleCalendarCard } from './google-calendar-card';
 
 interface TenantDetail {
@@ -41,13 +42,26 @@ export default async function SettingsPage({
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Ajustes</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Configuración del tenant. Los límites los gestiona el equipo de converflow — si
-          necesitas cambiarlos, contáctanos.
-        </p>
-      </header>
+      <PageHeader
+        title="Ajustes"
+        description={
+          <>
+            Configuración del tenant. Los límites los gestiona el equipo de converflow — si
+            necesitas cambiarlos,{' '}
+            <a
+              href="mailto:hola@converflow.ai?subject=Ampliar%20l%C3%ADmites%20del%20tenant"
+              className="text-primary-700 hover:underline"
+            >
+              escríbenos
+            </a>
+            .
+          </>
+        }
+        breadcrumbs={[
+          { href: '/app/settings', label: 'Configuración' },
+          { label: 'Ajustes' },
+        ]}
+      />
 
       <Card>
         <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">

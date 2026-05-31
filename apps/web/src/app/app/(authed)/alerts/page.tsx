@@ -41,7 +41,17 @@ export default async function AlertsPage() {
           tone="positive"
           icon={<span className="text-base">✓</span>}
           title="Todo al día"
-          description="No tienes alertas activas. Te avisaremos aquí cuando algo necesite tu atención."
+          description={
+            <>
+              No tienes alertas activas. Te avisaremos aquí cuando:
+              <ul className="mx-auto mt-2 max-w-md list-disc text-left text-xs text-ink-500 sm:mt-3">
+                <li>un lead lleve más de 14 días sin que lo contactes,</li>
+                <li>una oportunidad se acerque a su fecha de cierre,</li>
+                <li>una tarea se pase de fecha,</li>
+                <li>aparezca un lead con score alto (≥ 75) listo para contactar.</li>
+              </ul>
+            </>
+          }
         />
       ) : (
         <ul className="space-y-2">
