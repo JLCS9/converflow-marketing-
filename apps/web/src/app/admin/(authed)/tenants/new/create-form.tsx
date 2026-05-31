@@ -25,23 +25,30 @@ export function CreateTenantForm() {
           Apunta esta contraseña temporal y entrégasela al owner por un canal seguro
           (1Password / Bitwarden / Signal). No volverá a mostrarse.
         </p>
-        <dl className="space-y-2 rounded-md bg-ink-100/60 p-4 font-mono text-sm">
+        <dl className="space-y-3 rounded-md bg-ink-100/60 p-4 text-sm">
           <div>
             <dt className="text-xs text-ink-500">Tenant ID</dt>
-            <dd>{result.tenant.id}</dd>
+            <dd className="font-mono">{result.tenant.id}</dd>
           </div>
           <div>
             <dt className="text-xs text-ink-500">Slug</dt>
-            <dd>{result.tenant.slug}</dd>
+            <dd className="font-mono">{result.tenant.slug}</dd>
           </div>
           <div>
-            <dt className="text-xs text-ink-500">Owner password (temporal)</dt>
+            <dt className="text-xs text-ink-500">Contraseña temporal del owner</dt>
             <dd className="mt-1 flex items-center gap-2">
-              <code className="flex-1 select-all rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-900">
-                {result.ownerTempPassword}
-              </code>
-              <CopyButton value={result.ownerTempPassword} />
+              <input
+                readOnly
+                value={result.ownerTempPassword}
+                onFocus={(e) => e.currentTarget.select()}
+                className="flex-1 rounded border border-amber-400 bg-amber-50 px-3 py-2 font-mono text-base tracking-wider text-amber-900"
+              />
+              <CopyButton value={result.ownerTempPassword} label="Copiar" />
             </dd>
+            <p className="mt-2 text-xs text-amber-800">
+              Pulsa <strong>Copiar</strong> — al pegar no debe quedar ningún espacio antes o
+              después. El owner deberá cambiarla en el primer inicio de sesión.
+            </p>
           </div>
         </dl>
         <div className="flex gap-2">

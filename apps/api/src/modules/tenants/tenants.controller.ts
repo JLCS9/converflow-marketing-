@@ -49,6 +49,14 @@ export class TenantsController {
     return this.tenants.updateLimits(id, body as never, admin.adminId);
   }
 
+  @Post('tenants/:id/reset-owner-password')
+  resetOwnerPassword(
+    @Param('id') id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ): Promise<{ ownerEmail: string; ownerTempPassword: string }> {
+    return this.tenants.resetOwnerPassword(id, admin.adminId);
+  }
+
   @Delete('tenants/:id')
   remove(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {
     return this.tenants.remove(id, admin.adminId);

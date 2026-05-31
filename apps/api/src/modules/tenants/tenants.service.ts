@@ -175,6 +175,52 @@ export class TenantsService {
     return { tenant, ownerTempPassword: tempPassword };
   }
 
+  /**
+   * Regenerates the temp password for the tenant's OWNER. Returns plaintext
+   * once — admin should hand it to the owner via a secure channel. Also flips
+   * mustChangePassword=true and clears all of the owner's open sessions so the
+   * previous password is fully revoked.
+   */
+  async resetOwnerPassword(
+    tenantId: string,
+    adminId: string,
+  ): Promise<{ ownerEmail: string; ownerTempPassword: string }> {
+    return this.prisma.bypass(async (tx) => {
+      const tenant = await tx.tenant.findUnique({ where: { id: tenantId } });
+      if (!tenant) throw new NotFoundError('Tenant no encontrado');
+      const owner = await tx.user.findFirst({
+        where: { tenantId, role: 'OWNER' },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (!owner) throw new NotFoundError('Este tenant no tiene un OWNER');
+
+      const tempPassword = generateReadablePassword();
+      const passwordHash = await argon2.hash(tempPassword, { type: argon2.argon2id });
+
+      await tx.user.update({
+        where: { id: owner.id },
+        data: {
+          passwordHash,
+          mustChangePassword: true,
+          status: owner.status === 'SUSPENDED' ? 'ACTIVE' : owner.status,
+        },
+      });
+      // Revoke any existing sessions of this user so the old password is dead.
+      await tx.userSession.deleteMany({ where: { userId: owner.id } });
+      await tx.adminActionLog.create({
+        data: {
+          adminId,
+          action: 'reset_owner_password',
+          targetType: 'tenant',
+          targetId: tenantId,
+          metadata: { slug: tenant.slug, ownerEmail: owner.email },
+        },
+      });
+
+      return { ownerEmail: owner.email, ownerTempPassword: tempPassword };
+    });
+  }
+
   async remove(tenantId: string, adminId: string): Promise<{ id: string; slug: string }> {
     return this.prisma.bypass(async (tx) => {
       const tenant = await tx.tenant.findUnique({ where: { id: tenantId } });

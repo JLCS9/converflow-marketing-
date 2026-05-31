@@ -4,6 +4,7 @@ import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { Card, StatCard, tenantStatusBadge } from '@/components/ui/primitives';
 import { EditLimitsForm } from './edit-limits-form';
 import { DeleteTenantButton } from './delete-tenant-button';
+import { ResetOwnerPasswordButton } from './reset-owner-password';
 
 interface TenantDetail {
   id: string;
@@ -107,6 +108,17 @@ export default async function TenantDetailPage({
                   (tenant.kitDigitalSegment as 'IV' | 'V' | null) ?? null,
               }}
             />
+            <div className="mt-8 border-t border-ink-100 pt-6">
+              <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
+                Acceso del owner
+              </h2>
+              <p className="mt-1 mb-3 text-xs text-ink-500">
+                Si el owner perdió la contraseña temporal o no consigue entrar, regenera una
+                nueva. Las sesiones anteriores se revocan y se fuerza cambio en el primer login.
+              </p>
+              <ResetOwnerPasswordButton tenantId={tenant.id} />
+            </div>
+
             <div className="mt-8 border-t border-ink-100 pt-6">
               <h2 className="text-sm font-mono uppercase tracking-wider text-red-700">
                 Zona peligrosa

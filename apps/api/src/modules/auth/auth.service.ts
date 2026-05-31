@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import argon2 from 'argon2';
 import {
   BadRequestError,
@@ -34,10 +34,16 @@ interface SignupResult {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async login(input: LoginInput, ctx: { ip?: string; userAgent?: string }): Promise<LoginResult> {
-    const { email, password } = loginSchema.parse(input);
+    const { email, password: rawPassword } = loginSchema.parse(input);
+    // Be defensive: copy/paste from clipboard managers (and from the admin
+    // temp-password reveal) sometimes drags in whitespace. The generator only
+    // emits A-Za-z2-9, so trimming is always safe here.
+    const password = rawPassword.trim();
 
     // Same email can exist in multiple tenants (pool model). Try the password
     // against each candidate; the one whose hash verifies wins. Most-recent
@@ -77,6 +83,11 @@ export class AuthService {
           }),
         );
       }
+      // Server-side hint so we can tell paste-failures from typos when
+      // debugging. The public error stays generic to avoid email enumeration.
+      this.logger.warn(
+        `Login failed (${candidates.length === 0 ? 'no_candidates' : 'hash_mismatch'}) for ${email}`,
+      );
       throw new UnauthorizedError('Credenciales inválidas');
     }
 
