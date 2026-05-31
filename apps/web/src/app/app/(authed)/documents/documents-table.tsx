@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch, ApiError } from '@/lib/api-client';
+import { useFeedback } from '@/components/ui/feedback';
 
 interface DocRow {
   id: string;
@@ -24,13 +25,13 @@ function formatBytes(b: number): string {
 
 export function DocumentsTable({ docs }: { docs: DocRow[] }) {
   const router = useRouter();
+  const { confirm, toast } = useFeedback();
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [_, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   return (
     <>
-      {error && <div className="border-b border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
       <table className="w-full text-sm">
         <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
           <tr>
@@ -70,13 +71,12 @@ export function DocumentsTable({ docs }: { docs: DocRow[] }) {
                   disabled={pendingId === d.id}
                   onClick={() => {
                     setPendingId(d.id);
-                    setError(null);
                     startTransition(async () => {
                       try {
                         const res = await apiFetch<{ url: string }>(`/documents/${d.id}/download`);
                         window.open(res.url, '_blank', 'noopener');
                       } catch (err) {
-                        setError(err instanceof ApiError ? err.message : 'Error al firmar descarga');
+                        toast.error(err instanceof ApiError ? err.message : 'No se pudo descargar');
                       } finally {
                         setPendingId(null);
                       }
@@ -89,16 +89,21 @@ export function DocumentsTable({ docs }: { docs: DocRow[] }) {
                 <button
                   type="button"
                   disabled={pendingId === d.id}
-                  onClick={() => {
-                    if (!confirm(`¿Eliminar ${d.name}?`)) return;
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: `Eliminar ${d.name}`,
+                      description: 'El archivo y su enlace se borran. No se puede deshacer.',
+                      danger: true,
+                    });
+                    if (!ok) return;
                     setPendingId(d.id);
-                    setError(null);
                     startTransition(async () => {
                       try {
                         await apiFetch(`/documents/${d.id}`, { method: 'DELETE' });
+                        toast.success('Documento eliminado');
                         router.refresh();
                       } catch (err) {
-                        setError(err instanceof ApiError ? err.message : 'Error al eliminar');
+                        toast.error(err instanceof ApiError ? err.message : 'No se pudo eliminar');
                       } finally {
                         setPendingId(null);
                       }

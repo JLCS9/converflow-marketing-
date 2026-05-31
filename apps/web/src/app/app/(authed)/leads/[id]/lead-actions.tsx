@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Select, buttonClass } from '@/components/ui/primitives';
+import { useFeedback } from '@/components/ui/feedback';
+import { LEAD_STATUS } from '@/lib/labels';
 
 const STATUSES = ['NEW', 'CONTACTED', 'QUALIFIED', 'CONVERTED', 'LOST'] as const;
 
@@ -15,8 +17,8 @@ export function LeadActions({
   currentStatus: (typeof STATUSES)[number];
 }) {
   const router = useRouter();
+  const { confirm, toast } = useFeedback();
   const [status, setStatus] = useState<string>(currentStatus);
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   return (
@@ -27,7 +29,7 @@ export function LeadActions({
           <Select value={status} onChange={(e) => setStatus(e.target.value)}>
             {STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {LEAD_STATUS[s]}
               </option>
             ))}
           </Select>
@@ -36,13 +38,13 @@ export function LeadActions({
           type="button"
           disabled={pending || status === currentStatus}
           onClick={() => {
-            setError(null);
             startTransition(async () => {
               try {
                 await apiFetch(`/leads/${leadId}`, { method: 'PATCH', json: { status } });
+                toast.success('Status actualizado');
                 router.refresh();
               } catch (err) {
-                setError(err instanceof ApiError ? err.message : 'Error');
+                toast.error(err instanceof ApiError ? err.message : 'No se pudo guardar');
               }
             });
           }}
@@ -56,15 +58,20 @@ export function LeadActions({
         <button
           type="button"
           disabled={pending}
-          onClick={() => {
-            if (!confirm('¿Eliminar este lead? Esta acción no se puede deshacer.')) return;
-            setError(null);
+          onClick={async () => {
+            const ok = await confirm({
+              title: 'Eliminar lead',
+              description: 'Se borran también notas y conversaciones vinculadas. No se puede deshacer.',
+              danger: true,
+            });
+            if (!ok) return;
             startTransition(async () => {
               try {
                 await apiFetch(`/leads/${leadId}`, { method: 'DELETE' });
+                toast.success('Lead eliminado');
                 router.replace('/app/leads');
               } catch (err) {
-                setError(err instanceof ApiError ? err.message : 'Error');
+                toast.error(err instanceof ApiError ? err.message : 'No se pudo eliminar');
               }
             });
           }}
@@ -73,8 +80,6 @@ export function LeadActions({
           Eliminar lead
         </button>
       </div>
-
-      {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );
 }

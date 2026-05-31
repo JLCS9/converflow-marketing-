@@ -1,5 +1,7 @@
 import { serverApiFetch } from '@/lib/server-api';
 import { Card } from '@/components/ui/primitives';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
 import { AlertItem, MarkAllReadButton, type Alert } from './alert-item';
 
 export const metadata = { title: 'Alertas' };
@@ -11,16 +13,11 @@ export default async function AlertsPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Alertas</h1>
-          <p className="mt-1 text-sm text-ink-500">
-            Avisos automáticos sobre leads sin contactar, oportunidades vencidas, tareas
-            atrasadas y leads de alta prioridad. Se recalculan en cada carga.
-          </p>
-        </div>
-        {unread > 0 && <MarkAllReadButton />}
-      </header>
+      <PageHeader
+        title="Alertas"
+        description="Avisos automáticos cuando un lead lleva días sin contactar, una oportunidad se acerca a su fecha de cierre o una tarea se pasa. Se recalculan en cada carga."
+        action={unread > 0 ? <MarkAllReadButton /> : undefined}
+      />
 
       <section className="grid gap-4 sm:grid-cols-3">
         <Card className="p-4">
@@ -40,9 +37,12 @@ export default async function AlertsPage() {
       </section>
 
       {alerts.length === 0 ? (
-        <Card className="text-center text-ink-500">
-          🎉 No tienes alertas activas. Todo al día.
-        </Card>
+        <EmptyState
+          tone="positive"
+          icon={<span className="text-base">✓</span>}
+          title="Todo al día"
+          description="No tienes alertas activas. Te avisaremos aquí cuando algo necesite tu atención."
+        />
       ) : (
         <ul className="space-y-2">
           {alerts.map((a) => (

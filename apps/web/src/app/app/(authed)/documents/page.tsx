@@ -1,6 +1,7 @@
-import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
-import { Card, buttonClass } from '@/components/ui/primitives';
+import { Card } from '@/components/ui/primitives';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
 import { DocumentsTable } from './documents-table';
 import { UploadForm } from './upload-form';
 
@@ -30,24 +31,26 @@ export default async function DocumentsPage({
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Documentos</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Almacenamiento centralizado de contratos, presupuestos, fotos y cualquier fichero
-          comercial. Cifrado en reposo en Cloudflare R2. Solo ves los documentos de tu tenant.
-        </p>
-      </header>
+      <PageHeader
+        title="Documentos"
+        description="Almacenamiento centralizado de contratos, presupuestos y ficheros comerciales. Cifrado en reposo en Cloudflare R2."
+      />
 
       <Card>
         <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Subir documento</h2>
-        <p className="mt-1 text-xs text-ink-500">Máximo 50 MB. Opcional: vincúlalo a un cliente u oportunidad.</p>
+        <p className="mt-1 text-xs text-ink-500">
+          Máximo 50 MB. Opcional: vincúlalo a un cliente u oportunidad.
+        </p>
         <div className="mt-4">
           <UploadForm />
         </div>
       </Card>
 
       {docs.length === 0 ? (
-        <Card className="text-center text-ink-500">Sin documentos.</Card>
+        <EmptyState
+          title="Sin documentos"
+          description="Sube contratos, presupuestos o cualquier archivo y vincúlalo a un cliente u oportunidad."
+        />
       ) : (
         <Card className="overflow-x-auto p-0">
           <DocumentsTable docs={docs} />

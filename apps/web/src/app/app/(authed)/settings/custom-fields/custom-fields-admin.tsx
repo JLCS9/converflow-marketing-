@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Field, Input, Select, buttonClass } from '@/components/ui/primitives';
+import { useFeedback } from '@/components/ui/feedback';
 import {
   ENTITY_LABEL,
   FIELD_TYPE_LABEL,
@@ -153,6 +154,7 @@ function DefinitionRow({
   def: CustomFieldDefinition;
   onChanged: () => Promise<void> | void;
 }) {
+  const { confirm, toast } = useFeedback();
   const [editing, setEditing] = useState(false);
   return (
     <div className="rounded-md border border-ink-100 bg-white">
@@ -179,9 +181,20 @@ function DefinitionRow({
             type="button"
             className="text-xs text-red-600 hover:underline"
             onClick={async () => {
-              if (!confirm(`¿Archivar el campo "${def.label}"?`)) return;
-              await apiFetch(`/custom-fields/${def.id}`, { method: 'DELETE' });
-              await onChanged();
+              const ok = await confirm({
+                title: `Archivar "${def.label}"`,
+                description: 'El campo dejará de aparecer en formularios. Los valores ya guardados se mantienen.',
+                confirmLabel: 'Archivar',
+                danger: true,
+              });
+              if (!ok) return;
+              try {
+                await apiFetch(`/custom-fields/${def.id}`, { method: 'DELETE' });
+                toast.success('Campo archivado');
+                await onChanged();
+              } catch (e) {
+                toast.error(e instanceof ApiError ? e.message : 'No se pudo archivar');
+              }
             }}
           >
             Archivar

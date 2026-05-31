@@ -5,19 +5,40 @@ import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
 import { CustomFieldsForm } from '@/components/custom-fields/form';
+import { useFeedback } from '@/components/ui/feedback';
+import { useUnsavedWarning } from '@/lib/use-unsaved-warning';
+import { LEAD_STATUS } from '@/lib/labels';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
 export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefinition[] }) {
   const router = useRouter();
+  const { confirm, toast } = useFeedback();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
+  const [dirty, setDirty] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  useUnsavedWarning(dirty && !submitting);
   const visibleCustom = customFields.filter((c) => !c.archivedAt);
+
+  async function handleCancel() {
+    if (dirty) {
+      const ok = await confirm({
+        title: 'Descartar cambios',
+        description: 'Has empezado a rellenar el formulario. Si sales, se pierde lo escrito.',
+        confirmLabel: 'Descartar',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    router.push('/app/leads');
+  }
 
   return (
     <Card>
       <form
         className="space-y-5"
+        onChange={() => setDirty(true)}
         onSubmit={(event) => {
           event.preventDefault();
           const data = new FormData(event.currentTarget);
@@ -31,14 +52,17 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
             customFields: Object.keys(cfValues).length ? cfValues : undefined,
           };
           setError(null);
+          setSubmitting(true);
           startTransition(async () => {
             try {
               const lead = await apiFetch<{ id: string }>('/leads', {
                 method: 'POST',
                 json: payload,
               });
+              toast.success('Lead creado');
               router.push(`/app/leads/${lead.id}`);
             } catch (err) {
+              setSubmitting(false);
               setError(err instanceof ApiError ? err.message : 'Error inesperado');
             }
           });
@@ -62,11 +86,11 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
           <Field label="Fuente">
             <Input name="source" type="text" placeholder="manual, web, evento, referido…" />
           </Field>
-          <Field label="Status inicial">
+          <Field label="Estado inicial">
             <Select name="status" defaultValue="NEW">
-              <option value="NEW">NEW</option>
-              <option value="CONTACTED">CONTACTED</option>
-              <option value="QUALIFIED">QUALIFIED</option>
+              <option value="NEW">{LEAD_STATUS.NEW}</option>
+              <option value="CONTACTED">{LEAD_STATUS.CONTACTED}</option>
+              <option value="QUALIFIED">{LEAD_STATUS.QUALIFIED}</option>
             </Select>
           </Field>
         </div>
@@ -95,7 +119,7 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
         <div className="flex justify-end gap-2">
           <button
             type="button"
-            onClick={() => router.push('/app/leads')}
+            onClick={handleCancel}
             className={buttonClass('secondary')}
             disabled={pending}
           >

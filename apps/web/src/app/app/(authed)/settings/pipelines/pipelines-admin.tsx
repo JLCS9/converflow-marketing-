@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Field, Input, buttonClass } from '@/components/ui/primitives';
+import { useFeedback } from '@/components/ui/feedback';
 
 export interface PipelineStage {
   id?: string;
@@ -119,6 +120,7 @@ function PipelineCard({
   pipeline: Pipeline;
   onChanged: () => Promise<void> | void;
 }) {
+  const { confirm, toast } = useFeedback();
   const [editing, setEditing] = useState(false);
   return (
     <div className="rounded-md border border-ink-100 bg-white">
@@ -158,15 +160,22 @@ function PipelineCard({
               type="button"
               className="text-xs text-red-600 hover:underline"
               onClick={async () => {
-                if (!confirm(`¿Archivar el tablero "${pipeline.name}"?`)) return;
+                const ok = await confirm({
+                  title: `Archivar "${pipeline.name}"`,
+                  description: 'Las oportunidades que vivan en este tablero seguirán existiendo, pero el tablero dejará de aparecer.',
+                  confirmLabel: 'Archivar',
+                  danger: true,
+                });
+                if (!ok) return;
                 try {
                   await apiFetch(`/pipelines/${pipeline.id}`, {
                     method: 'PATCH',
                     json: { archived: true },
                   });
+                  toast.success('Tablero archivado');
                   await onChanged();
                 } catch (e) {
-                  alert(e instanceof ApiError ? e.message : 'Error');
+                  toast.error(e instanceof ApiError ? e.message : 'No se pudo archivar');
                 }
               }}
             >

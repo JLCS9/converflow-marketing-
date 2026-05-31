@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
+import { AGENT_STATUS, AGENT_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
 
 interface AgentRow {
   id: string;
@@ -11,17 +14,6 @@ interface AgentRow {
   updatedAt: string;
 }
 
-const statusColor: Record<string, 'gray' | 'green' | 'yellow' | 'red' | 'blue'> = {
-  DRAFT: 'gray',
-  PUBLISHED: 'green',
-  ARCHIVED: 'red',
-};
-const statusLabel: Record<string, string> = {
-  DRAFT: 'Borrador',
-  PUBLISHED: 'Publicado',
-  ARCHIVED: 'Archivado',
-};
-
 export const metadata = { title: 'Agentes IA' };
 
 export default async function AgentsPage() {
@@ -29,22 +21,26 @@ export default async function AgentsPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Agentes IA</h1>
-          <p className="mt-1 text-sm text-ink-500">
-            Crea asistentes con tu información, pruébalos y asígnalos a un bot de WhatsApp.
-          </p>
-        </div>
-        <Link href="/app/agents/new" className={buttonClass('primary')}>
-          + Nuevo agente
-        </Link>
-      </header>
+      <PageHeader
+        title="Agentes IA"
+        description="Crea asistentes con tu información, pruébalos y asígnalos a un bot."
+        action={
+          <Link href="/app/agents/new" className={buttonClass('primary')}>
+            + Nuevo agente
+          </Link>
+        }
+      />
 
       {agents.length === 0 ? (
-        <Card className="text-center text-ink-500">
-          Aún no tienes agentes. Crea uno para empezar.
-        </Card>
+        <EmptyState
+          title="Aún no tienes agentes"
+          description="Un agente reúne tu prompt, herramientas y conocimiento para conversar con tus contactos. Empieza por uno y pruébalo con el probador."
+          cta={
+            <Link href="/app/agents/new" className={buttonClass('primary', 'text-xs')}>
+              + Nuevo agente
+            </Link>
+          }
+        />
       ) : (
         <Card className="overflow-x-auto p-0">
           <table className="w-full text-sm">
@@ -52,7 +48,7 @@ export default async function AgentsPage() {
               <tr>
                 <th className="px-4 py-3">Nombre</th>
                 <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3">Actualizado</th>
+                <th className="hidden px-4 py-3 md:table-cell">Actualizado</th>
               </tr>
             </thead>
             <tbody>
@@ -65,9 +61,11 @@ export default async function AgentsPage() {
                     {a.description && <div className="text-xs text-ink-500">{a.description}</div>}
                   </td>
                   <td className="px-4 py-3">
-                    <Badge color={statusColor[a.status] ?? 'gray'}>{statusLabel[a.status] ?? a.status}</Badge>
+                    <Badge color={statusColor(AGENT_STATUS_COLOR, a.status)}>
+                      {statusLabel(AGENT_STATUS, a.status)}
+                    </Badge>
                   </td>
-                  <td className="px-4 py-3 text-xs text-ink-500">
+                  <td className="hidden px-4 py-3 text-xs text-ink-500 md:table-cell">
                     {new Date(a.updatedAt).toLocaleDateString('es-ES')}
                   </td>
                 </tr>

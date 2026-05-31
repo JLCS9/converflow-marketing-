@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
+import { useFeedback } from '@/components/ui/feedback';
+import { LEAD_STATUS } from '@/lib/labels';
 
 interface LeadInfo {
   id: string;
@@ -23,6 +25,7 @@ const STATUSES = ['NEW', 'CONTACTED', 'QUALIFIED', 'CONVERTED', 'LOST'] as const
 
 export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
   const router = useRouter();
+  const { toast } = useFeedback();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     name: lead.name,
@@ -50,10 +53,13 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
           status: form.status,
         },
       });
+      toast.success('Cambios guardados');
       setEditing(false);
       router.refresh();
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Error');
+      const msg = e instanceof ApiError ? e.message : 'No se pudo guardar';
+      setErr(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -92,7 +98,7 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
             <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {LEAD_STATUS[s]}
                 </option>
               ))}
             </Select>

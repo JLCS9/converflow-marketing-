@@ -2,10 +2,12 @@
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, ApiError } from '@/lib/api-client';
+import { useFeedback } from '@/components/ui/feedback';
 
 export function TaskActions({ taskId, status }: { taskId: string; status: string }) {
   const router = useRouter();
+  const { confirm, toast } = useFeedback();
   const [pending, startTransition] = useTransition();
 
   return (
@@ -18,9 +20,10 @@ export function TaskActions({ taskId, status }: { taskId: string; status: string
             startTransition(async () => {
               try {
                 await apiFetch(`/tasks/${taskId}`, { method: 'PATCH', json: { status: 'DONE' } });
+                toast.success('Tarea completada');
                 router.refresh();
-              } catch {
-                /* ignore */
+              } catch (e) {
+                toast.error(e instanceof ApiError ? e.message : 'No se pudo completar');
               }
             })
           }
@@ -32,14 +35,20 @@ export function TaskActions({ taskId, status }: { taskId: string; status: string
       <button
         type="button"
         disabled={pending}
-        onClick={() => {
-          if (!confirm('¿Eliminar tarea?')) return;
+        onClick={async () => {
+          const ok = await confirm({
+            title: 'Eliminar tarea',
+            description: 'Esta acción no se puede deshacer.',
+            danger: true,
+          });
+          if (!ok) return;
           startTransition(async () => {
             try {
               await apiFetch(`/tasks/${taskId}`, { method: 'DELETE' });
+              toast.success('Tarea eliminada');
               router.refresh();
-            } catch {
-              /* ignore */
+            } catch (e) {
+              toast.error(e instanceof ApiError ? e.message : 'No se pudo eliminar');
             }
           });
         }}

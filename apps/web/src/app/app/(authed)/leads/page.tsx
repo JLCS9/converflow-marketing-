@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
+import { LEAD_STATUS, LEAD_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
 
 interface LeadRow {
   id: string;
@@ -15,14 +18,6 @@ interface LeadRow {
   createdAt: string;
 }
 
-const statusColor: Record<string, 'gray' | 'green' | 'yellow' | 'red' | 'blue'> = {
-  NEW: 'gray',
-  CONTACTED: 'blue',
-  QUALIFIED: 'yellow',
-  CONVERTED: 'green',
-  LOST: 'red',
-};
-
 export const metadata = { title: 'Leads' };
 
 export default async function LeadsPage({
@@ -36,37 +31,40 @@ export default async function LeadsPage({
   if (params.search) qs.set('search', params.search);
 
   const leads = await serverApiFetch<LeadRow[]>(`/leads?${qs.toString()}`);
+  const hasFilters = Boolean(params.status || params.search);
 
   return (
     <div className="space-y-6">
-      <header className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
-          <p className="mt-1 text-sm text-ink-500">
-            {leads.length} leads. Da de alta manualmente o importa por CSV.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/app/leads/import" className={buttonClass('secondary')}>
-            ⤒ Importar CSV
-          </Link>
-          <Link href="/app/leads/new" className={buttonClass('primary')}>
-            + Nuevo lead
-          </Link>
-        </div>
-      </header>
+      <PageHeader
+        title="Leads"
+        description={`${leads.length} ${leads.length === 1 ? 'lead' : 'leads'}. Da de alta manualmente o importa por CSV.`}
+        action={
+          <div className="flex gap-2">
+            <Link href="/app/leads/import" className={buttonClass('secondary')}>
+              ⤒ Importar CSV
+            </Link>
+            <Link href="/app/leads/new" className={buttonClass('primary')}>
+              + Nuevo lead
+            </Link>
+          </div>
+        }
+      />
 
       <Card>
         <form className="flex flex-wrap items-end gap-3 text-sm" method="get">
           <label className="flex flex-col">
-            <span className="text-xs text-ink-500">Status</span>
-            <select name="status" defaultValue={params.status ?? ''} className="mt-1 rounded border-ink-300">
+            <span className="text-xs text-ink-500">Estado</span>
+            <select
+              name="status"
+              defaultValue={params.status ?? ''}
+              className="mt-1 rounded-md border border-ink-300 px-2 py-1.5"
+            >
               <option value="">Todos</option>
-              <option value="NEW">NEW</option>
-              <option value="CONTACTED">CONTACTED</option>
-              <option value="QUALIFIED">QUALIFIED</option>
-              <option value="CONVERTED">CONVERTED</option>
-              <option value="LOST">LOST</option>
+              {Object.entries(LEAD_STATUS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
             </select>
           </label>
           <label className="flex flex-1 flex-col">
@@ -75,7 +73,7 @@ export default async function LeadsPage({
               type="text"
               name="search"
               defaultValue={params.search ?? ''}
-              className="mt-1 rounded border-ink-300"
+              className="mt-1 rounded-md border border-ink-300 px-2 py-1.5"
             />
           </label>
           <button type="submit" className={buttonClass('primary')}>
@@ -85,22 +83,40 @@ export default async function LeadsPage({
       </Card>
 
       {leads.length === 0 ? (
-        <Card className="text-center text-ink-500">
-          Sin leads. <Link href="/app/leads/new" className="text-primary-700 underline">Crea el primero</Link>.
-        </Card>
+        hasFilters ? (
+          <EmptyState
+            title="Sin resultados"
+            description="Ningún lead coincide con los filtros. Prueba a quitarlos o cambia los criterios."
+            cta={
+              <Link href="/app/leads" className={buttonClass('secondary', 'text-xs')}>
+                Quitar filtros
+              </Link>
+            }
+          />
+        ) : (
+          <EmptyState
+            title="Aún no tienes leads"
+            description="Crea tu primer lead manualmente o importa una lista en CSV."
+            cta={
+              <Link href="/app/leads/new" className={buttonClass('primary', 'text-xs')}>
+                + Nuevo lead
+              </Link>
+            }
+          />
+        )
       ) : (
         <Card className="overflow-x-auto p-0">
           <table className="w-full text-sm">
             <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
               <tr>
                 <th className="px-4 py-3">Nombre</th>
-                <th className="px-4 py-3">Empresa</th>
-                <th className="px-4 py-3">Email</th>
-                <th className="px-4 py-3">Teléfono</th>
-                <th className="px-4 py-3">Status</th>
+                <th className="hidden px-4 py-3 md:table-cell">Empresa</th>
+                <th className="hidden px-4 py-3 md:table-cell">Email</th>
+                <th className="hidden px-4 py-3 lg:table-cell">Teléfono</th>
+                <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3">Score</th>
-                <th className="px-4 py-3">Fuente</th>
-                <th className="px-4 py-3">Creado</th>
+                <th className="hidden px-4 py-3 lg:table-cell">Fuente</th>
+                <th className="hidden px-4 py-3 md:table-cell">Creado</th>
               </tr>
             </thead>
             <tbody>
@@ -113,18 +129,23 @@ export default async function LeadsPage({
                     >
                       {l.name}
                     </Link>
+                    <div className="mt-0.5 text-xs text-ink-500 md:hidden">
+                      {l.company ?? l.email ?? l.phone ?? '—'}
+                    </div>
                   </td>
-                  <td className="px-4 py-3 text-xs">{l.company ?? '—'}</td>
-                  <td className="px-4 py-3 text-xs">{l.email ?? '—'}</td>
-                  <td className="px-4 py-3 text-xs">{l.phone ?? '—'}</td>
+                  <td className="hidden px-4 py-3 text-xs md:table-cell">{l.company ?? '—'}</td>
+                  <td className="hidden px-4 py-3 text-xs md:table-cell">{l.email ?? '—'}</td>
+                  <td className="hidden px-4 py-3 text-xs lg:table-cell">{l.phone ?? '—'}</td>
                   <td className="px-4 py-3">
-                    <Badge color={statusColor[l.status] ?? 'gray'}>{l.status}</Badge>
+                    <Badge color={statusColor(LEAD_STATUS_COLOR, l.status)}>
+                      {statusLabel(LEAD_STATUS, l.status)}
+                    </Badge>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
                     {l.score != null ? l.score : '—'}
                   </td>
-                  <td className="px-4 py-3 text-xs">{l.source ?? '—'}</td>
-                  <td className="px-4 py-3 text-xs text-ink-500">
+                  <td className="hidden px-4 py-3 text-xs lg:table-cell">{l.source ?? '—'}</td>
+                  <td className="hidden px-4 py-3 text-xs text-ink-500 md:table-cell">
                     {new Date(l.createdAt).toLocaleDateString('es-ES')}
                   </td>
                 </tr>

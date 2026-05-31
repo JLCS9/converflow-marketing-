@@ -5,19 +5,40 @@ import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
 import { CustomFieldsForm } from '@/components/custom-fields/form';
+import { useFeedback } from '@/components/ui/feedback';
+import { useUnsavedWarning } from '@/lib/use-unsaved-warning';
+import { CLIENT_STATUS } from '@/lib/labels';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
 export function CreateClientForm({ customFields }: { customFields: CustomFieldDefinition[] }) {
   const router = useRouter();
+  const { confirm, toast } = useFeedback();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
+  const [dirty, setDirty] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  useUnsavedWarning(dirty && !submitting);
   const visibleCustom = customFields.filter((c) => !c.archivedAt);
+
+  async function handleCancel() {
+    if (dirty) {
+      const ok = await confirm({
+        title: 'Descartar cambios',
+        description: 'Se perderá lo que has escrito.',
+        confirmLabel: 'Descartar',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    router.push('/app/clients');
+  }
 
   return (
     <Card>
       <form
         className="space-y-5"
+        onChange={() => setDirty(true)}
         onSubmit={(event) => {
           event.preventDefault();
           const data = new FormData(event.currentTarget);
@@ -32,14 +53,17 @@ export function CreateClientForm({ customFields }: { customFields: CustomFieldDe
             customFields: Object.keys(cfValues).length ? cfValues : undefined,
           };
           setError(null);
+          setSubmitting(true);
           startTransition(async () => {
             try {
               const c = await apiFetch<{ id: string }>('/clients', {
                 method: 'POST',
                 json: payload,
               });
+              toast.success('Cliente creado');
               router.push(`/app/clients/${c.id}`);
             } catch (err) {
+              setSubmitting(false);
               setError(err instanceof ApiError ? err.message : 'Error inesperado');
             }
           });
@@ -67,11 +91,13 @@ export function CreateClientForm({ customFields }: { customFields: CustomFieldDe
         <Field label="Dirección">
           <Input name="address" type="text" maxLength={255} />
         </Field>
-        <Field label="Status">
+        <Field label="Estado">
           <Select name="status" defaultValue="ACTIVE">
-            <option value="ACTIVE">ACTIVE</option>
-            <option value="INACTIVE">INACTIVE</option>
-            <option value="ARCHIVED">ARCHIVED</option>
+            {Object.entries(CLIENT_STATUS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
           </Select>
         </Field>
 
@@ -97,7 +123,7 @@ export function CreateClientForm({ customFields }: { customFields: CustomFieldDe
         )}
 
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => router.push('/app/clients')} className={buttonClass('secondary')} disabled={pending}>
+          <button type="button" onClick={handleCancel} className={buttonClass('secondary')} disabled={pending}>
             Cancelar
           </button>
           <button type="submit" className={buttonClass('primary')} disabled={pending}>

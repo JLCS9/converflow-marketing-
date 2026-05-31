@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Badge, Textarea, buttonClass } from '@/components/ui/primitives';
 import { CopyButton } from '@/components/ui/copy-button';
+import { useFeedback } from '@/components/ui/feedback';
 
 interface Note {
   id: string;
@@ -46,6 +47,7 @@ const sentimentEmoji: Record<string, string> = {
 
 export function NotesSection({ leadId, initial }: { leadId: string; initial: Note[] }) {
   const router = useRouter();
+  const { confirm, toast } = useFeedback();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [pendingNoteId, setPendingNoteId] = useState<string | null>(null);
@@ -173,15 +175,21 @@ export function NotesSection({ leadId, initial }: { leadId: string; initial: Not
                 <button
                   type="button"
                   disabled={pendingNoteId === note.id}
-                  onClick={() => {
-                    if (!confirm('¿Eliminar esta nota?')) return;
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: 'Eliminar nota',
+                      confirmLabel: 'Eliminar',
+                      danger: true,
+                    });
+                    if (!ok) return;
                     setPendingNoteId(note.id);
                     startTransition(async () => {
                       try {
                         await apiFetch(`/notes/${note.id}`, { method: 'DELETE' });
+                        toast.success('Nota eliminada');
                         router.refresh();
                       } catch (err) {
-                        setError(err instanceof ApiError ? err.message : 'Error');
+                        toast.error(err instanceof ApiError ? err.message : 'No se pudo eliminar');
                       } finally {
                         setPendingNoteId(null);
                       }

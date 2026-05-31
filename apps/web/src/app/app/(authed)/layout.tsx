@@ -4,6 +4,7 @@ import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { LogoutButton } from './logout-button';
 import { SidebarNav } from './sidebar-nav';
 import { PoliciesBanner } from './policies-banner';
+import { FeedbackProvider } from '@/components/ui/feedback';
 
 interface MeResponse {
   user: {
@@ -56,6 +57,7 @@ export default async function TenantAuthedLayout({
   }
 
   return (
+    <FeedbackProvider>
     <div className="flex h-screen overflow-hidden bg-ink-100/30">
       <aside className="flex w-60 shrink-0 flex-col border-r border-ink-100 bg-white">
         <div className="shrink-0 border-b border-ink-100 px-6 py-[18px]">
@@ -91,5 +93,6 @@ export default async function TenantAuthedLayout({
         <div className="flex-1 overflow-y-auto p-8">{children}</div>
       </main>
     </div>
+    </FeedbackProvider>
   );
 }

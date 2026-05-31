@@ -6,6 +6,8 @@ import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
 import { EntityPicker } from '@/components/ui/entity-picker';
 import { CustomFieldsForm } from '@/components/custom-fields/form';
+import { useFeedback } from '@/components/ui/feedback';
+import { useUnsavedWarning } from '@/lib/use-unsaved-warning';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 import type { Pipeline } from '../types';
 
@@ -23,10 +25,27 @@ export function CreateOpportunityForm({
   pipelines,
 }: Props) {
   const router = useRouter();
+  const { confirm, toast } = useFeedback();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
+  const [dirty, setDirty] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  useUnsavedWarning(dirty && !submitting);
   const visibleCustom = customFields.filter((c) => !c.archivedAt);
+
+  async function handleCancel() {
+    if (dirty) {
+      const ok = await confirm({
+        title: 'Descartar cambios',
+        description: 'Se perderá lo que has escrito.',
+        confirmLabel: 'Descartar',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    router.push('/app/opportunities');
+  }
 
   const defaultPipeline = pipelines.find((p) => p.isDefault) ?? pipelines[0];
   const [pipelineId, setPipelineId] = useState<string>(defaultPipeline?.id ?? '');
@@ -46,6 +65,7 @@ export function CreateOpportunityForm({
     <Card>
       <form
         className="space-y-5"
+        onChange={() => setDirty(true)}
         onSubmit={(event) => {
           event.preventDefault();
           const data = new FormData(event.currentTarget);
@@ -66,14 +86,17 @@ export function CreateOpportunityForm({
             customFields: Object.keys(cfValues).length ? cfValues : undefined,
           };
           setError(null);
+          setSubmitting(true);
           startTransition(async () => {
             try {
               const opp = await apiFetch<{ id: string }>('/opportunities', {
                 method: 'POST',
                 json: payload,
               });
+              toast.success('Oportunidad creada');
               router.push(`/app/opportunities/${opp.id}`);
             } catch (err) {
+              setSubmitting(false);
               setError(err instanceof ApiError ? err.message : 'Error inesperado');
             }
           });
@@ -174,7 +197,7 @@ export function CreateOpportunityForm({
         <div className="flex justify-end gap-2">
           <button
             type="button"
-            onClick={() => router.push('/app/opportunities')}
+            onClick={handleCancel}
             className={buttonClass('secondary')}
             disabled={pending}
           >

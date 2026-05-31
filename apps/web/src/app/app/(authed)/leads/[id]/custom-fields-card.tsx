@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, buttonClass } from '@/components/ui/primitives';
+import { useFeedback } from '@/components/ui/feedback';
 import { CustomFieldsForm } from '@/components/custom-fields/form';
 import { CustomFieldsView } from '@/components/custom-fields/view';
 import type {
@@ -20,6 +21,7 @@ interface Props {
 
 export function CustomFieldsCard({ entityType, apiBase, definitions, values }: Props) {
   const router = useRouter();
+  const { toast } = useFeedback();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, unknown>>((values as Record<string, unknown>) ?? {});
   const [busy, setBusy] = useState(false);
@@ -36,10 +38,13 @@ export function CustomFieldsCard({ entityType, apiBase, definitions, values }: P
         method: 'PATCH',
         json: { customFields: draft },
       });
+      toast.success('Campos guardados');
       setEditing(false);
       router.refresh();
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Error');
+      const msg = e instanceof ApiError ? e.message : 'No se pudo guardar';
+      setErr(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }

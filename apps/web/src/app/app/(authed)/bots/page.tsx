@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
+import { BOT_STATUS, BOT_STATUS_COLOR, CHANNEL, statusColor, statusLabel } from '@/lib/labels';
 
 interface BotRow {
   id: string;
@@ -13,23 +16,6 @@ interface BotRow {
   createdAt: string;
 }
 
-const channelLabel: Record<string, string> = {
-  WHATSAPP: 'WhatsApp',
-  INSTAGRAM: 'Instagram',
-  MESSENGER: 'Messenger',
-  WEBCHAT: 'Web Chat',
-};
-
-const statusColor: Record<string, 'gray' | 'green' | 'yellow' | 'red' | 'blue'> = {
-  PENDING: 'gray',
-  AWAITING_QR: 'yellow',
-  CONNECTING: 'yellow',
-  CONNECTED: 'green',
-  DISCONNECTED: 'red',
-  BANNED: 'red',
-  ERROR: 'red',
-};
-
 export const metadata = { title: 'Bots' };
 
 export default async function BotsPage() {
@@ -37,33 +23,26 @@ export default async function BotsPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Bots</h1>
-          <p className="mt-1 text-sm text-ink-500">
-            {bots.length} {bots.length === 1 ? 'bot' : 'bots'} configurados.
-          </p>
-        </div>
-        <Link href="/app/bots/new" className={buttonClass('primary')}>
-          + Nuevo bot
-        </Link>
-      </header>
+      <PageHeader
+        title="Bots"
+        description={`${bots.length} ${bots.length === 1 ? 'bot configurado' : 'bots configurados'}.`}
+        action={
+          <Link href="/app/bots/new" className={buttonClass('primary')}>
+            + Nuevo bot
+          </Link>
+        }
+      />
 
       {bots.length === 0 ? (
-        <Card className="text-center">
-          <p className="text-ink-500">
-            Aún no tienes bots. Crea uno para empezar a conectar tus canales.
-          </p>
-          <div className="mt-4">
-            <Link href="/app/bots/new" className={buttonClass('primary')}>
+        <EmptyState
+          title="Aún no tienes bots"
+          description="Conecta WhatsApp, Web Chat o Email para empezar a recibir mensajes. Tras crearlo, ábrelo y pulsa Conectar."
+          cta={
+            <Link href="/app/bots/new" className={buttonClass('primary', 'text-xs')}>
               + Crear primer bot
             </Link>
-          </div>
-          <p className="mt-3 text-xs text-ink-500">
-            Tras crear un bot de WhatsApp, ábrelo y pulsa <strong>Conectar</strong> para
-            escanear el QR desde tu teléfono.
-          </p>
-        </Card>
+          }
+        />
       ) : (
         <Card className="overflow-x-auto p-0">
           <table className="w-full text-sm">
@@ -72,9 +51,9 @@ export default async function BotsPage() {
                 <th className="px-4 py-3">Nombre</th>
                 <th className="px-4 py-3">Canal</th>
                 <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3">Número</th>
-                <th className="px-4 py-3">Última conexión</th>
-                <th className="px-4 py-3">Creado</th>
+                <th className="hidden px-4 py-3 md:table-cell">Número</th>
+                <th className="hidden px-4 py-3 md:table-cell">Última conexión</th>
+                <th className="hidden px-4 py-3 lg:table-cell">Creado</th>
               </tr>
             </thead>
             <tbody>
@@ -85,19 +64,21 @@ export default async function BotsPage() {
                       {b.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-xs">{channelLabel[b.channel] ?? b.channel}</td>
+                  <td className="px-4 py-3 text-xs">{statusLabel(CHANNEL, b.channel)}</td>
                   <td className="px-4 py-3">
-                    <Badge color={statusColor[b.status] ?? 'gray'}>{b.status}</Badge>
+                    <Badge color={statusColor(BOT_STATUS_COLOR, b.status)}>
+                      {statusLabel(BOT_STATUS, b.status)}
+                    </Badge>
                   </td>
-                  <td className="px-4 py-3 text-xs font-mono text-ink-500">
+                  <td className="hidden px-4 py-3 text-xs font-mono text-ink-500 md:table-cell">
                     {b.phoneNumber ?? '—'}
                   </td>
-                  <td className="px-4 py-3 text-xs text-ink-500">
+                  <td className="hidden px-4 py-3 text-xs text-ink-500 md:table-cell">
                     {b.lastConnectedAt
                       ? new Date(b.lastConnectedAt).toLocaleString('es-ES')
                       : '—'}
                   </td>
-                  <td className="px-4 py-3 text-xs text-ink-500">
+                  <td className="hidden px-4 py-3 text-xs text-ink-500 lg:table-cell">
                     {new Date(b.createdAt).toLocaleDateString('es-ES')}
                   </td>
                 </tr>
