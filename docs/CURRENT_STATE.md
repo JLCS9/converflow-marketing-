@@ -2,7 +2,7 @@
 
 > Single source of truth. Update after every sprint. If reading this in a new session, you can skip 100% of conversation history and rely on this file + the repo.
 
-**Last sync:** Sprint 7 (A+B) **live in prod** — WhatsApp Baileys connection + QR + inbound→lead/classify, on **Baileys 7** (LID→real phone resolved). Sprint 8 (Conversaciones inbox: Conversation/Message model, capture OUT, two-pane UI) **built, pending deploy** (needs schema push). (Kit Digital product side complete since Sprint 5: 17/18, #18 user-owned.)
+**Last sync:** post-multichannel + agents. **LIVE in prod**: Sprint 7 (WhatsApp Baileys 7), Sprint 8 (Conversaciones inbox with channel-aware reply: text/emoji/documents + one-click AI suggestion send), **Agents v1a/b/d** (self-service builder + playground + tool execution + AUTO mode with AI disclosure + rate limit), **Design v2** (fixed shell, icon sidebar with expandable groups, "Hoy" home), **Web chat** (embeddable widget + agent auto-reply), **Email channel** (Resend system path + tenant **self-service IMAP/SMTP** with encrypted creds + workers IMAP poller), **Lead→Cliente** auto-conversion. (Kit Digital product side complete since Sprint 5: 17/18, #18 user-owned.) **Pending**: Agents v1c RAG (needs embeddings key from user), historical metrics for Hoy home (sparklines/IA-semana), WhatsApp Cloud API upgrade.
 
 > **Cross-tenant isolation:** ✅ FIXED & VERIFIED. API now connects as non-superuser
 > `converflow_app` so RLS is enforced. A new tenant sees ONLY its own data. This was
@@ -21,7 +21,7 @@ URLs:
 - `https://api.converflow.ai` — REST API
 - `https://api.converflow.ai/docs` — Swagger (dev only)
 
-Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postgres 16 + pgvector + RLS · Redis 7 · Prisma 6 · Tailwind · Cloudflare R2 (S3-compatible) · Anthropic Claude (lead scoring + note classification + meeting-slot proposals LIVE) · Google Calendar OAuth (per-user, LIVE) · WhatsApp via Baileys (bot-runner, real connection LIVE).
+Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postgres 16 + pgvector + RLS · Redis 7 · Prisma 6 · Tailwind + **lucide-react** · Cloudflare R2 (S3-compatible) · Anthropic Claude (lead scoring + note classification + meeting-slot proposals + agent runtime with tool-use loop LIVE) · Google Calendar OAuth (per-user, LIVE) · WhatsApp via Baileys 7 (bot-runner, LIVE) · **Web chat** embeddable widget (LIVE) · **Email**: Resend for system mail + nodemailer SMTP for tenant outbound + imapflow IMAP poller in workers for tenant inbound (LIVE).
 
 ## Containers in prod
 
@@ -31,7 +31,7 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 | cfai-redis | redis:7-alpine | internal only |
 | cfai-api | cfai-api:latest | NestJS, 4000 → 127.0.0.1:8091 |
 | cfai-web | cfai-web:latest | Next.js standalone, 3000 → 127.0.0.1:8090 |
-| cfai-workers | cfai-workers:latest | BullMQ stub (no real workloads yet) |
+| cfai-workers | cfai-workers:latest | BullMQ scaffold (stub workers) + **IMAP poller** for tenant Email connections (fetches new INBOX mail per `EmailConnection` and forwards to `/internal/email/inbound`) |
 | cfai-bot-runner | cfai-bot-runner:latest | **Baileys 7** (Sprint 7): per-bot WA socket, QR, encrypted auth state in bot_sessions, auto-reconnect, inbound+OUT echo → API webhook. 4100 → 127.0.0.1:8092 |
 
 > Traefik is defined in compose but NOT used — host Nginx terminates TLS.
@@ -63,23 +63,36 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 - ✅ Clients: list/filters/create/detail
 - ✅ Tasks: list/create/status/delete
 - ✅ **Notes IA**: add note (link to lead/client/opp) + POST /notes/:id/analyze → Claude classifies (BUY_INTENT/OBJECTION/INFO_REQUEST/COMPLAINT/SCHEDULING/OFF_TOPIC/OTHER) + sentiment + confidence + suggested reply. Prompt fed with full context (lead data, prior notes + their classifications, opportunities, tasks) and instructed to be short + non-repetitive
-- ✅ **Historial IA** (`/app/ai-history`): all analyzed notes grouped by day, category filter, expandable
+<!-- Historial IA standalone page removed in design v2 — the per-lead AI history now lives inside the lead's notes (classification + suggested reply per note). -->
 - ✅ **Alertas** (req #7, `/app/alerts`): rule engine with 4 rules (lead sin contactar >14d, oportunidad con `expectedCloseDate` vencida, tarea con `dueAt` vencida, lead con score ≥75 sin convertir). Compute-on-read with **diff-only** persistence to the `Alert` table (creates new, updates changed, deletes resolved-but-not-dismissed — steady state is read-only). UI with icons + severity badges + marcar leída/descartar; unread-count badge in the nav. Endpoints: `GET /alerts`, `GET /alerts/count`, `POST /alerts/:id/read`, `/alerts/read-all`, `/alerts/:id/dismiss`
 - ✅ **IA Reuniones / Google Calendar** (req #12): per-user OAuth (connect/disconnect in Ajustes). `POST /meetings/propose` reads the user's free/busy + lead context → generates tz-aware business-hours slots (no date lib; `Intl`-based) → Claude picks up to 3 + suggests title/agenda. `POST /meetings/schedule` re-checks the slot is free, creates the Google Calendar event (inviting the lead) + a follow-up MEETING Task. Refresh tokens stored AES-256-GCM encrypted; OAuth `state` is HMAC-signed (cookie-independent). UI: "Reuniones IA" card on the lead detail page
 - ✅ Documents: R2 upload/list/presigned download/delete
 - ✅ Users, Profile, Settings
 - ✅ **Bots / WhatsApp** (Sprint 7, LIVE on Baileys 7): bot CRUD + `/app/bots/[id]` with **Conectar** → QR pairing (polling) → status → **Desconectar**. Per-bot Baileys session in the bot-runner; AES-256-GCM auth state in `bot_sessions`; auto-reconnect on boot. Inbound + our own OUT echoes forwarded to the API. LID→real phone resolved via `key.remoteJidAlt` / `lidMapping.getPNForLID`
-- 🟡 **Conversaciones / Inbox** (Sprint 8, BUILT pending deploy): `/app/conversations` two-pane bandeja — list (tabs Sin responder / Todas / Cerradas, unread badges) + thread (IN/OUT bubbles) + AI suggested-reply with Copy (human-in-the-loop). Inbound writes `Conversation`+`Message` (replacing the old note-per-message), classifies inbound text (reuses `AiService.classifyNote`); OUT (fromMe) flips status to ANSWERED. Internal webhook `POST /internal/bots/:id/inbound` → `ConversationIngestService`. Tenant API `GET /conversations[/:id|/count]`, `POST /conversations/:id/{read,close,reopen}`. Pendientes badge in nav. Outbound auto-send (Phase C) still not built
+- ✅ **Conversaciones / Inbox** (Sprint 8, **LIVE**): `/app/conversations` two-pane bandeja — list (tabs Sin responder / Todas / Cerradas, **live pendientes badge** polling in the nav) + thread (IN/OUT bubbles) + composer with **send text/emoji/documents** + **one-click "Enviar sugerencia IA"** (suggestion appears below the composer). Channel-aware delivery: WhatsApp via bot-runner, WEBCHAT just records OUT (widget polls), EMAIL via tenant SMTP (or Resend fallback). Inbound writes `Conversation`+`Message` and runs the assigned agent (suggest/auto) or generic classifier as fallback. Endpoints: `GET /conversations[/:id|/count]`, `POST /conversations/:id/{send,send-document,read,close,reopen}`.
+- ✅ **Web chat channel** (LIVE): embed `<iframe src="https://app.converflow.ai/widget/<botId>">`. Public API `POST/GET /webchat/:botId/messages` (no auth — botId is the widget key + visitor `sessionId` scopes the conversation). The agent auto-replies regardless of mode (it's our own surface); AI disclosure is shown persistently in the widget header.
+- ✅ **Email channel** (LIVE, **two paths**):
+   - Tenant **self-service IMAP/SMTP** (the user-facing channel, like WhatsApp's connect-your-account): on a Bot of channel EMAIL, `POST /bots/:id/email/connect` verifies SMTP via nodemailer + stores **AES-256-GCM encrypted** creds in `EmailConnection`; the `workers` IMAP poller (imapflow + mailparser, every ~60s) fetches new INBOX mail and forwards to `/internal/email/inbound`; outbound replies (inbox + agent AUTO) send via the tenant's own SMTP.
+   - **Converflow Resend path** (system mail + fallback): outbound via Resend from `EMAIL_FROM` with `Reply-To` = the bot's address; inbound webhook `POST /internal/email/inbound` accepts `{to,from,fromName?,subject?,text?,messageId?}`. Used when a tenant hasn't connected their own mailbox (and for future system flows like password reset).
+- ✅ **Agentes IA** (`/app/agents`, **v1a + v1b + v1d LIVE**, self-service): builder with name/description/prompt + quality (Estándar/Rápida) + mode (Sugerir/Auto) + language/tone + **business info / FAQs** with hard "no inventar" guardrail + **AI disclosure** (mandatory) + **tools** toggles (`create_opportunity`, `update_opportunity`, `schedule_meeting`, `escalate_to_human`). **Playground** to test prompts. **Tool execution**: when an inbound arrives and the bot has an assigned agent, `AiService.runAgentLoop` runs Claude with the enabled tools → CRM actions execute (opp/task creates, conversation flagged) and the agent's text is delivered. **AUTO mode**: on WhatsApp sends via bot-runner with per-bot per-minute rate-limit + AI disclosure on first outbound; on EMAIL sends via the tenant SMTP. **v1c (RAG)** is pending an embeddings key from the user (recommend OpenAI `text-embedding-3-small`).
+- ✅ **Design v2** (LIVE): fixed shell (`h-screen`, only content scrolls), **Lucide** icon nav, global **"Crear"** popover (lead/tarea/oportunidad/bot), **expandable nav groups** (CRM/Trabajo/IA/Configuración with subitems on expand — replaced the prior top-tab submenu), home **"Hoy"** = greeting + KPI strip (real, no sparkline) + "tu cola de hoy" (unanswered conversations + active alerts) + pulso del negocio bars. AI cost/model hidden from UI; policies banner dismissible (localStorage).
+- ✅ **Lead → Cliente automation**: when a lead's status flips to `CONVERTED`, it auto-links to an existing client by email or creates one from the lead data (company/name, email, phone, source, owner). The won lead now shows under Clientes.
 - ❌ Access logs (admin-only by decision)
 
 ### Public pages (Kit Digital)
 - ✅ `/changelog`, `/ai-disclosure`, `/privacy`
 
 ### Data model
-- Tenant-scoped (RLS): Tenant, User, UserSession, TenantInvitation, AccessLog, Bot, BotSession, Agent, Client, Lead, Opportunity, Task, Document, Note, Alert, AiUsage, CalendarConnection, **Conversation, Message**
-- Lead has: score, aiScoreReasoning, aiScoreActions (Json), aiScoredAt
-- Note has: aiCategory, aiSentiment, aiConfidence, aiSuggestedReply, aiAnalyzedAt
-- CalendarConnection (one per user, @unique userId): googleEmail, refreshTokenEnc + accessTokenEnc (AES-256-GCM), accessTokenExpiresAt, scope, calendarId
+- Tenant-scoped (RLS): Tenant, User, UserSession, TenantInvitation, AccessLog, Bot, BotSession, Agent, Client, Lead, Opportunity, Task, Document, Note, Alert, AiUsage, CalendarConnection, Conversation, Message, **EmailConnection**
+- Lead has: score, aiScoreReasoning, aiScoreActions (Json), aiScoredAt, **clientId** (set when CONVERTED → linked/created Client)
+- Note / Message AI fields: aiCategory, aiSentiment, aiConfidence, aiSuggestedReply, aiAnalyzedAt
+- Channel enum: WHATSAPP, INSTAGRAM, MESSENGER, WEBCHAT, **EMAIL**
+- Conversation: per (tenant, channel, contactJid); has emailSubject (for EMAIL reply threading), botId, leadId, status, lastInboundAt/lastOutboundAt, unreadCount, lastMessagePreview
+- Message: direction IN/OUT, body, mediaType, waMessageId (reused as the channel-native id — WA msg id, email Message-ID), AI classification fields
+- Agent: systemPrompt + model + status (DRAFT/PUBLISHED/ARCHIVED) + `config` JSON (language, tone, businessInfo, faqs, aiDisclosure, tools[], mode SUGGEST/AUTO)
+- CalendarConnection (one per user): googleEmail, refreshTokenEnc + accessTokenEnc (AES-256-GCM), accessTokenExpiresAt, scope, calendarId
+- EmailConnection (one per EMAIL bot): email, imapHost/Port, smtpHost/Port, username, **passwordEnc (AES-256-GCM)**, secure, status (CONNECTED/ERROR), lastError, lastSeenUid (IMAP cursor)
+- Bot: channel + phoneNumber (channel address: phone for WA, email for EMAIL, null for WEBCHAT) + agentId; one BotSession (Baileys auth state) and one EmailConnection optional
 - Platform (no RLS): PlatformAdmin, PlatformAdminSession, AdminActionLog, AppVersion
 
 ### Kit Digital — Gestión de Clientes con IA
@@ -116,7 +129,8 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 5. **Next.js standalone needs static/public copied** (done in web.Dockerfile). Without it, JS chunks 404 and forms fall back to native GET (leaks form fields in URL).
 6. **prisma camelCase columns need quotes in raw SQL**: `"tenantId"` not `tenant_id`.
 7. **Never paste secrets in chat.** Edit `infra/docker/.env.prod` directly on the VPS via nano. Verify with `grep -E '^X_' .env.prod | awk -F= '{print $1"=*** ("length($2)" chars)"}'`.
-8. **Internal webhooks must DERIVE the tenant from the resource, never trust the payload.** The bot-runner→API inbound webhook now resolves `tenantId` from the bot row (`bot.tenantId` via bypass) keyed by the `:botId` in the URL — it ignores any `tenantId` in the body. Trusting a caller-supplied tenantId is a cross-tenant routing risk. Tenant-facing routes already derive tenant from the session (TenantAuthGuard). RLS covers every tenant table (verified: only the 4 platform tables lack RLS, by design).
+8. **Internal webhooks must DERIVE the tenant from the resource, never trust the payload.** The bot-runner→API inbound webhook now resolves `tenantId` from the bot row (`bot.tenantId` via bypass) keyed by the `:botId` in the URL — it ignores any `tenantId` in the body. Same pattern for `/internal/email/inbound` (resolves the EMAIL bot by the recipient address, then derives tenantId from that bot). Trusting a caller-supplied tenantId is a cross-tenant routing risk. Tenant-facing routes already derive tenant from the session (TenantAuthGuard). RLS covers every tenant table (verified: only the 4 platform tables lack RLS, by design).
+9. **IMAP first sync must NOT import history.** When a tenant connects a new mailbox, the poller sets the UID cursor to the current `mailbox.uidNext - 1` and returns — subsequent ticks only fetch UIDs `> cursor`. If we ever fetched from UID 1 we'd flood `conversations` and `messages` with the entire inbox history (and rack up Claude classification cost). See `apps/workers/src/email-poller.ts`.
 
 ## Open known issues
 
@@ -128,16 +142,27 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 6. **Google app verification**: the Calendar OAuth app is in *Testing* mode — only emails added as *test users* can connect. For real Pyme clients, the `calendar.events`/`calendar.freebusy` scopes are "sensitive" and need Google app verification (can take weeks). Start that before onboarding real customers. USER owns this.
 7. **Tech debt**: admin 2FA `totpSecret` is still stored in PLAINTEXT (auth-admin.service) despite the comment claiming otherwise. Now that `common/utils/crypto.ts` exists, encrypt it. Not urgent (admin-only table) but should be fixed.
 8. **WhatsApp inbound (Phase B) caveats**: lead matching is by phone heuristic (last 9 digits `contains`) — leads stored with odd formatting may create a duplicate; new WA leads store clean digits so subsequent messages match. Every inbound text triggers a Claude classify (fire-and-forget) — fine at Pyme scale, add throttling/dedup (by WA message id) if volume grows. Group chats / status / media-without-caption are skipped (media → lead captured, no note).
-9. **WhatsApp ban risk**: Baileys is an unofficial client; outbound auto-send is intentionally NOT built (human-in-the-loop). ADR #7: Cloud API adapter is the eventual upgrade for scale.
+9. **WhatsApp ban risk**: Baileys is an unofficial client; AUTO mode on WhatsApp does send autonomously now (per-bot rate-limit + AI disclosure on first contact), but for B2B clients at scale plan to migrate to the official **WhatsApp Cloud API** (ADR #7, scheduled as Sprint 11).
+10. **Email polling cadence**: IMAP poller runs every ~60s per `EmailConnection` (not real-time). To reduce latency, switch to **IMAP IDLE** (push) or use Gmail/Microsoft push APIs in a later iteration. First sync of a new mailbox only writes the UID cursor (does NOT import history) so you don't bulk-create thousands of conversations.
+11. **Hoy home omissions**: the action-oriented home renders real KPIs + queue + bars from `/reports/overview` + `/alerts` + `/conversations?status=PENDING`, but **sparklines + week-over-week deltas + "Tu IA esta semana"** are intentionally omitted until the historical-metrics backend (Sprint 10) — we don't render placeholder data.
+12. **Two email paths exist**: the tenant self-service IMAP/SMTP (the customer-facing channel) vs. the Converflow Resend system path (used for system mail and as a fallback when no `EmailConnection` exists for an EMAIL bot). Document this clearly to tenants during onboarding.
+13. **Agents RAG not built (v1c)**: agents currently inject `businessInfo` + `faqs` text into the prompt with a hard "no inventar" guardrail. Real RAG over uploaded documents (pgvector) waits on an embeddings provider key from the user (recommend OpenAI `text-embedding-3-small`, alternative Voyage).
 
 ## Operational runbook
 
 ### Deploy
 ```bash
 cd /opt/converflow-ai && git pull --ff-only
-docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env.prod build api web
-docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env.prod up -d --force-recreate api web
-# verify routes: docker logs cfai-api --since 30s 2>&1 | grep "Mapped"
+# include every service whose code changed in this batch:
+#   - api / web: almost always
+#   - bot-runner: any WhatsApp/Baileys change
+#   - workers: any email IMAP poller change OR a new EmailConnection model field
+docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env.prod build api web [bot-runner] [workers]
+docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env.prod up -d --force-recreate api web [bot-runner] [workers]
+# verify routes / poller:
+docker logs cfai-api         --since 30s 2>&1 | grep "Mapped"
+docker logs cfai-workers     --since 30s 2>&1 | grep -i "email poller"
+docker logs cfai-bot-runner  --since 30s 2>&1 | grep -iE "listening|connected"
 ```
 
 ### Schema changes
@@ -154,60 +179,141 @@ Write a `.cjs` to `/repo/apps/api/`, `require('@converflow/db')` + `require('arg
 `docker compose ... build --no-cache <svc>`; if needed `docker rmi -f cfai-<svc>:latest` first.
 
 ### Secrets in .env.prod (on VPS only)
-DATABASE/REDIS, AUTH_SECRET, ENCRYPTION_KEY, S3_* (R2), ANTHROPIC_API_KEY, ANTHROPIC_DEFAULT_MODEL (claude-sonnet-4-6), ANTHROPIC_FAST_MODEL (claude-haiku-4-5), **GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI** (= `https://api.converflow.ai/integrations/google/callback`, must match the Google Cloud OAuth client exactly). ENCRYPTION_KEY (64 hex) is used by `common/utils/crypto.ts` (calendar tokens) AND by the bot-runner's `crypto.ts` (Baileys auth state). **BOT_RUNNER_INTERNAL_TOKEN** (≥16 chars) — shared secret between api ↔ bot-runner; required for connect + the inbound webhook (fail-closed). Optional: BOT_RUNNER_URL (default `http://bot-runner:4100`), API_INTERNAL_URL (bot-runner → api, default `http://api:4000`).
+DATABASE/REDIS, AUTH_SECRET, **ENCRYPTION_KEY** (64 hex — used everywhere creds/tokens are at rest: `common/utils/crypto.ts` for Calendar + EmailConnection password, `bot-runner/crypto.ts` for Baileys auth state, `workers/crypto.ts` for decrypting EmailConnection password in the poller), S3_* (R2), ANTHROPIC_API_KEY, ANTHROPIC_DEFAULT_MODEL (claude-sonnet-4-6), ANTHROPIC_FAST_MODEL (claude-haiku-4-5), GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_OAUTH_REDIRECT_URI (`https://api.converflow.ai/integrations/google/callback`), **RESEND_API_KEY + EMAIL_FROM** (system mail + Converflow email-channel fallback). **BOT_RUNNER_INTERNAL_TOKEN** (≥16 chars, fail-closed) — shared internal secret used by api↔bot-runner AND workers→api (email inbound webhook). Optional: BOT_RUNNER_URL (default `http://bot-runner:4100`), API_INTERNAL_URL (workers/bot-runner → api, default `http://api:4000`), EMAIL_POLL_INTERVAL_MS (workers IMAP poller, default 60000). Per-tenant SMTP/IMAP credentials are stored encrypted in `email_connections` (NOT env).
 
-## ROADMAP TO FULL KIT DIGITAL COMPLIANCE
+## ROADMAP
 
-What's left to have every "Gestión de Clientes con IA" requirement working + ready
-for Red.es Phase I submission. Ordered by priority. Each sprint ends with a deploy
-(build api/web → up -d → schema push if needed) and a manual verification.
+Kit Digital product side has been COMPLETE since Sprint 5 (17/18; #18 = capacitación,
+USER-owned). What's listed below is what's shipped + what's queued for product value.
+Each sprint ends with a deploy (build affected services → up -d → schema push if
+needed) and a manual verification.
 
-### Sprint 3.3 — AI coherence (small, no deps)
-- [ ] Enrich `LeadsService.score()` prompt with opportunities + tasks (currently only notes). Makes scoring consistent with note analysis.
-- [ ] (optional) Auto-create a Task when a note is classified BUY_INTENT ("Llamar urgente") or SCHEDULING ("Agendar reunión") — closes the journey loop (req #5 auto-workflow + #13).
+### Sprints 4 + 5 ✅ LIVE (Kit Digital reqs #6 #7 #12)
+Reporting dashboard + Alerts engine (4 rules, compute-on-read diff-only) and
+IA Reuniones (Google Calendar OAuth + slot proposals + event creation). See
+old commits for details.
 
-### Sprint 4 — Reporting dashboard + Alerts engine (reqs #6 + #7) ✅ DONE (live in prod)
-- [x] Tenant dashboard with real aggregations: lead funnel by status, conversion rate, open pipeline value + by month, opportunities by stage, tasks pending/overdue, leads by source. `ReportsModule` → `GET /reports/overview`.
-- [x] Alerts engine: 4 rules (lead sin contactar >14d, opp con expectedCloseDate vencida, task overdue, lead con score ≥75). **Compute-on-read with diff-only persistence** to the `Alert` table (no BullMQ worker — kept simple; recompute is read-only in steady state). `AlertsModule`.
-- [x] Alerts UI: `/app/alerts` page with icons + severity badges + marcar leída/descartar, and unread-count badge in the tenant nav. (No separate schema change — `Alert` model already had every field.)
+### Sprint 6 — Capacitación / Academy (KD req #18) — ⛔ OUT OF SCOPE
+USER handles training content + diploma. Skip.
 
-### Sprint 5 — IA Reuniones (req #12) ✅ DONE (live & verified in prod)
-- [x] Google Cloud project + OAuth client/consent (USER set up; creds in .env.prod). App still in *Testing* mode — needs verification before non-test-user clients (see open issue #6).
-- [x] Connect Google Calendar **per user** (OAuth flow): `IntegrationsModule` — connect/callback/status/disconnect, HMAC-signed state, AES-256-GCM token storage, auto refresh.
-- [x] Schedule meeting from a lead: `MeetingsModule` — `propose` (tz-aware free slots via `Intl`, Claude picks 3 + title/agenda), `schedule` (conflict re-check + create event inviting the lead + follow-up Task). UI on the lead detail page + connect card in Ajustes.
+### Sprint 7 — WhatsApp via Baileys ✅ LIVE
+QR via polling. Phase A (real bot-runner, encrypted auth state, auto-reconnect)
+and Phase B (inbound → conversation + classify + agent). **Upgraded to Baileys 7**
+for LID→real phone (`key.remoteJidAlt` / `lidMapping.getPNForLID`). Phase C
+(outbound auto-send) was integrated into **Agents v1d** below (AUTO mode with
+rate-limit + AI disclosure).
 
-### Sprint 6 — Capacitación / Academy (req #18) — ⛔ OUT OF SCOPE
-> The USER handles capacitación, diploma, and all training content themselves.
-> Do NOT build this. Skip entirely.
+### Sprint 8 — Conversaciones / Inbox ✅ LIVE
+Own `Conversation` + `Message` model + RLS. `ConversationIngestService` (idempotent
+by `waMessageId`). Two-pane UI (Sin responder / Todas / Cerradas), thread with
+composer (text/emoji/document send) + one-click "Enviar sugerencia IA" below the
+composer. Channel-aware delivery (WhatsApp via bot-runner, WEBCHAT records OUT,
+EMAIL via tenant SMTP or Resend). Live pendientes badge in nav.
 
-### Sprint 7 — WhatsApp Baileys (product core; not a strict KD-Clientes req but key value)
-Decisions: QR via **polling** (not SSE); outbound is **human-in-the-loop** (suggested reply, no auto-send) to limit ban risk.
-- [x] **Phase A (LIVE & verified in prod)**: real bot-runner — Baileys socket per bot, QR enrollment from the UI, AES-256-GCM encrypted auth state in `bot_sessions`, status transitions + auto-reconnect (incl. reconnect-on-boot). API connect/disconnect/connection + `BotRunnerService`. UI `/app/bots/[id]`.
-- [x] **Phase B (LIVE in prod)**: inbound messages → find/create Lead by phone + classify. Then **upgraded to Baileys 7** to resolve LID→real phone (`key.remoteJidAlt` / `lidMapping.getPNForLID`). Inbound now writes to the inbox model (below) rather than notes.
-- [ ] **Phase C (not built, by decision)**: outbound auto-send with rate-limit + warm-up. Kept human-in-the-loop — the AI suggested reply shows in the inbox and a person sends it from WhatsApp.
+### Agents (multi-increment) ✅ v1a + v1b + v1d LIVE — ⏳ v1c PENDING
+Self-service agent builder + playground + tool execution + AUTO mode. Decisions:
+per-agent mode toggle (default Suggest), text-knowledge in prompt with hard
+"no inventar" guardrail until RAG ships, AI disclosure baked in by default.
+- [x] **v1a**: `AgentsModule` CRUD + `/app/agents` UI + playground (`AiService.complete`).
+  Bot detail has an agent selector. AI cost/model hidden from UI; the model
+  selector is labelled "Calidad de respuesta" (Estándar/Rápida), no model names.
+- [x] **v1b — tool execution**: `AiService.runAgentLoop` (multi-turn tool-use loop)
+  + `AgentRuntimeService` executes `create_opportunity` / `update_opportunity` /
+  `schedule_meeting` (creates a MEETING task) / `escalate_to_human` against the
+  tenant + lead. Wired into inbound: assigned agent powers the reply (with tools);
+  falls back to the generic classifier if the agent errors.
+- [x] **v1d — AUTO mode**: on `WEBCHAT` always auto-delivers (our surface). On
+  `WHATSAPP` and `EMAIL` AUTO-only: WhatsApp via bot-runner (per-bot per-minute
+  rate-limit + AI disclosure on first outbound); EMAIL via tenant SMTP. Falls
+  back to suggestion on rate-limit or transport failure.
+- [ ] **v1c — RAG**: pgvector + embeddings provider; index `Agent.config` knowledge
+  + tenant documents; retrieve top-k per inbound message; inject into the agent
+  prompt. **Blocked on the user creating an embeddings key** (recommend OpenAI
+  `text-embedding-3-small`; alternative Voyage). Code-side: a `KnowledgeModule`
+  in the api + an `embed` queue handler in workers (we'll reuse the BullMQ
+  scaffold).
 
-> Deploy note for Sprint 7: rebuild **bot-runner** too. `BOT_RUNNER_INTERNAL_TOKEN` MUST be a real shared secret in `.env.prod` (api + bot-runner read it). Baileys 7 is an RC; may need a one-time re-pair (clear `bot_sessions`).
+### Design v2 ✅ LIVE
+Fixed shell, Lucide icons, expandable nav groups (replaced top-tab submenu),
+global "Crear" popover, "Hoy" home (greeting + KPI strip + tu cola de hoy +
+pulso del negocio bars). **Pending pieces deferred to Sprint 10**: sparklines /
+week-over-week deltas / "Tu IA esta semana" panel (need historical metrics).
 
-### Sprint 8 — Conversaciones / Inbox (BUILT, pending deploy — needs schema push)
-Decisions: own **Conversation/Message** model (not notes); **capture OUT** (fromMe) to auto-mark answered; QR/phone via Baileys 7.
-- [x] Schema: `Conversation` (per tenant+channel+contactJid, status PENDING/ANSWERED/CLOSED, lead link, unread, last*) + `Message` (IN/OUT, body, mediaType, AI fields) + RLS.
-- [x] Inbound refactor → `ConversationIngestService`: upsert conversation, append message, classify inbound (reuse `AiService.classifyNote`), OUT→ANSWERED. waMessageId dedup.
-- [x] Tenant API `ConversationsModule` (list/thread/count/read/close/reopen) + two-pane inbox UI `/app/conversations` + pendientes badge in nav.
-- [ ] Pending: deploy (schema push for `conversations`+`messages`) + prod verification.
+### Channels — multichannel foundation ✅ LIVE
+Conversation/Message + agents are channel-agnostic; per channel we add an
+adapter (transport + identity). Channels currently live:
+- **WhatsApp** (Baileys 7) — see Sprint 7.
+- **Web chat** — public widget at `/widget/[botId]` + `/webchat/:botId/messages`
+  endpoints; visitor `sessionId` scopes the conversation; agent auto-replies.
+- **Email** — TWO paths:
+  - **Tenant IMAP/SMTP** (self-service): `EmailConnection` per EMAIL bot with
+    AES-256-GCM encrypted creds; `POST /bots/:id/email/connect` verifies SMTP
+    (nodemailer); workers IMAP poller (imapflow + mailparser) forwards new
+    INBOX mail to `/internal/email/inbound`; outbound via the tenant's SMTP.
+  - **Converflow Resend** (system path + fallback): outbound from `EMAIL_FROM`
+    with `Reply-To` = the bot's address; inbound webhook accepts a generic JSON
+    shape. Used when no `EmailConnection` exists and for future system flows.
+- **Lead → Cliente automation**: on lead status `CONVERTED` we link/create a
+  Client from the lead's data and set `lead.clientId`. Won leads show under
+  Clientes automatically.
+
+### Sprint 9 — Agents v1c RAG ⏳ NEXT (blocked on embeddings key)
+- [ ] Add embeddings provider key to `.env.prod` (USER) — recommend OpenAI
+  `text-embedding-3-small` (~$0.02 / M tokens, multilingual).
+- [ ] `KnowledgeChunk` model (tenantId, agentId or documentId, text, embedding
+  vector via pgvector, metadata).
+- [ ] Workers `embed` queue: chunk + embed `Agent.config.businessInfo`/`faqs` on
+  save; also tenant `Document`s on upload. Re-embed on edit.
+- [ ] `AgentRuntimeService` retrieves top-k chunks per inbound message and
+  injects them into the prompt under a "FUENTES" section with citations.
+- [ ] UI: agent edit shows "Indexado: N fragmentos" + a "re-indexar" button.
+
+### Sprint 10 — Historical metrics + close the Hoy home
+- [ ] `metric_snapshots` rolling table or on-the-fly aggregations over `ai_usage`
+  / conversations / leads for 7-day series + week-over-week deltas.
+- [ ] `/reports/series` endpoint.
+- [ ] Wire sparklines + Delta into the Hoy home's KPI cards.
+- [ ] "Tu IA esta semana" panel (atended conversations, leads qualified,
+  meetings scheduled, % resolved without a human, escalated) — from `ai_usage`
+  metadata (tool actions are stored there since v1b).
+
+### Sprint 11 — WhatsApp Cloud API (official) upgrade
+ADR #7: reduce ban risk for production scale. Build a second WHATSAPP adapter
+that uses Meta's Cloud API webhook + send (per-bot WABA + phone number id).
+Keep Baileys as the dev/SMB path; let tenants choose at bot creation.
+- [ ] Meta app + WABA + phone number id per tenant.
+- [ ] Webhook receiver (signed) → ingest as WHATSAPP.
+- [ ] Outbound via Cloud API (template messages for first-contact / 24h window).
+
+### Sprint 12 — Multichannel polish + onboarding
+- [ ] **"Instalar widget"** page (copy-pasteable iframe + script snippet, with
+  bot id auto-filled).
+- [ ] **IMAP/SMTP presets** in the email-connect form (Gmail, Outlook 365, IONOS,
+  Yahoo, custom) so tenants don't have to look up server names.
+- [ ] **Microsoft 365 (Graph) one-click** OAuth as an alternative to entering
+  app passwords. (Optional: Gmail OAuth too — reuses our Google app, requires
+  Google restricted-scope verification.)
+- [ ] In-app onboarding checklist per bot ("Connect / Assign agent / Test").
+
+### Sprint 13 — Operational + tech debt
+- [ ] Admin **AI-usage dashboard** (cost per tenant; data is in `ai_usage`).
+- [ ] Admin **audit-log UI** (data in `admin_action_log`).
+- [ ] Encrypt the admin **TOTP secret** (open issue #7) using `common/utils/crypto.ts`.
+- [ ] Switch `prisma db push` → proper migrations once schema stabilizes.
+- [ ] SSH key auth to VPS (currently Hostinger web terminal only).
+- [ ] Re-enable GHCR CI/CD image builds.
+- [ ] Keep `CURRENT_STATE.md` in sync after every sprint (it has gone ~7 commits
+  behind before; treat this as a definition-of-done).
 
 ### Red.es Phase I submission prep — ⛔ OUT OF SCOPE
-> The USER handles memoria técnica, evidence screenshots, and the Red.es
-> submission themselves. Do NOT build/prepare these. Skip entirely.
+USER handles memoria técnica, evidence screenshots, and the Red.es submission.
 
-### Backlog (nice-to-have, not blocking compliance)
-- Admin AI-usage dashboard (cost per tenant; data in `ai_usage`).
-- Admin audit-log UI (data in `admin_action_log`).
+### Backlog (nice-to-have, not blocking)
 - Chat assistant per lead/client (conversational Claude with full context).
 - Web-search lead enrichment (Tavily/Perplexity tool).
-- Resend transactional email (replace temp-password-in-UI with email invites).
-- Switch `prisma db push` → proper migrations once schema stabilizes.
-- SSH key auth to VPS (currently Hostinger web terminal only).
-- Re-enable GHCR CI/CD image builds.
+- Real transactional email invites via Resend (replace temp-password-in-UI flow).
+- IMAP IDLE / Gmail push to lower email latency below the 60s poll.
+- Google app verification for Calendar (move out of Testing — USER-owned).
 
 ## COMPLIANCE SCORECARD (Gestión de Clientes con IA)
 
