@@ -44,6 +44,8 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: '/app/users', label: 'Usuarios' },
       { href: '/app/profile', label: 'Perfil' },
       { href: '/app/settings', label: 'Ajustes' },
+      { href: '/app/settings/custom-fields', label: 'Campos personalizados' },
+      { href: '/app/settings/pipelines', label: 'Tableros' },
     ],
   },
 ];

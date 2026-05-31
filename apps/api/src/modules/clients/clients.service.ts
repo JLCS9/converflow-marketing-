@@ -7,6 +7,7 @@ import {
   type UpdateClientInput,
 } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service.js';
 
 interface ListOpts {
   status?: string;
@@ -17,7 +18,10 @@ interface ListOpts {
 
 @Injectable()
 export class ClientsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly customFields: CustomFieldsService,
+  ) {}
 
   list(tenantId: string, opts: ListOpts = {}) {
     return this.prisma.withTenant(tenantId, (tx) =>
@@ -57,17 +61,41 @@ export class ClientsService {
 
   async create(tenantId: string, input: CreateClientInput) {
     const data = createClientSchema.parse(input);
+    const customFields = await this.customFields.validateValues(
+      tenantId,
+      'CLIENT',
+      data.customFields as Record<string, unknown> | undefined,
+    );
     return this.prisma.withTenant(tenantId, (tx) =>
-      tx.client.create({ data: { tenantId, ...data } }),
+      tx.client.create({
+        data: {
+          tenantId,
+          ...data,
+          customFields: (customFields as never) ?? undefined,
+        },
+      }),
     );
   }
 
   async update(tenantId: string, id: string, input: UpdateClientInput) {
     const data = updateClientSchema.parse(input);
+    const customFields = await this.customFields.validateValues(
+      tenantId,
+      'CLIENT',
+      data.customFields as Record<string, unknown> | undefined,
+      { partial: true },
+    );
     return this.prisma.withTenant(tenantId, async (tx) => {
       const client = await tx.client.findUnique({ where: { id } });
       if (!client) throw new NotFoundError('Cliente no encontrado');
-      return tx.client.update({ where: { id }, data });
+      return tx.client.update({
+        where: { id },
+        data: {
+          ...data,
+          customFields:
+            customFields !== undefined ? (customFields as never) : undefined,
+        },
+      });
     });
   }
 

@@ -4,11 +4,15 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
+import { CustomFieldsForm } from '@/components/custom-fields/form';
+import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
-export function CreateClientForm() {
+export function CreateClientForm({ customFields }: { customFields: CustomFieldDefinition[] }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [cfValues, setCfValues] = useState<Record<string, unknown>>({});
+  const visibleCustom = customFields.filter((c) => !c.archivedAt);
 
   return (
     <Card>
@@ -25,6 +29,7 @@ export function CreateClientForm() {
             address: String(data.get('address') ?? '').trim() || undefined,
             website: String(data.get('website') ?? '').trim() || undefined,
             status: (String(data.get('status') ?? 'ACTIVE')) as never,
+            customFields: Object.keys(cfValues).length ? cfValues : undefined,
           };
           setError(null);
           startTransition(async () => {
@@ -69,6 +74,21 @@ export function CreateClientForm() {
             <option value="ARCHIVED">ARCHIVED</option>
           </Select>
         </Field>
+
+        {visibleCustom.length > 0 && (
+          <div className="border-t border-ink-100 pt-4">
+            <h3 className="text-xs font-mono uppercase tracking-wider text-ink-500">
+              Campos personalizados
+            </h3>
+            <div className="mt-3">
+              <CustomFieldsForm
+                definitions={visibleCustom}
+                values={cfValues}
+                onChange={setCfValues}
+              />
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">

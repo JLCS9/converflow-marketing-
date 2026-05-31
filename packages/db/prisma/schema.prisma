@@ -140,6 +140,8 @@ model Tenant {
   conversations Conversation[]
   messages      Message[]
   emailConnections EmailConnection[]
+  customFieldDefinitions CustomFieldDefinition[]
+  pipelines              Pipeline[]
 
   @@map("tenants")
 }
@@ -348,6 +350,7 @@ model Client {
   source    String?
   status    ClientStatus @default(ACTIVE)
   ownerId   String?
+  customFields Json?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
@@ -433,17 +436,133 @@ model Opportunity {
 
   ownerId           String?
   proposalUrl       String?
+  customFields      Json?
+
+  pipelineId String?
+  pipeline   Pipeline?      @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
+  stageId    String?
+  stage      PipelineStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
 
   tasks     Task[]
   documents Document[]
   notes     Note[]
+  stageHistory OpportunityStageHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([tenantId, status])
   @@index([tenantId, expectedCloseDate])
+  @@index([tenantId, pipelineId, stageId])
   @@map("opportunities")
+}
+
+// ============================================
+// Per-tenant customization
+// CustomFieldDefinition: tenant-defined attributes for Lead/Client/Opportunity.
+// Values live in the entity's `customFields` Json column keyed by `key`.
+// Pipeline + PipelineStage: tenant-defined opportunity boards.
+// ============================================
+
+model CustomFieldDefinition {
+  id         String              @id @default(cuid())
+  tenantId   String
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entityType CustomFieldEntity
+  key        String              // stable slug used as Json property name
+  label      String
+  type       CustomFieldType
+  required   Boolean             @default(false)
+  options    Json?               // SELECT/MULTISELECT options: [{value,label}]
+  helpText   String?
+  order      Int                 @default(0)
+  archivedAt DateTime?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@unique([tenantId, entityType, key])
+  @@index([tenantId, entityType])
+  @@map("custom_field_definitions")
+}
+
+enum CustomFieldEntity {
+  LEAD
+  CLIENT
+  OPPORTUNITY
+}
+
+enum CustomFieldType {
+  TEXT
+  LONGTEXT
+  NUMBER
+  DATE
+  BOOLEAN
+  SELECT
+  MULTISELECT
+  URL
+  EMAIL
+  PHONE
+  DOCUMENT
+}
+
+model Pipeline {
+  id         String          @id @default(cuid())
+  tenantId   String
+  tenant     Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name       String
+  entityType PipelineEntity  @default(OPPORTUNITY)
+  isDefault  Boolean         @default(false)
+  archivedAt DateTime?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  stages        PipelineStage[]
+  opportunities Opportunity[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, entityType])
+  @@map("pipelines")
+}
+
+enum PipelineEntity {
+  OPPORTUNITY
+}
+
+model PipelineStage {
+  id         String   @id @default(cuid())
+  tenantId   String
+  pipelineId String
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  key        String   // stable slug, scoped to pipeline
+  label      String
+  color      String   @default("#3B82F6")
+  order      Int      @default(0)
+  isWon      Boolean  @default(false)
+  isLost     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  opportunities Opportunity[]
+  history       OpportunityStageHistory[]
+
+  @@unique([pipelineId, key])
+  @@index([tenantId, pipelineId])
+  @@map("pipeline_stages")
+}
+
+model OpportunityStageHistory {
+  id            String   @id @default(cuid())
+  tenantId      String
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  stageId       String
+  stage         PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  movedAt       DateTime @default(now())
+  movedBy       String?
+
+  @@index([opportunityId, movedAt])
+  @@index([tenantId, movedAt])
+  @@map("opportunity_stage_history")
 }
 
 enum OppStatus {

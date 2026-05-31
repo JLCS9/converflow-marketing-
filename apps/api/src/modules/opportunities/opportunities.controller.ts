@@ -18,12 +18,14 @@ export class OpportunitiesController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('status') status?: string,
     @Query('ownerId') ownerId?: string,
+    @Query('pipelineId') pipelineId?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
     return this.opps.list(user.tenantId, {
       status,
       ownerId,
+      pipelineId,
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
     });
@@ -41,7 +43,7 @@ export class OpportunitiesController {
 
   @Post()
   create(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
-    return this.opps.create(user.tenantId, body as never);
+    return this.opps.create(user.tenantId, body as never, user.userId);
   }
 
   @Patch(':id')
@@ -50,7 +52,7 @@ export class OpportunitiesController {
     @Body() body: unknown,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.opps.update(user.tenantId, id, body as never);
+    return this.opps.update(user.tenantId, id, body as never, user.userId);
   }
 
   @Delete(':id')

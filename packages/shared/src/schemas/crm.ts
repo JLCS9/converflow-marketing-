@@ -60,6 +60,9 @@ export const createOpportunitySchema = z.object({
   expectedCloseDate: z.coerce.date().optional(),
   ownerId: z.string().cuid().optional(),
   proposalUrl: z.string().url().optional(),
+  pipelineId: z.string().cuid().optional(),
+  stageId: z.string().cuid().optional(),
+  customFields: z.record(z.unknown()).optional(),
 });
 
 export const updateOpportunitySchema = createOpportunitySchema.partial();
@@ -83,6 +86,7 @@ export const createClientSchema = z.object({
   source: z.string().trim().max(60).optional(),
   status: clientStatusSchema.optional(),
   ownerId: z.string().cuid().optional(),
+  customFields: z.record(z.unknown()).optional(),
 });
 
 export const updateClientSchema = createClientSchema.partial();

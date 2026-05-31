@@ -6,6 +6,9 @@ import { LeadActions } from './lead-actions';
 import { ScoreLeadButton } from './score-button';
 import { NotesSection } from './notes-section';
 import { MeetingScheduler } from '@/components/meeting-scheduler';
+import { LeadInfoCard } from './lead-info-card';
+import { CustomFieldsCard } from './custom-fields-card';
+import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
 interface NoteWithAi {
   id: string;
@@ -33,6 +36,7 @@ interface LeadDetail {
   qualifiedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  customFields: Record<string, unknown> | null;
   aiScoreReasoning: string | null;
   aiScoreActions: string[] | null;
   aiScoredAt: string | null;
@@ -73,6 +77,9 @@ export default async function LeadDetailPage({
     if (err instanceof ApiError && err.status === 404) notFound();
     throw err;
   }
+  const customFieldDefs = await serverApiFetch<CustomFieldDefinition[]>(
+    '/custom-fields?entityType=LEAD',
+  ).catch(() => []);
 
   return (
     <div className="space-y-6">
@@ -101,22 +108,7 @@ export default async function LeadDetailPage({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card>
-          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Información</h2>
-          <dl className="mt-4 space-y-2 text-sm">
-            <Row label="Email" value={lead.email ?? '—'} />
-            <Row label="Teléfono" value={lead.phone ?? '—'} />
-            <Row label="Empresa" value={lead.company ?? '—'} />
-            <Row label="Fuente" value={lead.source ?? '—'} />
-            <Row label="Creado" value={new Date(lead.createdAt).toLocaleString('es-ES')} />
-            {lead.contactedAt && (
-              <Row label="Contactado" value={new Date(lead.contactedAt).toLocaleString('es-ES')} />
-            )}
-            {lead.qualifiedAt && (
-              <Row label="Cualificado" value={new Date(lead.qualifiedAt).toLocaleString('es-ES')} />
-            )}
-          </dl>
-        </Card>
+        <LeadInfoCard lead={lead} />
 
         <Card className="lg:col-span-2">
           <div className="flex items-center justify-between">
@@ -155,6 +147,13 @@ export default async function LeadDetailPage({
           </div>
         </Card>
       </div>
+
+      <CustomFieldsCard
+        entityType="LEAD"
+        apiBase={`/leads/${lead.id}`}
+        definitions={customFieldDefs}
+        values={lead.customFields}
+      />
 
       <Card>
         <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
@@ -226,11 +225,3 @@ export default async function LeadDetailPage({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-3">
-      <dt className="text-ink-500">{label}</dt>
-      <dd className="text-right">{value}</dd>
-    </div>
-  );
-}

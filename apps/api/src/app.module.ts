@@ -24,6 +24,8 @@ import { ConversationsModule } from './modules/conversations/conversations.modul
 import { AgentsModule } from './modules/agents/agents.module.js';
 import { WebchatModule } from './modules/webchat/webchat.module.js';
 import { InternalModule } from './modules/internal/internal.module.js';
+import { CustomFieldsModule } from './modules/custom-fields/custom-fields.module.js';
+import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
 import { AiModule } from './common/ai/ai.module.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
 
@@ -56,6 +58,8 @@ import { PrismaModule } from './common/prisma/prisma.module.js';
     AgentsModule,
     WebchatModule,
     InternalModule,
+    CustomFieldsModule,
+    PipelinesModule,
   ],
 })
 export class AppModule {}

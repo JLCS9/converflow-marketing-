@@ -10,6 +10,7 @@ import {
 } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { AiService } from '../../common/ai/ai.service.js';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service.js';
 
 interface ScoreLeadOutput {
   score: number;
@@ -31,6 +32,7 @@ export class LeadsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
+    private readonly customFields: CustomFieldsService,
   ) {}
 
   list(tenantId: string, opts: ListOpts = {}) {
@@ -72,6 +74,11 @@ export class LeadsService {
 
   async create(tenantId: string, input: CreateLeadInput) {
     const data = createLeadSchema.parse(input);
+    const customFields = await this.customFields.validateValues(
+      tenantId,
+      'LEAD',
+      data.customFields as Record<string, unknown> | undefined,
+    );
     return this.prisma.withTenant(tenantId, (tx) =>
       tx.lead.create({
         data: {
@@ -83,7 +90,7 @@ export class LeadsService {
           source: data.source ?? 'manual',
           status: data.status,
           ownerId: data.ownerId,
-          customFields: (data.customFields as never) ?? undefined,
+          customFields: (customFields as never) ?? undefined,
         },
       }),
     );
@@ -91,6 +98,12 @@ export class LeadsService {
 
   async update(tenantId: string, id: string, input: UpdateLeadInput) {
     const data = updateLeadSchema.parse(input);
+    const customFields = await this.customFields.validateValues(
+      tenantId,
+      'LEAD',
+      data.customFields as Record<string, unknown> | undefined,
+      { partial: true },
+    );
     return this.prisma.withTenant(tenantId, async (tx) => {
       const lead = await tx.lead.findUnique({ where: { id } });
       if (!lead) throw new NotFoundError('Lead no encontrado');
@@ -123,7 +136,7 @@ export class LeadsService {
 
       const dataWithStamps = {
         ...data,
-        customFields: data.customFields !== undefined ? (data.customFields as never) : undefined,
+        customFields: customFields !== undefined ? (customFields as never) : undefined,
         contactedAt:
           !lead.contactedAt && data.status && data.status !== 'NEW' ? now : undefined,
         qualifiedAt:

@@ -1,8 +1,11 @@
 import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
 import { CreateOpportunityForm } from './create-form';
+import type { CustomFieldDefinition } from '@/components/custom-fields/types';
+import type { Pipeline } from '../types';
 
 export const metadata = { title: 'Nueva oportunidad' };
+export const dynamic = 'force-dynamic';
 
 export default async function NewOpportunityPage({
   searchParams,
@@ -10,6 +13,10 @@ export default async function NewOpportunityPage({
   searchParams: Promise<{ leadId?: string; clientId?: string }>;
 }) {
   const params = await searchParams;
+  const [customFields, pipelines] = await Promise.all([
+    serverApiFetch<CustomFieldDefinition[]>('/custom-fields?entityType=OPPORTUNITY').catch(() => []),
+    serverApiFetch<Pipeline[]>('/pipelines').catch(() => []),
+  ]);
 
   // If a leadId/clientId is passed in the URL, resolve its name so the form
   // can show it pre-selected instead of an opaque cuid.
@@ -51,7 +58,12 @@ export default async function NewOpportunityPage({
           </p>
         )}
       </div>
-      <CreateOpportunityForm prefillLead={prefillLead} prefillClient={prefillClient} />
+      <CreateOpportunityForm
+        prefillLead={prefillLead}
+        prefillClient={prefillClient}
+        customFields={customFields}
+        pipelines={pipelines}
+      />
     </div>
   );
 }

@@ -1,119 +1,77 @@
 import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
-import { Card, Badge, buttonClass } from '@/components/ui/primitives';
-
-interface OppRow {
-  id: string;
-  name: string;
-  amount: string | null;
-  currency: string;
-  status: string;
-  probability: number;
-  expectedCloseDate: string | null;
-  createdAt: string;
-  lead: { id: string; name: string } | null;
-  client: { id: string; name: string } | null;
-}
-
-const statusColor: Record<string, 'gray' | 'green' | 'yellow' | 'red' | 'blue'> = {
-  OPEN: 'gray',
-  QUOTED: 'blue',
-  NEGOTIATING: 'yellow',
-  WON: 'green',
-  LOST: 'red',
-};
+import { buttonClass } from '@/components/ui/primitives';
+import { OpportunitiesBoard } from './opportunities-board';
+import type { OppCard, Pipeline } from './types';
 
 export const metadata = { title: 'Oportunidades' };
+export const dynamic = 'force-dynamic';
 
 export default async function OpportunitiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ pipelineId?: string }>;
 }) {
   const params = await searchParams;
-  const qs = new URLSearchParams();
-  if (params.status) qs.set('status', params.status);
-
-  const [opps, pipeline] = await Promise.all([
-    serverApiFetch<OppRow[]>(`/opportunities?${qs.toString()}`),
-    serverApiFetch<Array<{ status: string; count: number; amount: string }>>(
-      '/opportunities/pipeline',
-    ),
-  ]);
+  const pipelines = await serverApiFetch<Pipeline[]>('/pipelines').catch(() => []);
+  const selected =
+    pipelines.find((p) => p.id === params.pipelineId) ??
+    pipelines.find((p) => p.isDefault) ??
+    pipelines[0];
+  const opps = selected
+    ? await serverApiFetch<OppCard[]>(`/opportunities?pipelineId=${selected.id}&limit=500`)
+    : [];
 
   return (
     <div className="space-y-6">
-      <header className="flex items-end justify-between">
+      <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Oportunidades</h1>
-          <p className="mt-1 text-sm text-ink-500">{opps.length} oportunidades.</p>
+          <p className="mt-1 text-sm text-ink-500">
+            {opps.length} oportunidades · arrastra las tarjetas entre columnas para cambiar de etapa.
+          </p>
         </div>
-        <Link href="/app/opportunities/new" className={buttonClass('primary')}>
-          + Nueva oportunidad
-        </Link>
+        <div className="flex items-center gap-2">
+          {pipelines.length > 1 && (
+            <form className="flex items-center gap-2">
+              <label className="text-xs text-ink-500">Tablero</label>
+              <select
+                name="pipelineId"
+                defaultValue={selected?.id ?? ''}
+                className="rounded-md border-ink-300 text-sm"
+              >
+                {pipelines.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.isDefault ? ' · por defecto' : ''}
+                  </option>
+                ))}
+              </select>
+              <button type="submit" className={buttonClass('secondary', 'text-xs px-3 py-1.5')}>
+                Cambiar
+              </button>
+            </form>
+          )}
+          <Link href="/app/settings/pipelines" className="text-xs text-primary-700 hover:underline">
+            Gestionar tableros
+          </Link>
+          <Link href="/app/opportunities/new" className={buttonClass('primary')}>
+            + Nueva
+          </Link>
+        </div>
       </header>
 
-      <section className="grid gap-3 sm:grid-cols-5">
-        {(['OPEN', 'QUOTED', 'NEGOTIATING', 'WON', 'LOST'] as const).map((s) => {
-          const stage = pipeline.find((p) => p.status === s);
-          return (
-            <Link
-              key={s}
-              href={`/app/opportunities?status=${s}`}
-              className="rounded-lg border border-ink-100 bg-white p-4 hover:border-ink-300"
-            >
-              <div className="flex items-center justify-between">
-                <Badge color={statusColor[s]}>{s}</Badge>
-                <span className="font-mono text-xs text-ink-500">{stage?.count ?? 0}</span>
-              </div>
-              <div className="mt-2 text-sm font-medium">
-                {stage?.amount ? `${Number(stage.amount).toLocaleString('es-ES')} €` : '—'}
-              </div>
-            </Link>
-          );
-        })}
-      </section>
-
-      <Card className="overflow-x-auto p-0">
-        <table className="w-full text-sm">
-          <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
-            <tr>
-              <th className="px-4 py-3">Nombre</th>
-              <th className="px-4 py-3">Lead / Cliente</th>
-              <th className="px-4 py-3">Importe</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Prob.</th>
-              <th className="px-4 py-3">Cierre esperado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {opps.map((o) => (
-              <tr key={o.id} className="border-b border-ink-100 last:border-0 hover:bg-ink-100/40">
-                <td className="px-4 py-3">
-                  <Link href={`/app/opportunities/${o.id}`} className="font-medium text-ink-900 hover:text-primary-700">
-                    {o.name}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 text-xs">
-                  {o.client ? o.client.name : o.lead ? `Lead: ${o.lead.name}` : '—'}
-                </td>
-                <td className="px-4 py-3 font-mono text-xs">
-                  {o.amount ? `${Number(o.amount).toLocaleString('es-ES')} ${o.currency}` : '—'}
-                </td>
-                <td className="px-4 py-3">
-                  <Badge color={statusColor[o.status] ?? 'gray'}>{o.status}</Badge>
-                </td>
-                <td className="px-4 py-3 font-mono text-xs">{o.probability}%</td>
-                <td className="px-4 py-3 text-xs text-ink-500">
-                  {o.expectedCloseDate
-                    ? new Date(o.expectedCloseDate).toLocaleDateString('es-ES')
-                    : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
+      {!selected ? (
+        <div className="rounded-md border border-dashed border-ink-200 p-6 text-sm text-ink-500">
+          No hay tableros configurados.{' '}
+          <Link href="/app/settings/pipelines" className="text-primary-700 hover:underline">
+            Crear el primero
+          </Link>
+          .
+        </div>
+      ) : (
+        <OpportunitiesBoard pipeline={selected} initialOpps={opps} />
+      )}
     </div>
   );
 }

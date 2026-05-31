@@ -91,10 +91,93 @@ async function seedFirstAppVersion() {
   console.info('Seeded initial AppVersion 0.1.0.');
 }
 
+const DEFAULT_STAGES: Array<{
+  key: string;
+  label: string;
+  color: string;
+  order: number;
+  isWon: boolean;
+  isLost: boolean;
+  oppStatus: 'OPEN' | 'QUOTED' | 'NEGOTIATING' | 'WON' | 'LOST';
+}> = [
+  { key: 'OPEN', label: 'Abierta', color: '#64748B', order: 0, isWon: false, isLost: false, oppStatus: 'OPEN' },
+  { key: 'QUOTED', label: 'Propuesta enviada', color: '#3B82F6', order: 1, isWon: false, isLost: false, oppStatus: 'QUOTED' },
+  { key: 'NEGOTIATING', label: 'Negociación', color: '#F59E0B', order: 2, isWon: false, isLost: false, oppStatus: 'NEGOTIATING' },
+  { key: 'WON', label: 'Ganada', color: '#16A34A', order: 3, isWon: true, isLost: false, oppStatus: 'WON' },
+  { key: 'LOST', label: 'Perdida', color: '#DC2626', order: 4, isWon: false, isLost: true, oppStatus: 'LOST' },
+];
+
+async function seedDefaultPipelines() {
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`SELECT set_config('app.bypass_rls', 'on', true)`);
+
+    const tenants = await tx.tenant.findMany({ select: { id: true } });
+    for (const tenant of tenants) {
+      let pipeline = await tx.pipeline.findFirst({
+        where: { tenantId: tenant.id, entityType: 'OPPORTUNITY', isDefault: true },
+      });
+      if (!pipeline) {
+        pipeline = await tx.pipeline.create({
+          data: {
+            tenantId: tenant.id,
+            name: 'Tablero estándar',
+            entityType: 'OPPORTUNITY',
+            isDefault: true,
+          },
+        });
+      }
+      for (const stage of DEFAULT_STAGES) {
+        await tx.pipelineStage.upsert({
+          where: { pipelineId_key: { pipelineId: pipeline.id, key: stage.key } },
+          update: {
+            label: stage.label,
+            color: stage.color,
+            order: stage.order,
+            isWon: stage.isWon,
+            isLost: stage.isLost,
+          },
+          create: {
+            tenantId: tenant.id,
+            pipelineId: pipeline.id,
+            key: stage.key,
+            label: stage.label,
+            color: stage.color,
+            order: stage.order,
+            isWon: stage.isWon,
+            isLost: stage.isLost,
+          },
+        });
+      }
+
+      const stages = await tx.pipelineStage.findMany({
+        where: { pipelineId: pipeline.id },
+      });
+      const byOppStatus = new Map(
+        DEFAULT_STAGES.map((s) => [s.oppStatus, stages.find((x) => x.key === s.key)!.id]),
+      );
+
+      const orphaned = await tx.opportunity.findMany({
+        where: { tenantId: tenant.id, stageId: null },
+        select: { id: true, status: true },
+      });
+      for (const opp of orphaned) {
+        const stageId = byOppStatus.get(opp.status);
+        if (!stageId) continue;
+        await tx.opportunity.update({
+          where: { id: opp.id },
+          data: { pipelineId: pipeline.id, stageId },
+        });
+      }
+    }
+  });
+  console.info('Default pipelines + stages seeded for all tenants.');
+}
+
 async function main() {
   try {
     await seedSuperAdmin();
     await seedFirstAppVersion();
+    await seedDefaultPipelines();
   } finally {
     await prisma.$disconnect();
   }

@@ -226,3 +226,38 @@ CREATE POLICY tenant_isolation ON email_connections
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- ---------------------------------------------------------------------
+-- Per-tenant customization (custom fields + pipelines)
+-- ---------------------------------------------------------------------
+ALTER TABLE custom_field_definitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE custom_field_definitions FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON custom_field_definitions;
+CREATE POLICY tenant_isolation ON custom_field_definitions
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE pipelines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pipelines FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON pipelines;
+CREATE POLICY tenant_isolation ON pipelines
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE pipeline_stages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pipeline_stages FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON pipeline_stages;
+CREATE POLICY tenant_isolation ON pipeline_stages
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE opportunity_stage_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE opportunity_stage_history FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON opportunity_stage_history;
+CREATE POLICY tenant_isolation ON opportunity_stage_history
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

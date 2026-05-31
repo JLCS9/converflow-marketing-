@@ -1,9 +1,15 @@
 import Link from 'next/link';
+import { serverApiFetch } from '@/lib/server-api';
 import { CreateLeadForm } from './create-form';
+import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
 export const metadata = { title: 'Nuevo lead' };
+export const dynamic = 'force-dynamic';
 
-export default function NewLeadPage() {
+export default async function NewLeadPage() {
+  const customFields = await serverApiFetch<CustomFieldDefinition[]>(
+    '/custom-fields?entityType=LEAD',
+  ).catch(() => []);
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
@@ -16,7 +22,7 @@ export default function NewLeadPage() {
           con tu equipo.
         </p>
       </div>
-      <CreateLeadForm />
+      <CreateLeadForm customFields={customFields} />
     </div>
   );
 }

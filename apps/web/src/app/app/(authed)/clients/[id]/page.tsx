@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { Card, Badge } from '@/components/ui/primitives';
+import { ClientInfoCard } from './client-info-card';
+import { CustomFieldsCard } from '../../leads/[id]/custom-fields-card';
+import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
 interface ClientDetail {
   id: string;
@@ -13,6 +16,7 @@ interface ClientDetail {
   website: string | null;
   source: string | null;
   status: string;
+  customFields: Record<string, unknown> | null;
   createdAt: string;
   leads: Array<{ id: string; name: string; status: string }>;
   opportunities: Array<{ id: string; name: string; status: string; amount: string | null }>;
@@ -34,6 +38,9 @@ export default async function ClientDetailPage({
     if (err instanceof ApiError && err.status === 404) notFound();
     throw err;
   }
+  const customFieldDefs = await serverApiFetch<CustomFieldDefinition[]>(
+    '/custom-fields?entityType=CLIENT',
+  ).catch(() => []);
 
   return (
     <div className="space-y-6">
@@ -47,16 +54,7 @@ export default async function ClientDetailPage({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card>
-          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Información</h2>
-          <dl className="mt-4 space-y-2 text-sm">
-            {client.email && <Row label="Email" value={client.email} />}
-            {client.phone && <Row label="Teléfono" value={client.phone} />}
-            {client.address && <Row label="Dirección" value={client.address} />}
-            {client.website && <Row label="Web" value={client.website} />}
-            <Row label="Alta" value={new Date(client.createdAt).toLocaleString('es-ES')} />
-          </dl>
-        </Card>
+        <ClientInfoCard client={client} />
 
         <Card className="lg:col-span-2">
           <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Oportunidades</h2>
@@ -80,6 +78,13 @@ export default async function ClientDetailPage({
         </Card>
       </div>
 
+      <CustomFieldsCard
+        entityType="CLIENT"
+        apiBase={`/clients/${client.id}`}
+        definitions={customFieldDefs}
+        values={client.customFields}
+      />
+
       <Card>
         <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Tareas</h2>
         {client.tasks.length === 0 ? (
@@ -101,11 +106,3 @@ export default async function ClientDetailPage({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-3">
-      <dt className="text-ink-500">{label}</dt>
-      <dd className="text-right">{value}</dd>
-    </div>
-  );
-}
