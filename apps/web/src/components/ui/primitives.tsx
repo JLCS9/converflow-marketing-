@@ -59,7 +59,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
       <input
         ref={ref}
         className={cn(
-          'mt-1 block w-full rounded-md border-ink-300 focus:border-primary-500 focus:ring-primary-500',
+          'mt-1 block w-full rounded-md border border-ink-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500',
           className,
         )}
         {...rest}
@@ -74,7 +74,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
       <select
         ref={ref}
         className={cn(
-          'mt-1 block w-full rounded-md border-ink-300 focus:border-primary-500 focus:ring-primary-500',
+          'mt-1 block w-full rounded-md border border-ink-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500',
           className,
         )}
         {...rest}
@@ -91,7 +91,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
       <textarea
         ref={ref}
         className={cn(
-          'mt-1 block w-full rounded-md border-ink-300 focus:border-primary-500 focus:ring-primary-500',
+          'mt-1 block w-full rounded-md border border-ink-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500',
           className,
         )}
         {...rest}
@@ -115,7 +115,11 @@ export function Field({
     <div>
       <Label>
         {label}
-        {required && <span className="ml-1 text-red-600">*</span>}
+        {required && (
+          <span className="ml-1 text-red-600" aria-label="obligatorio">
+            *
+          </span>
+        )}
       </Label>
       {children}
       {help && <p className="mt-1 text-xs text-ink-500">{help}</p>}

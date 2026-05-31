@@ -36,20 +36,29 @@ export function DocumentsTable({ docs }: { docs: DocRow[] }) {
         <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
           <tr>
             <th className="px-4 py-3">Nombre</th>
-            <th className="px-4 py-3">Tipo</th>
-            <th className="px-4 py-3">Tamaño</th>
-            <th className="px-4 py-3">Vinculado</th>
-            <th className="px-4 py-3">Subido</th>
+            <th className="hidden px-4 py-3 lg:table-cell">Tipo</th>
+            <th className="hidden px-4 py-3 md:table-cell">Tamaño</th>
+            <th className="hidden px-4 py-3 md:table-cell">Vinculado</th>
+            <th className="hidden px-4 py-3 lg:table-cell">Subido</th>
             <th className="px-4 py-3 text-right">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {docs.map((d) => (
             <tr key={d.id} className="border-b border-ink-100 last:border-0 hover:bg-ink-100/40">
-              <td className="px-4 py-3 font-medium">{d.name}</td>
-              <td className="px-4 py-3 font-mono text-xs text-ink-500">{d.mimeType}</td>
-              <td className="px-4 py-3 font-mono text-xs">{formatBytes(d.sizeBytes)}</td>
-              <td className="px-4 py-3 text-xs">
+              <td className="px-4 py-3 font-medium">
+                {d.name}
+                <div className="mt-0.5 text-xs text-ink-500 md:hidden">
+                  {formatBytes(d.sizeBytes)} · {new Date(d.createdAt).toLocaleDateString('es-ES')}
+                </div>
+              </td>
+              <td className="hidden px-4 py-3 font-mono text-xs text-ink-500 lg:table-cell">
+                {d.mimeType}
+              </td>
+              <td className="hidden px-4 py-3 font-mono text-xs md:table-cell">
+                {formatBytes(d.sizeBytes)}
+              </td>
+              <td className="hidden px-4 py-3 text-xs md:table-cell">
                 {d.client && (
                   <Link href={`/app/clients/${d.client.id}`} className="text-primary-700 hover:underline">
                     {d.client.name}
@@ -62,7 +71,7 @@ export function DocumentsTable({ docs }: { docs: DocRow[] }) {
                 )}
                 {!d.client && !d.opportunity && '—'}
               </td>
-              <td className="px-4 py-3 text-xs text-ink-500">
+              <td className="hidden px-4 py-3 text-xs text-ink-500 lg:table-cell">
                 {new Date(d.createdAt).toLocaleString('es-ES')}
               </td>
               <td className="px-4 py-3 text-right space-x-3">

@@ -93,9 +93,19 @@ export function SidebarNav({
         <button
           type="button"
           onClick={() => setMenu((m) => !m)}
+          aria-haspopup="menu"
+          aria-expanded={menu}
+          aria-label="Atajos de creación"
+          title="Atajos de creación"
           className="flex w-full items-center justify-center gap-2 rounded-md bg-ink-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-700"
         >
-          <Plus size={16} strokeWidth={1.75} /> Crear
+          <Plus size={16} strokeWidth={1.75} aria-hidden /> Crear
+          <ChevronRight
+            size={14}
+            strokeWidth={1.75}
+            aria-hidden
+            className={`transition-transform ${menu ? 'rotate-90' : ''}`}
+          />
         </button>
         {menu && (
           <div
@@ -142,13 +152,16 @@ export function SidebarNav({
               <button
                 type="button"
                 onClick={() => setOpen((o) => ({ ...o, [s.key]: !o[s.key] }))}
+                aria-expanded={isOpen}
+                aria-label={`${isOpen ? 'Contraer' : 'Expandir'} ${s.label}`}
                 className={itemCls(activeChild && !isOpen)}
               >
-                {Icon && <Icon size={18} strokeWidth={1.75} />}
+                {Icon && <Icon size={18} strokeWidth={1.75} aria-hidden />}
                 <span>{s.label}</span>
                 <ChevronRight
                   size={15}
                   strokeWidth={1.75}
+                  aria-hidden
                   className={`ml-auto transition-transform ${isOpen ? 'rotate-90' : ''}`}
                 />
               </button>
