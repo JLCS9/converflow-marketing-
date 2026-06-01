@@ -22,6 +22,7 @@ export function CreateBotForm() {
             name: String(data.get('name') ?? '').trim(),
             channel: String(data.get('channel') ?? 'WEBCHAT'),
             phoneNumber: String(data.get('phoneNumber') ?? '').trim() || undefined,
+            replyMode: String(data.get('replyMode') ?? 'SUGGEST'),
           };
           setError(null);
           startTransition(async () => {
@@ -56,6 +57,17 @@ export function CreateBotForm() {
             <Input name="phoneNumber" type="email" placeholder="ventas@tuempresa.com" />
           </Field>
         )}
+
+        <Field
+          label="Modo de respuesta"
+          help="Sugerir = una persona revisa y envía (recomendado para WhatsApp). Auto = la IA responde sola con su aviso (recomendado para Web Chat). Apagado = solo registra mensajes."
+        >
+          <Select name="replyMode" defaultValue={channel === 'WEBCHAT' ? 'AUTO' : 'SUGGEST'}>
+            <option value="OFF">⏸ Apagado · solo registra mensajes</option>
+            <option value="SUGGEST">🟡 Sugerir · una persona revisa y envía</option>
+            <option value="AUTO">🟢 Responder solo · la IA contesta directamente</option>
+          </Select>
+        </Field>
 
         {error && (
           <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
