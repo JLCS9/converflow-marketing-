@@ -12,6 +12,7 @@ interface LeadInfo {
   name: string;
   email: string | null;
   phone: string | null;
+  /** Legacy field — no longer surfaced in the create/edit form; shown only when populated. */
   company: string | null;
   source: string | null;
   status: string;
@@ -78,9 +79,6 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
           <Field label="Nombre" required>
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </Field>
-          <Field label="Empresa">
-            <Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
-          </Field>
           <Field label="Email">
             <Input
               type="email"
@@ -130,7 +128,7 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
       <dl className="mt-4 space-y-2 text-sm">
         <Row label="Email" value={lead.email ?? '—'} />
         <Row label="Teléfono" value={lead.phone ?? '—'} />
-        <Row label="Empresa" value={lead.company ?? '—'} />
+        {lead.company && <Row label="Empresa" value={lead.company} />}
         <Row label="Fuente" value={lead.source ?? '—'} />
         <Row label="Creado" value={new Date(lead.createdAt).toLocaleString('es-ES')} />
         {lead.contactedAt && (

@@ -269,22 +269,184 @@ export class LeadsService {
 
   async bulkImport(tenantId: string, input: ImportLeadsInput) {
     const data = importLeadsSchema.parse(input);
-    return this.prisma.withTenant(tenantId, async (tx) => {
-      const created = await tx.lead.createMany({
-        data: data.leads.map((l) => ({
-          tenantId,
+    // Load custom field definitions once and validate each row in memory so a
+    // 1k-row import doesn't hammer the DB.
+    const definitions = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.customFieldDefinition.findMany({
+        where: { entityType: 'LEAD', archivedAt: null },
+        select: {
+          id: true,
+          key: true,
+          label: true,
+          type: true,
+          required: true,
+          options: true,
+        },
+      }),
+    );
+
+    const errors: { row: number; reason: string }[] = [];
+    const valid: Array<{
+      name: string;
+      email?: string;
+      phone?: string;
+      company?: string;
+      source: string;
+      status: 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST';
+      ownerId?: string;
+      customFields?: Record<string, unknown>;
+    }> = [];
+
+    for (let i = 0; i < data.leads.length; i += 1) {
+      const l = data.leads[i]!;
+      try {
+        const customFields = validateCustomFieldsInMemory(definitions, l.customFields);
+        valid.push({
           name: l.name,
           email: l.email,
           phone: l.phone,
           company: l.company,
           source: l.source ?? 'import',
-          status: l.status ?? 'NEW',
+          status: (l.status ?? 'NEW') as 'NEW',
+          ownerId: l.ownerId,
+          customFields,
+        });
+      } catch (e) {
+        errors.push({
+          row: i + 2, // +1 for header, +1 because rows are 1-indexed for users
+          reason: e instanceof Error ? e.message : 'Error desconocido',
+        });
+      }
+    }
+
+    if (valid.length === 0) {
+      return { imported: 0, skipped: errors.length, errors };
+    }
+
+    const created = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.lead.createMany({
+        data: valid.map((l) => ({
+          tenantId,
+          name: l.name,
+          email: l.email,
+          phone: l.phone,
+          company: l.company,
+          source: l.source,
+          status: l.status,
           ownerId: l.ownerId,
           customFields: (l.customFields as never) ?? undefined,
         })),
         skipDuplicates: true,
-      });
-      return { imported: created.count };
-    });
+      }),
+    );
+
+    return {
+      imported: created.count,
+      skipped: errors.length + (valid.length - created.count),
+      errors,
+    };
+  }
+}
+
+interface DefLike {
+  id: string;
+  key: string;
+  label: string;
+  type: string;
+  required: boolean;
+  options: unknown;
+}
+
+/** Mirrors CustomFieldsService.validateValues but works on a pre-loaded set. */
+function validateCustomFieldsInMemory(
+  defs: DefLike[],
+  raw: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!raw || Object.keys(raw).length === 0) {
+    // Still enforce required fields when they're not provided
+    const missing = defs.filter((d) => d.required);
+    if (missing.length > 0) {
+      throw new Error(`Faltan campos obligatorios: ${missing.map((d) => d.label).join(', ')}`);
+    }
+    return undefined;
+  }
+  const out: Record<string, unknown> = {};
+  for (const def of defs) {
+    const value = raw[def.key];
+    const hasValue = value !== undefined && value !== null && value !== '';
+    if (!hasValue) {
+      if (def.required) throw new Error(`Falta "${def.label}"`);
+      continue;
+    }
+    out[def.key] = coerceForImport(def, value);
+  }
+  return out;
+}
+
+function coerceForImport(def: DefLike, value: unknown): unknown {
+  switch (def.type) {
+    case 'TEXT':
+    case 'LONGTEXT':
+    case 'PHONE':
+    case 'URL':
+    case 'EMAIL': {
+      const s = String(value).trim();
+      if (def.type === 'EMAIL' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) {
+        throw new Error(`"${def.label}": email no válido (${s})`);
+      }
+      if (def.type === 'URL') {
+        try {
+          new URL(s);
+        } catch {
+          throw new Error(`"${def.label}": URL no válida (${s})`);
+        }
+      }
+      return s;
+    }
+    case 'NUMBER': {
+      const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+      if (!Number.isFinite(n)) throw new Error(`"${def.label}": no es numérico (${value})`);
+      return n;
+    }
+    case 'DATE': {
+      const d = new Date(value as string);
+      if (Number.isNaN(d.getTime())) throw new Error(`"${def.label}": fecha no válida (${value})`);
+      return d.toISOString();
+    }
+    case 'BOOLEAN': {
+      if (typeof value === 'boolean') return value;
+      const s = String(value).toLowerCase().trim();
+      if (['true', '1', 'yes', 'si', 'sí', 'x'].includes(s)) return true;
+      if (['false', '0', 'no', ''].includes(s)) return false;
+      throw new Error(`"${def.label}": sí/no esperado (${value})`);
+    }
+    case 'SELECT': {
+      const options = Array.isArray(def.options) ? (def.options as Array<{ value: string; label: string }>) : [];
+      const s = String(value).trim();
+      const match = options.find((o) => o.value === s || o.label === s);
+      if (!match) throw new Error(`"${def.label}": valor "${s}" no está entre las opciones`);
+      return match.value;
+    }
+    case 'MULTISELECT': {
+      const options = Array.isArray(def.options) ? (def.options as Array<{ value: string; label: string }>) : [];
+      const arr = Array.isArray(value)
+        ? value
+        : String(value)
+            .split(/[|;,]/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+      const out: string[] = [];
+      for (const v of arr) {
+        const s = String(v);
+        const match = options.find((o) => o.value === s || o.label === s);
+        if (!match) throw new Error(`"${def.label}": valor "${s}" no está entre las opciones`);
+        if (!out.includes(match.value)) out.push(match.value);
+      }
+      return out;
+    }
+    case 'DOCUMENT':
+      throw new Error(`"${def.label}": tipo Documento no se puede importar por CSV`);
+    default:
+      return value;
   }
 }

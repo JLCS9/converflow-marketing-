@@ -1,22 +1,33 @@
 import Link from 'next/link';
+import { serverApiFetch } from '@/lib/server-api';
+import { PageHeader } from '@/components/ui/page-header';
 import { ImportLeadsForm } from './import-form';
+import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
 export const metadata = { title: 'Importar leads' };
+export const dynamic = 'force-dynamic';
 
-export default function ImportLeadsPage() {
+export default async function ImportLeadsPage() {
+  const customFields = await serverApiFetch<CustomFieldDefinition[]>(
+    '/custom-fields?entityType=LEAD',
+  ).catch(() => []);
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <Link href="/app/leads" className="text-sm text-ink-500 hover:text-ink-900">
-          ← Volver a leads
+    <div className="mx-auto max-w-4xl space-y-6">
+      <PageHeader
+        title="Importar leads desde CSV"
+        description="Sube un .csv y mapea cada columna a un campo estándar o personalizado. Se aceptan separadores , o ; y comillas dobles."
+        back={{ href: '/app/leads', label: 'Volver a leads' }}
+      />
+      <ImportLeadsForm customFields={customFields.filter((c) => !c.archivedAt)} />
+      <p className="text-xs text-ink-500">
+        ¿No tienes un CSV? Empieza por uno con cabeceras{' '}
+        <code className="font-mono">nombre,email,telefono,fuente</code> y un lead por fila. Las
+        comillas dobles permiten campos con comas (<code>&quot;Acme, S.L.&quot;</code>).{' '}
+        <Link href="/app/leads/new" className="text-primary-700 hover:underline">
+          O crea uno a mano
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Importar leads desde CSV</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Sube un CSV con columnas <code className="font-mono">name, email, phone, company, source</code>.
-          Headers en la primera fila. Cualquier columna extra se ignora.
-        </p>
-      </div>
-      <ImportLeadsForm />
+        .
+      </p>
     </div>
   );
 }

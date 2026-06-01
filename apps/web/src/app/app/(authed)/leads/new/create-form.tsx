@@ -46,7 +46,6 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
             name: String(data.get('name') ?? '').trim(),
             email: String(data.get('email') ?? '').trim() || undefined,
             phone: String(data.get('phone') ?? '').trim() || undefined,
-            company: String(data.get('company') ?? '').trim() || undefined,
             source: String(data.get('source') ?? '').trim() || undefined,
             status: (String(data.get('status') ?? '') || undefined) as never,
             customFields: Object.keys(cfValues).length ? cfValues : undefined,
@@ -79,9 +78,6 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
             <Input name="phone" type="tel" />
           </Field>
         </div>
-        <Field label="Empresa">
-          <Input name="company" type="text" maxLength={150} />
-        </Field>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Fuente">
             <Input name="source" type="text" placeholder="manual, web, evento, referido…" />

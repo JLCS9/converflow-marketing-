@@ -112,7 +112,6 @@ export default async function LeadsPage({
             <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
               <tr>
                 <th className="px-4 py-3">Nombre</th>
-                <th className="hidden px-4 py-3 md:table-cell">Empresa</th>
                 <th className="hidden px-4 py-3 md:table-cell">Email</th>
                 <th className="hidden px-4 py-3 lg:table-cell">Teléfono</th>
                 <th className="px-4 py-3">Estado</th>
@@ -132,10 +131,9 @@ export default async function LeadsPage({
                       {l.name}
                     </Link>
                     <div className="mt-0.5 text-xs text-ink-500 md:hidden">
-                      {l.company ?? l.email ?? l.phone ?? '—'}
+                      {l.email ?? l.phone ?? '—'}
                     </div>
                   </td>
-                  <td className="hidden px-4 py-3 text-xs md:table-cell">{l.company ?? '—'}</td>
                   <td className="hidden px-4 py-3 text-xs md:table-cell">{l.email ?? '—'}</td>
                   <td className="hidden px-4 py-3 text-xs lg:table-cell">{l.phone ?? '—'}</td>
                   <td className="px-4 py-3">
