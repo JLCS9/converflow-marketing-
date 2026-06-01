@@ -3,6 +3,7 @@ import {
   NotFoundError,
   createLeadSchema,
   importLeadsSchema,
+  parseFlexibleDate,
   updateLeadSchema,
   type CreateLeadInput,
   type ImportLeadsInput,
@@ -425,8 +426,12 @@ function coerceForImport(def: DefLike, value: unknown): unknown {
       return n;
     }
     case 'DATE': {
-      const d = new Date(value as string);
-      if (Number.isNaN(d.getTime())) throw new Error(`"${def.label}": fecha no válida (${value})`);
+      const d = parseFlexibleDate(value);
+      if (!d) {
+        throw new Error(
+          `"${def.label}": fecha no válida (${value}). Usa DD/MM/AAAA o AAAA-MM-DD.`,
+        );
+      }
       return d.toISOString();
     }
     case 'BOOLEAN': {

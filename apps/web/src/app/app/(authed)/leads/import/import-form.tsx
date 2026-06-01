@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
 import { useFeedback } from '@/components/ui/feedback';
+import { parseFlexibleDate } from '@converflow/shared';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 import { parseCsv, type ParsedCsv } from './csv-parser';
 
@@ -152,8 +153,8 @@ function validateRow(
         }
         break;
       case 'DATE':
-        if (Number.isNaN(new Date(v).getTime())) {
-          return `"${def.label}" no es una fecha válida: "${v}".`;
+        if (!parseFlexibleDate(v)) {
+          return `"${def.label}" no es una fecha válida: "${v}". Usa DD/MM/AAAA o AAAA-MM-DD.`;
         }
         break;
       case 'SELECT': {
