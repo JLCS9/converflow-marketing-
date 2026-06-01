@@ -20,6 +20,7 @@ import { EmailConnectionService } from '../email/email-connection.service.js';
 const updateBotSchema = z.object({
   name: z.string().trim().min(2).max(60).optional(),
   agentId: z.string().cuid().nullable().optional(),
+  replyMode: z.enum(['OFF', 'SUGGEST', 'AUTO']).optional(),
   maxMessagesPerMinute: z.number().int().min(1).max(600).optional(),
   maxMessagesPerHour: z.number().int().min(1).max(20000).optional(),
 });

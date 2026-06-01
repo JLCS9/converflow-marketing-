@@ -8,6 +8,7 @@ interface AgentOption {
   id: string;
   name: string;
   status: string;
+  type?: 'CONVERSATIONAL' | 'SCORING' | 'TRIAGE';
 }
 
 export function BotAgentSelect({
@@ -19,6 +20,11 @@ export function BotAgentSelect({
   currentAgentId: string | null;
   agents: AgentOption[];
 }) {
+  // Only conversational agents make sense as the bot's responder. Scoring /
+  // Triage agents are invoked elsewhere (Leads → Score IA, future triage).
+  const conversational = agents.filter(
+    (a) => (a.type ?? 'CONVERSATIONAL') === 'CONVERSATIONAL',
+  );
   const router = useRouter();
   const [value, setValue] = useState(currentAgentId ?? '');
   const [saving, setSaving] = useState(false);
@@ -43,7 +49,7 @@ export function BotAgentSelect({
         className="rounded-md border-ink-300 text-sm focus:border-primary-500 focus:ring-primary-500"
       >
         <option value="">— Sin agente —</option>
-        {agents.map((a) => (
+        {conversational.map((a) => (
           <option key={a.id} value={a.id}>
             {a.name}
             {a.status !== 'PUBLISHED' ? ` (${a.status.toLowerCase()})` : ''}

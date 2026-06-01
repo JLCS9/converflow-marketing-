@@ -6,6 +6,7 @@ import { BotConnection } from './bot-connection';
 import { BotAgentSelect } from './bot-agent-select';
 import { BotEmailConnect } from './bot-email-connect';
 import { WebchatInstall } from './webchat-install';
+import { BotReplyMode } from './bot-reply-mode';
 
 interface BotDetail {
   id: string;
@@ -14,6 +15,7 @@ interface BotDetail {
   phoneNumber: string | null;
   status: string;
   agentId: string | null;
+  replyMode: 'OFF' | 'SUGGEST' | 'AUTO';
   maxMessagesPerMinute: number;
   maxMessagesPerHour: number;
   lastConnectedAt: string | null;
@@ -111,6 +113,8 @@ export default async function BotDetailPage({
           <BotAgentSelect botId={bot.id} currentAgentId={bot.agentId} agents={agents} />
         </div>
       </Card>
+
+      <BotReplyMode botId={bot.id} initialMode={bot.replyMode ?? 'SUGGEST'} />
 
       <Card>
         <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Detalles</h2>

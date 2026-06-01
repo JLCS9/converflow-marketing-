@@ -20,8 +20,11 @@ interface AgentConfig {
   faqs?: string;
   aiDisclosure?: string;
   tools?: string[];
+  // mode is legacy — replyMode lives on Bot now.
   mode?: 'SUGGEST' | 'AUTO';
 }
+
+export type AgentType = 'CONVERSATIONAL' | 'SCORING' | 'TRIAGE';
 
 export interface AgentData {
   id: string;
@@ -30,12 +33,29 @@ export interface AgentData {
   systemPrompt: string;
   model: string;
   status: string;
+  type: AgentType;
   config: AgentConfig | null;
 }
 
-export function AgentForm({ agent }: { agent?: AgentData }) {
+const AGENT_TYPE_LABEL: Record<AgentType, string> = {
+  CONVERSATIONAL: 'Conversacional',
+  SCORING: 'Scoring (puntúa leads en masa)',
+  TRIAGE: 'Triage (clasifica y rutea — próximamente)',
+};
+
+const AGENT_TYPE_HELP: Record<AgentType, string> = {
+  CONVERSATIONAL:
+    'Responde mensajes en un canal (WhatsApp, Email, Web Chat). Se asigna a un Bot.',
+  SCORING:
+    'Procesa leads en masa: puntúa, decide estado y crea oportunidades. Se invoca desde la lista de Leads.',
+  TRIAGE:
+    'Clasifica mensajes entrantes y los rutea al responsable. Runtime en construcción.',
+};
+
+export function AgentForm({ agent, initialType }: { agent?: AgentData; initialType?: AgentType }) {
   const router = useRouter();
   const cfg = agent?.config ?? {};
+  const [type, setType] = useState<AgentType>(agent?.type ?? initialType ?? 'CONVERSATIONAL');
   const [tools, setTools] = useState<string[]>(cfg.tools ?? []);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -43,6 +63,9 @@ export function AgentForm({ agent }: { agent?: AgentData }) {
   function toggleTool(t: string) {
     setTools((v) => (v.includes(t) ? v.filter((x) => x !== t) : [...v, t]));
   }
+
+  const isConversational = type === 'CONVERSATIONAL';
+  const isScoring = type === 'SCORING';
 
   return (
     <Card>
@@ -57,16 +80,23 @@ export function AgentForm({ agent }: { agent?: AgentData }) {
             systemPrompt: String(f.get('systemPrompt') ?? '').trim(),
             model: String(f.get('model') ?? 'claude-sonnet-4-6'),
             status: String(f.get('status') ?? 'DRAFT'),
-            config: {
-              language: String(f.get('language') ?? '').trim() || undefined,
-              tone: String(f.get('tone') ?? '').trim() || undefined,
-              businessInfo: String(f.get('businessInfo') ?? '').trim() || undefined,
-              faqs: String(f.get('faqs') ?? '').trim() || undefined,
-              aiDisclosure:
-                String(f.get('aiDisclosure') ?? '').trim() || DEFAULT_AI_DISCLOSURE,
-              tools,
-              mode: String(f.get('mode') ?? 'SUGGEST'),
-            },
+            type,
+            config: isConversational
+              ? {
+                  language: String(f.get('language') ?? '').trim() || undefined,
+                  tone: String(f.get('tone') ?? '').trim() || undefined,
+                  businessInfo: String(f.get('businessInfo') ?? '').trim() || undefined,
+                  faqs: String(f.get('faqs') ?? '').trim() || undefined,
+                  aiDisclosure:
+                    String(f.get('aiDisclosure') ?? '').trim() || DEFAULT_AI_DISCLOSURE,
+                  tools,
+                }
+              : isScoring
+              ? {
+                  defaultUpdateStatus: f.get('defaultUpdateStatus') === 'on',
+                  defaultCreateOpportunities: f.get('defaultCreateOpportunities') === 'on',
+                }
+              : {},
           };
           setError(null);
           startTransition(async () => {
@@ -87,6 +117,21 @@ export function AgentForm({ agent }: { agent?: AgentData }) {
           });
         }}
       >
+        {/* Type picker first — drives which extra fields show below. */}
+        <Field
+          label="Tipo de agente"
+          required
+          help={AGENT_TYPE_HELP[type]}
+        >
+          <Select value={type} onChange={(e) => setType(e.target.value as AgentType)}>
+            <option value="CONVERSATIONAL">{AGENT_TYPE_LABEL.CONVERSATIONAL}</option>
+            <option value="SCORING">{AGENT_TYPE_LABEL.SCORING}</option>
+            <option value="TRIAGE" disabled>
+              {AGENT_TYPE_LABEL.TRIAGE}
+            </option>
+          </Select>
+        </Field>
+
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Nombre" required>
             <Input name="name" defaultValue={agent?.name} required maxLength={80} />
@@ -96,20 +141,11 @@ export function AgentForm({ agent }: { agent?: AgentData }) {
           </Field>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Calidad de respuesta">
             <Select name="model" defaultValue={agent?.model ?? 'claude-sonnet-4-6'}>
               <option value="claude-sonnet-4-6">Estándar (más capaz)</option>
               <option value="claude-haiku-4-5-20251001">Rápida</option>
-            </Select>
-          </Field>
-          <Field
-            label="Modo"
-            help="Sugerir = una persona revisa y envía. Auto = el agente responde solo por WhatsApp (con aviso de IA). Pruébalo primero con un número de test."
-          >
-            <Select name="mode" defaultValue={cfg.mode ?? 'SUGGEST'}>
-              <option value="SUGGEST">Sugerir (human-in-the-loop)</option>
-              <option value="AUTO">Responder solo (auto)</option>
             </Select>
           </Field>
           <Field label="Estado">
@@ -121,49 +157,123 @@ export function AgentForm({ agent }: { agent?: AgentData }) {
           </Field>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Idioma">
-            <Input name="language" defaultValue={cfg.language ?? 'español'} maxLength={20} />
-          </Field>
-          <Field label="Tono">
-            <Input name="tone" defaultValue={cfg.tone ?? ''} placeholder="profesional y cercano" maxLength={160} />
-          </Field>
-        </div>
-
-        <Field label="Instrucciones (system prompt)" required help="Quién es el agente y cómo debe comportarse.">
-          <Textarea name="systemPrompt" rows={4} required defaultValue={agent?.systemPrompt ?? ''} />
-        </Field>
-
-        <Field
-          label="Información de empresa / producto"
-          help="El agente responde SOLO con esto (no inventa). Pega aquí lo que pueda contar."
-        >
-          <Textarea name="businessInfo" rows={5} defaultValue={cfg.businessInfo ?? ''} />
-        </Field>
-
-        <Field label="FAQs">
-          <Textarea name="faqs" rows={4} defaultValue={cfg.faqs ?? ''} placeholder={'P: ¿Horario?\nR: L-V 9-18'} />
-        </Field>
-
-        <div>
-          <div className="text-sm font-medium text-ink-900">Herramientas que puede usar</div>
-          <p className="mb-2 text-xs text-ink-500">La ejecución real se activa en la siguiente fase.</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {AGENT_TOOLS.map((t) => (
-              <label key={t} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={tools.includes(t)} onChange={() => toggleTool(t)} />
-                {toolLabels[t] ?? t}
-              </label>
-            ))}
+        {isConversational && (
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="Idioma">
+              <Input name="language" defaultValue={cfg.language ?? 'español'} maxLength={20} />
+            </Field>
+            <Field label="Tono">
+              <Input
+                name="tone"
+                defaultValue={cfg.tone ?? ''}
+                placeholder="profesional y cercano"
+                maxLength={160}
+              />
+            </Field>
           </div>
-        </div>
+        )}
 
         <Field
-          label="Aviso de IA (obligatorio)"
-          help="Se envía al cliente en el primer contacto. Obligatorio por normativa (AI Act)."
+          label={
+            isScoring
+              ? 'Reglas del funnel (system prompt)'
+              : 'Instrucciones (system prompt)'
+          }
+          required
+          help={
+            isScoring
+              ? 'Describe cómo categorizar a tus leads. Ej: "si reserva hecha = sí → CLIENT; vacío → LEAD; no → LOST. Crea oportunidad con name = Admisión [curso] - [nombre]".'
+              : 'Quién es el agente y cómo debe comportarse.'
+          }
         >
-          <Textarea name="aiDisclosure" rows={2} defaultValue={cfg.aiDisclosure ?? DEFAULT_AI_DISCLOSURE} />
+          <Textarea name="systemPrompt" rows={isScoring ? 8 : 4} required defaultValue={agent?.systemPrompt ?? ''} />
         </Field>
+
+        {isConversational && (
+          <>
+            <Field
+              label="Información de empresa / producto"
+              help="El agente responde SOLO con esto (no inventa). Pega aquí lo que pueda contar."
+            >
+              <Textarea name="businessInfo" rows={5} defaultValue={cfg.businessInfo ?? ''} />
+            </Field>
+
+            <Field label="FAQs">
+              <Textarea
+                name="faqs"
+                rows={4}
+                defaultValue={cfg.faqs ?? ''}
+                placeholder={'P: ¿Horario?\nR: L-V 9-18'}
+              />
+            </Field>
+
+            <div>
+              <div className="text-sm font-medium text-ink-900">Herramientas que puede usar</div>
+              <p className="mb-2 text-xs text-ink-500">
+                La ejecución real se activa en la siguiente fase.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {AGENT_TOOLS.map((t) => (
+                  <label key={t} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={tools.includes(t)}
+                      onChange={() => toggleTool(t)}
+                    />
+                    {toolLabels[t] ?? t}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <Field
+              label="Aviso de IA (obligatorio)"
+              help="Se envía al cliente en el primer contacto. Obligatorio por normativa (AI Act)."
+            >
+              <Textarea
+                name="aiDisclosure"
+                rows={2}
+                defaultValue={cfg.aiDisclosure ?? DEFAULT_AI_DISCLOSURE}
+              />
+            </Field>
+          </>
+        )}
+
+        {isScoring && (
+          <div className="rounded-md border border-ink-100 bg-ink-100/40 p-3 space-y-2 text-sm">
+            <div className="text-xs font-mono uppercase tracking-wider text-ink-500">
+              Defaults para el batch
+            </div>
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                name="defaultUpdateStatus"
+                defaultChecked={(cfg as { defaultUpdateStatus?: boolean }).defaultUpdateStatus ?? true}
+                className="mt-0.5 rounded border-ink-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span>
+                <strong>Actualizar estado</strong> (Lead/Cliente/Perdido) según la decisión del agente.
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                name="defaultCreateOpportunities"
+                defaultChecked={
+                  (cfg as { defaultCreateOpportunities?: boolean }).defaultCreateOpportunities ?? true
+                }
+                className="mt-0.5 rounded border-ink-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span>
+                <strong>Crear oportunidad</strong> cuando el agente identifique interés claro.
+              </span>
+            </label>
+            <p className="text-xs text-ink-500">
+              Estos defaults solo se aplican cuando lanzas el batch desde la lista de Leads y el
+              usuario no los desmarca.
+            </p>
+          </div>
+        )}
 
         {error && (
           <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">

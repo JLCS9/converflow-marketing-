@@ -166,8 +166,33 @@ export class AgentRuntimeService {
     });
 
     const reply = call.result?.trim() ?? '';
-    const mode = config.mode ?? 'SUGGEST';
+    // Reply behaviour now lives on the Bot (Bot.replyMode). We resolve it
+    // from the conversation's botId; if the bot is missing or has no
+    // replyMode column yet (mid-deploy), we fall back to the legacy
+    // Agent.config.mode so existing tenants keep working.
+    const bot = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.conversation
+        .findUnique({
+          where: { id: conversationId },
+          select: { bot: { select: { replyMode: true } } },
+        })
+        .then((c) => c?.bot ?? null),
+    );
+    const mode: 'OFF' | 'SUGGEST' | 'AUTO' =
+      bot?.replyMode ?? (config.mode === 'AUTO' ? 'AUTO' : 'SUGGEST');
     let delivered = false;
+    if (mode === 'OFF') {
+      // Channel is recording-only. We don't even store a suggestion.
+      void this.ai.recordUsage({
+        tenantId,
+        feature: 'agent_reply',
+        callResult: call,
+        resourceType: 'message',
+        resourceId: messageId,
+        metadata: { mode: 'OFF', delivered: false },
+      });
+      return;
+    }
 
     // Deliver the reply when the agent is in AUTO mode, or always for WEBCHAT
     // (our own surface — the widget shows the reply). tryAutoSend decides by
@@ -205,7 +230,7 @@ export class AgentRuntimeService {
     conversationId: string,
     config: AgentConfig,
     reply: string,
-    mode: string,
+    mode: 'OFF' | 'SUGGEST' | 'AUTO',
   ): Promise<boolean> {
     const conv = await this.prisma.withTenant(tenantId, (tx) =>
       tx.conversation.findUnique({

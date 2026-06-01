@@ -12,8 +12,20 @@ interface AgentRow {
   description: string | null;
   model: string;
   status: string;
+  type: 'CONVERSATIONAL' | 'SCORING' | 'TRIAGE';
   updatedAt: string;
 }
+
+const TYPE_LABEL: Record<AgentRow['type'], string> = {
+  CONVERSATIONAL: 'Conversacional',
+  SCORING: 'Scoring',
+  TRIAGE: 'Triage',
+};
+const TYPE_COLOR: Record<AgentRow['type'], 'green' | 'blue' | 'yellow'> = {
+  CONVERSATIONAL: 'green',
+  SCORING: 'blue',
+  TRIAGE: 'yellow',
+};
 
 export const metadata = { title: 'Agentes IA' };
 
@@ -49,6 +61,7 @@ export default async function AgentsPage() {
             <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
               <tr>
                 <th className="px-4 py-3">Nombre</th>
+                <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Estado</th>
                 <th className="hidden px-4 py-3 md:table-cell">Actualizado</th>
               </tr>
@@ -61,6 +74,11 @@ export default async function AgentsPage() {
                       {a.name}
                     </Link>
                     {a.description && <div className="text-xs text-ink-500">{a.description}</div>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge color={TYPE_COLOR[a.type ?? 'CONVERSATIONAL']}>
+                      {TYPE_LABEL[a.type ?? 'CONVERSATIONAL']}
+                    </Badge>
                   </td>
                   <td className="px-4 py-3">
                     <Badge color={statusColor(AGENT_STATUS_COLOR, a.status)}>

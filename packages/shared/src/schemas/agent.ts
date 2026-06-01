@@ -9,10 +9,17 @@ export const AGENT_TOOLS = [
   'escalate_to_human', // hand the conversation to a person
 ] as const;
 
+// LEGACY: reply mode used to live on the agent. It is now a Bot field
+// (Bot.replyMode). Schema kept for one deploy so old clients still validate.
 export const agentModeSchema = z.enum(['SUGGEST', 'AUTO']);
 export const agentStatusSchema = z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
+export const agentTypeSchema = z.enum(['CONVERSATIONAL', 'SCORING', 'TRIAGE']);
 
-// Structured settings stored in Agent.config (Json).
+// Structured settings stored in Agent.config (Json). Varies by Agent.type:
+//   CONVERSATIONAL → language, tone, businessInfo, faqs, aiDisclosure, tools
+//   SCORING        → defaultPipelineId, defaultUpdateStatus, defaultCreateOpportunities
+//   TRIAGE         → products[], fallbackOwnerId  (future)
+// `mode` stays as a soft-deprecated alias of Bot.replyMode for one deploy.
 export const agentConfigSchema = z.object({
   language: z.string().trim().max(20).optional(),
   tone: z.string().trim().max(160).optional(),
@@ -21,6 +28,9 @@ export const agentConfigSchema = z.object({
   aiDisclosure: z.string().trim().max(500).optional(),
   tools: z.array(z.enum(AGENT_TOOLS)).max(AGENT_TOOLS.length).optional(),
   mode: agentModeSchema.optional(),
+  defaultPipelineId: z.string().cuid().optional(),
+  defaultUpdateStatus: z.boolean().optional(),
+  defaultCreateOpportunities: z.boolean().optional(),
 });
 
 export const createAgentSchema = z.object({
@@ -29,6 +39,7 @@ export const createAgentSchema = z.object({
   systemPrompt: z.string().trim().min(1).max(8000),
   model: z.enum(AGENT_MODELS).optional(),
   status: agentStatusSchema.optional(),
+  type: agentTypeSchema.optional(),
   config: agentConfigSchema.optional(),
 });
 

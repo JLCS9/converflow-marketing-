@@ -1,9 +1,20 @@
 import Link from 'next/link';
-import { AgentForm } from '../agent-form';
+import { AgentForm, type AgentType } from '../agent-form';
 
 export const metadata = { title: 'Nuevo agente' };
 
-export default function NewAgentPage() {
+const ALLOWED: AgentType[] = ['CONVERSATIONAL', 'SCORING', 'TRIAGE'];
+
+export default async function NewAgentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string }>;
+}) {
+  const { type } = await searchParams;
+  const initial = (ALLOWED as string[]).includes(type ?? '')
+    ? (type as AgentType)
+    : 'CONVERSATIONAL';
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
@@ -12,10 +23,11 @@ export default function NewAgentPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">Nuevo agente</h1>
         <p className="mt-1 text-sm text-ink-500">
-          Tras crearlo podrás probarlo en el playground y asignarlo a un bot.
+          Elige el tipo (Conversacional para chat, Scoring para procesar leads en masa).
+          Tras crearlo podrás probarlo y, si es Conversacional, asignarlo a un bot.
         </p>
       </div>
-      <AgentForm />
+      <AgentForm initialType={initial} />
     </div>
   );
 }
