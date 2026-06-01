@@ -3,9 +3,10 @@ import { LeadsController } from './leads.controller.js';
 import { LeadsService } from './leads.service.js';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 import { CustomFieldsModule } from '../custom-fields/custom-fields.module.js';
+import { PipelinesModule } from '../pipelines/pipelines.module.js';
 
 @Module({
-  imports: [CustomFieldsModule],
+  imports: [CustomFieldsModule, PipelinesModule],
   controllers: [LeadsController],
   providers: [LeadsService, TenantAuthGuard],
 })

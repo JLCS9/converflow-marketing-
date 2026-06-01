@@ -62,6 +62,22 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinition[
   const visible = grouped[tab].filter((d) => !d.archivedAt);
   const archived = grouped[tab].filter((d) => d.archivedAt);
 
+  async function move(idx: number, dir: -1 | 1) {
+    const target = idx + dir;
+    if (target < 0 || target >= visible.length) return;
+    const ids = visible.map((d) => d.id);
+    [ids[idx], ids[target]] = [ids[target]!, ids[idx]!];
+    try {
+      await apiFetch('/custom-fields/reorder', {
+        method: 'POST',
+        json: { entityType: tab, ids },
+      });
+      await refresh();
+    } catch {
+      /* swallow — refresh from server will roll back optimistic state */
+    }
+  }
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 pb-3">
@@ -94,10 +110,14 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinition[
             No hay campos personalizados para {ENTITY_LABEL[tab].toLowerCase()}. Crea uno arriba.
           </p>
         )}
-        {visible.map((def) => (
+        {visible.map((def, i) => (
           <DefinitionRow
             key={def.id}
             def={def}
+            isFirst={i === 0}
+            isLast={i === visible.length - 1}
+            onMoveUp={() => move(i, -1)}
+            onMoveDown={() => move(i, 1)}
             onChanged={refresh}
           />
         ))}
@@ -152,9 +172,17 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinition[
 
 function DefinitionRow({
   def,
+  isFirst,
+  isLast,
+  onMoveUp,
+  onMoveDown,
   onChanged,
 }: {
   def: CustomFieldDefinition;
+  isFirst: boolean;
+  isLast: boolean;
+  onMoveUp: () => Promise<void> | void;
+  onMoveDown: () => Promise<void> | void;
   onChanged: () => Promise<void> | void;
 }) {
   const { confirm, toast } = useFeedback();
@@ -162,6 +190,28 @@ function DefinitionRow({
   return (
     <div className="rounded-md border border-ink-100 bg-white">
       <div className="flex items-center justify-between gap-3 px-3 py-2">
+        <div className="flex shrink-0 flex-col">
+          <button
+            type="button"
+            disabled={isFirst}
+            onClick={() => void onMoveUp()}
+            aria-label="Subir"
+            title="Subir"
+            className="text-xs leading-none text-ink-500 hover:text-ink-900 disabled:cursor-not-allowed disabled:text-ink-200"
+          >
+            ▲
+          </button>
+          <button
+            type="button"
+            disabled={isLast}
+            onClick={() => void onMoveDown()}
+            aria-label="Bajar"
+            title="Bajar"
+            className="text-xs leading-none text-ink-500 hover:text-ink-900 disabled:cursor-not-allowed disabled:text-ink-200"
+          >
+            ▼
+          </button>
+        </div>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-ink-900">
             {def.label}
