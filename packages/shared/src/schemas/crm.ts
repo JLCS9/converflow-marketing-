@@ -97,11 +97,13 @@ export type UpdateOpportunityInput = z.infer<typeof updateOpportunitySchema>;
 
 export const clientStatusSchema = z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']);
 
+// Same defaults as Lead: Nombre*, Apellido, Email, Teléfono, Fuente, Estado.
 export const createClientSchema = z.object({
   name: z.string().trim().min(1).max(150),
-  email: z.string().trim().toLowerCase().email().optional(),
-  phone: z.string().trim().max(40).optional(),
-  source: z.string().trim().max(60).optional(),
+  lastName: optionalTrimmed(150),
+  email: optionalEmail,
+  phone: optionalTrimmed(40),
+  source: optionalTrimmed(60),
   status: clientStatusSchema.optional(),
   ownerId: z.string().cuid().optional(),
   customFields: z.record(z.unknown()).optional(),

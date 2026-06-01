@@ -10,6 +10,7 @@ import { CLIENT_STATUS } from '@/lib/labels';
 interface ClientInfo {
   id: string;
   name: string;
+  lastName: string | null;
   email: string | null;
   phone: string | null;
   source: string | null;
@@ -25,6 +26,7 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     name: client.name,
+    lastName: client.lastName ?? '',
     email: client.email ?? '',
     phone: client.phone ?? '',
     source: client.source ?? '',
@@ -41,6 +43,7 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
         method: 'PATCH',
         json: {
           name: form.name,
+          lastName: form.lastName || undefined,
           email: form.email || undefined,
           phone: form.phone || undefined,
           source: form.source || undefined,
@@ -69,9 +72,17 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
           </button>
         </div>
         <div className="mt-4 space-y-3">
-          <Field label="Nombre" required>
-            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Nombre" required>
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            </Field>
+            <Field label="Apellido">
+              <Input
+                value={form.lastName}
+                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+              />
+            </Field>
+          </div>
           <Field label="Email">
             <Input
               type="email"
@@ -83,7 +94,11 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
             <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </Field>
           <Field label="Fuente">
-            <Input value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} />
+            <Input
+              value={form.source}
+              onChange={(e) => setForm({ ...form, source: e.target.value })}
+              placeholder="manual, web, evento, referido…"
+            />
           </Field>
           <Field label="Estado">
             <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
@@ -119,6 +134,7 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
         </button>
       </div>
       <dl className="mt-4 space-y-2 text-sm">
+        {client.lastName && <Row label="Apellido" value={client.lastName} />}
         <Row label="Email" value={client.email ?? '—'} />
         <Row label="Teléfono" value={client.phone ?? '—'} />
         <Row label="Fuente" value={client.source ?? '—'} />

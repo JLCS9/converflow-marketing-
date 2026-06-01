@@ -44,8 +44,10 @@ export function CreateClientForm({ customFields }: { customFields: CustomFieldDe
           const data = new FormData(event.currentTarget);
           const payload = {
             name: String(data.get('name') ?? '').trim(),
+            lastName: String(data.get('lastName') ?? '').trim() || undefined,
             email: String(data.get('email') ?? '').trim() || undefined,
             phone: String(data.get('phone') ?? '').trim() || undefined,
+            source: String(data.get('source') ?? '').trim() || undefined,
             status: (String(data.get('status') ?? 'ACTIVE')) as never,
             customFields: Object.keys(cfValues).length ? cfValues : undefined,
           };
@@ -66,9 +68,14 @@ export function CreateClientForm({ customFields }: { customFields: CustomFieldDe
           });
         }}
       >
-        <Field label="Nombre / Razón social" required>
-          <Input name="name" type="text" required minLength={1} maxLength={150} />
-        </Field>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Nombre" required>
+            <Input name="name" type="text" required minLength={1} maxLength={150} />
+          </Field>
+          <Field label="Apellido">
+            <Input name="lastName" type="text" maxLength={150} />
+          </Field>
+        </div>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Email">
             <Input name="email" type="email" />
@@ -77,15 +84,20 @@ export function CreateClientForm({ customFields }: { customFields: CustomFieldDe
             <Input name="phone" type="tel" />
           </Field>
         </div>
-        <Field label="Estado">
-          <Select name="status" defaultValue="ACTIVE">
-            {Object.entries(CLIENT_STATUS).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Fuente">
+            <Input name="source" type="text" placeholder="manual, web, evento, referido…" />
+          </Field>
+          <Field label="Estado">
+            <Select name="status" defaultValue="ACTIVE">
+              {Object.entries(CLIENT_STATUS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
 
         {visibleCustom.length > 0 && (
           <div className="border-t border-ink-100 pt-4">

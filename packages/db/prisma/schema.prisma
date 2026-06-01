@@ -342,6 +342,7 @@ model Client {
   tenantId  String
   tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name      String
+  lastName  String?
   email     String?
   phone     String?
   source    String?

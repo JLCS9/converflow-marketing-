@@ -9,6 +9,7 @@ import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 interface ClientDetail {
   id: string;
   name: string;
+  lastName: string | null;
   email: string | null;
   phone: string | null;
   source: string | null;
