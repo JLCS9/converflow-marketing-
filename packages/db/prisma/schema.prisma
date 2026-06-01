@@ -354,30 +354,16 @@ enum AgentStatus {
   ARCHIVED
 }
 
-// 12 funnel pieces grouped by visual family in the wizard:
-//   "habla con la gente" → CONVERSATIONAL / AGENDA_PROPOSAL / FOLLOW_UP /
-//                          ONBOARDING / SUPPORT / REACTIVATION
-//   "puntúa y decide"    → TRIAGE / SCORING
-//   "utilidades de datos"→ ENRICHMENT / DATA_CLEANUP / REPORTS / SUMMARIES
-// "Available now": CONVERSATIONAL, SCORING (UI label: Oportunidades),
-// AGENDA_PROPOSAL. The rest render as "Próximamente".
+// The wizard shows 12 funnel "purposes" but they collapse into three
+// runtime engines. The chosen wizard tile is persisted in Agent.template
+// (free string) alongside this enum.
+//   CONVERSATIONAL → talks to people in a channel
+//   OPPORTUNITIES  → batch-processes leads, scores them, opens opps
+//   UTILITY        → headless data work (enrich, cleanup, report, summarize)
 enum AgentType {
-  // Calificar
-  TRIAGE
-  SCORING
-  ENRICHMENT
-  // Vender
   CONVERSATIONAL
-  FOLLOW_UP
-  AGENDA_PROPOSAL
-  // Fidelizar
-  ONBOARDING
-  SUPPORT
-  REACTIVATION
-  // Transversal
-  DATA_CLEANUP
-  REPORTS
-  SUMMARIES
+  OPPORTUNITIES
+  UTILITY
 }
 
 /// Batch of bulk lead-scoring jobs. The API enqueues one row of N jobs and

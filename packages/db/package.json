@@ -24,6 +24,7 @@
     "studio": "prisma studio",
     "db:push": "prisma db push",
     "apply:rls": "prisma db execute --file ./prisma/sql/rls-policies.sql --schema ./prisma/schema.prisma",
+    "migrate:agent-types": "prisma db execute --file ./prisma/sql/migrate-agent-types.sql --schema ./prisma/schema.prisma",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
