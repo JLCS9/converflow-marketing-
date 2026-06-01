@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { Queue, Worker, type Processor } from 'bullmq';
 import IORedis from 'ioredis';
 import { env } from '../../config/env.js';
@@ -12,19 +12,21 @@ export interface LeadScoringJob {
 }
 
 /**
- * Owns the BullMQ Queue + Worker for the lead-scoring batches. The worker
- * processor is wired by LeadScoringService.onModuleInit so circular imports
- * stay out of the constructor.
+ * Owns the BullMQ Queue + Worker for the lead-scoring batches. The Redis
+ * connection + Queue are built in the constructor so they're already valid
+ * when LeadScoringService.onModuleInit() asks for a worker. The Worker
+ * itself is registered lazily by the service (avoids importing the runner
+ * from inside this file → no circular module wiring).
  */
 @Injectable()
-export class LeadScoringQueue implements OnModuleInit, OnModuleDestroy {
+export class LeadScoringQueue implements OnModuleDestroy {
   private readonly logger = new Logger(LeadScoringQueue.name);
-  private connection!: IORedis;
-  private queue!: Queue<LeadScoringJob>;
+  private readonly connection: IORedis;
+  private readonly queue: Queue<LeadScoringJob>;
   private worker?: Worker<LeadScoringJob>;
   private processor?: Processor<LeadScoringJob>;
 
-  onModuleInit() {
+  constructor() {
     this.connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
     this.queue = new Queue<LeadScoringJob>(LEAD_SCORING_QUEUE, {
       connection: this.connection,
