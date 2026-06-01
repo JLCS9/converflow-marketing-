@@ -52,7 +52,17 @@ const AGENT_TYPE_HELP: Record<AgentType, string> = {
     'Clasifica mensajes entrantes y los rutea al responsable. Runtime en construcción.',
 };
 
-export function AgentForm({ agent, initialType }: { agent?: AgentData; initialType?: AgentType }) {
+export function AgentForm({
+  agent,
+  initialType,
+  lockType,
+}: {
+  agent?: AgentData;
+  initialType?: AgentType;
+  /** When true the Type select doesn't render (Step 2 of the new-agent wizard
+   *  has the type already committed). */
+  lockType?: boolean;
+}) {
   const router = useRouter();
   const cfg = agent?.config ?? {};
   const [type, setType] = useState<AgentType>(agent?.type ?? initialType ?? 'CONVERSATIONAL');
@@ -117,20 +127,21 @@ export function AgentForm({ agent, initialType }: { agent?: AgentData; initialTy
           });
         }}
       >
-        {/* Type picker first — drives which extra fields show below. */}
-        <Field
-          label="Tipo de agente"
-          required
-          help={AGENT_TYPE_HELP[type]}
-        >
-          <Select value={type} onChange={(e) => setType(e.target.value as AgentType)}>
-            <option value="CONVERSATIONAL">{AGENT_TYPE_LABEL.CONVERSATIONAL}</option>
-            <option value="SCORING">{AGENT_TYPE_LABEL.SCORING}</option>
-            <option value="TRIAGE" disabled>
-              {AGENT_TYPE_LABEL.TRIAGE}
-            </option>
-          </Select>
-        </Field>
+        {/* Type picker — hidden when the parent already committed the type
+            (Step 2 of /app/agents/new wizard, where users can come back via
+            "← Cambiar tipo"). On the agent edit page we keep it visible so
+            the user can re-classify an existing agent. */}
+        {!lockType && (
+          <Field label="Tipo de agente" required help={AGENT_TYPE_HELP[type]}>
+            <Select value={type} onChange={(e) => setType(e.target.value as AgentType)}>
+              <option value="CONVERSATIONAL">{AGENT_TYPE_LABEL.CONVERSATIONAL}</option>
+              <option value="SCORING">{AGENT_TYPE_LABEL.SCORING}</option>
+              <option value="TRIAGE" disabled>
+                {AGENT_TYPE_LABEL.TRIAGE}
+              </option>
+            </Select>
+          </Field>
+        )}
 
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Nombre" required>

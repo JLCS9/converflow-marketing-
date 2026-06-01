@@ -117,6 +117,10 @@ export function BulkScoreButton({ agents, total, filterQs }: Props) {
       setError('Necesitas un agente de tipo Scoring publicado.');
       return;
     }
+    if (!agentId) {
+      setError('Elige un agente de Scoring para definir las reglas del funnel.');
+      return;
+    }
     setError(null);
     setStarting(true);
     const filter: Record<string, string> = {};
@@ -163,7 +167,6 @@ export function BulkScoreButton({ agents, total, filterQs }: Props) {
   if (total === 0) return null;
 
   const running = batch && (batch.status === 'RUNNING' || batch.status === 'QUEUED');
-  const progressPct = batch ? Math.round(((batch.completed + batch.failed) / batch.total) * 100) : 0;
 
   return (
     <>
@@ -231,8 +234,15 @@ export function BulkScoreButton({ agents, total, filterQs }: Props) {
                 <button
                   type="button"
                   onClick={start}
-                  disabled={starting || scoringAgents.length === 0}
+                  disabled={starting || scoringAgents.length === 0 || !agentId}
                   className={buttonClass('primary')}
+                  title={
+                    scoringAgents.length === 0
+                      ? 'Crea un agente de Scoring primero'
+                      : !agentId
+                      ? 'Elige el agente de Scoring para empezar'
+                      : ''
+                  }
                 >
                   {starting
                     ? 'Encolando…'
@@ -297,20 +307,29 @@ function BatchSetupForm({
         <div className="mt-4 space-y-3">
           <label className="block">
             <span className="text-xs font-medium text-ink-700">
-              Agente de Scoring que define las reglas del funnel
+              Agente de Scoring · define las reglas del funnel <span className="text-red-600">*</span>
             </span>
             <select
               value={agentId}
               onChange={(e) => setAgentId(e.target.value)}
+              required
               className="mt-1 block w-full rounded-md border border-ink-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="">— Sin agente: criterios estándar B2B España —</option>
+              <option value="">— Elige un agente —</option>
               {scoringAgents.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
                 </option>
               ))}
             </select>
+            <span className="mt-1 block text-xs text-ink-500">
+              Solo se listan agentes con <strong>tipo Scoring + estado Publicado</strong>. Si no
+              ves el que quieres, asegúrate de tenerlo publicado en{' '}
+              <a href="/app/agents" className="text-primary-700 hover:underline">
+                Agentes
+              </a>
+              .
+            </span>
           </label>
 
           <label className="flex items-start gap-2 text-sm">
