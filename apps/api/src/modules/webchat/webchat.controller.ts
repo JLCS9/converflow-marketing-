@@ -10,15 +10,30 @@ import { ConversationIngestService } from '../conversations/conversation-ingest.
 export class WebchatController {
   constructor(private readonly ingest: ConversationIngestService) {}
 
+  @Post(':botId/start')
+  start(
+    @Param('botId') botId: string,
+    @Body() body: { sessionId?: string; name?: string; email?: string; phone?: string },
+  ) {
+    return this.ingest.startWebchat(botId, {
+      sessionId: String(body?.sessionId ?? ''),
+      name: String(body?.name ?? ''),
+      email: body?.email ? String(body.email) : undefined,
+      phone: body?.phone ? String(body.phone) : undefined,
+    });
+  }
+
   @Post(':botId/messages')
   send(
     @Param('botId') botId: string,
-    @Body() body: { sessionId?: string; text?: string; visitorName?: string },
+    @Body()
+    body: { sessionId?: string; text?: string; visitorName?: string; visitorEmail?: string },
   ) {
     return this.ingest.ingestWebchat(botId, {
       sessionId: String(body?.sessionId ?? ''),
       text: String(body?.text ?? ''),
       visitorName: body?.visitorName ? String(body.visitorName) : undefined,
+      visitorEmail: body?.visitorEmail ? String(body.visitorEmail) : undefined,
     });
   }
 

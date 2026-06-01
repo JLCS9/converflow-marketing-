@@ -157,9 +157,90 @@ export class ConversationIngestService {
    * Ingest one inbound web-chat message from the embeddable widget. The bot
    * (channel WEBCHAT) is the widget; the visitor session id is the contact key.
    */
+  /**
+   * Pre-chat "intake" step from the widget. Registers a Lead (with name + email)
+   * and opens a Conversation BEFORE the visitor sends their first message. The
+   * Conversation starts in CLOSED status so it doesn't pollute the inbox until
+   * the visitor actually speaks. As soon as ingestWebchat receives a message
+   * the same Conversation flips to PENDING.
+   */
+  async startWebchat(
+    botId: string,
+    input: { sessionId: string; name: string; email?: string; phone?: string },
+  ) {
+    const bot = await this.prisma.bypass((tx) =>
+      tx.bot.findUnique({
+        where: { id: botId },
+        select: { tenantId: true, channel: true },
+      }),
+    );
+    if (!bot || bot.channel !== 'WEBCHAT') return { ok: false as const, reason: 'unknown_widget' };
+
+    const tenantId = bot.tenantId;
+    const sessionId = input.sessionId.slice(0, 128);
+    const name = input.name.trim().slice(0, 150);
+    const email = input.email?.trim().toLowerCase().slice(0, 254) || undefined;
+    const phone = input.phone?.trim().slice(0, 40) || undefined;
+    if (!sessionId || !name) return { ok: false as const, reason: 'invalid_input' };
+
+    await this.prisma.withTenant(tenantId, async (tx) => {
+      const existing = await tx.conversation.findUnique({
+        where: { tenantId_channel_contactJid: { tenantId, channel: 'WEBCHAT', contactJid: sessionId } },
+      });
+      let leadId = existing?.leadId ?? null;
+      if (!leadId) {
+        const matched = email ? await tx.lead.findFirst({ where: { email } }) : null;
+        const lead =
+          matched ??
+          (await tx.lead.create({
+            data: { tenantId, name, email, phone, source: 'webchat', status: 'NEW' },
+          }));
+        leadId = lead.id;
+      } else if (email || phone) {
+        // Backfill any fields that were empty.
+        const lead = await tx.lead.findUnique({ where: { id: leadId } });
+        if (lead) {
+          await tx.lead.update({
+            where: { id: leadId },
+            data: {
+              email: lead.email ?? email,
+              phone: lead.phone ?? phone,
+              name: lead.name === 'Visitante web' ? name : lead.name,
+            },
+          });
+        }
+      }
+
+      if (existing) {
+        await tx.conversation.update({
+          where: { id: existing.id },
+          data: {
+            botId: existing.botId ?? botId,
+            leadId,
+            contactName: name,
+          },
+        });
+      } else {
+        await tx.conversation.create({
+          data: {
+            tenantId,
+            botId,
+            channel: 'WEBCHAT',
+            contactJid: sessionId,
+            contactName: name,
+            leadId,
+            status: 'CLOSED', // becomes PENDING on the first inbound message
+          },
+        });
+      }
+    });
+
+    return { ok: true as const };
+  }
+
   async ingestWebchat(
     botId: string,
-    input: { sessionId: string; text: string; visitorName?: string },
+    input: { sessionId: string; text: string; visitorName?: string; visitorEmail?: string },
   ) {
     const bot = await this.prisma.bypass((tx) =>
       tx.bot.findUnique({
@@ -173,6 +254,8 @@ export class ConversationIngestService {
     const sessionId = input.sessionId.slice(0, 128);
     const body = (input.text ?? '').trim();
     if (!body) return { ok: false, reason: 'empty' };
+    const visitorName = input.visitorName?.trim();
+    const visitorEmail = input.visitorEmail?.trim().toLowerCase() || undefined;
     const now = new Date();
     const preview = body.slice(0, 140);
 
@@ -183,14 +266,18 @@ export class ConversationIngestService {
 
       let leadId = existing?.leadId ?? null;
       if (!leadId) {
-        const lead = await tx.lead.create({
-          data: {
-            tenantId,
-            name: input.visitorName?.trim() || 'Visitante web',
-            source: 'webchat',
-            status: 'NEW',
-          },
-        });
+        const matched = visitorEmail ? await tx.lead.findFirst({ where: { email: visitorEmail } }) : null;
+        const lead =
+          matched ??
+          (await tx.lead.create({
+            data: {
+              tenantId,
+              name: visitorName || 'Visitante web',
+              email: visitorEmail,
+              source: 'webchat',
+              status: 'NEW',
+            },
+          }));
         leadId = lead.id;
       }
 
@@ -200,7 +287,7 @@ export class ConversationIngestService {
             data: {
               botId: existing.botId ?? botId,
               leadId,
-              contactName: input.visitorName?.trim() || existing.contactName,
+              contactName: visitorName || existing.contactName,
               status: 'PENDING',
               lastMessageAt: now,
               lastMessagePreview: preview,
@@ -214,7 +301,7 @@ export class ConversationIngestService {
               botId,
               channel: 'WEBCHAT',
               contactJid: sessionId,
-              contactName: input.visitorName?.trim() || 'Visitante web',
+              contactName: visitorName || 'Visitante web',
               leadId,
               status: 'PENDING',
               lastMessageAt: now,

@@ -18,6 +18,20 @@ const nextConfig = {
       },
     ];
   },
+  async headers() {
+    // The embeddable webchat widget MUST be loadable inside an iframe on the
+    // tenant's own site. We explicitly clear frame-ancestors and X-Frame-Options
+    // for /widget/* so the upstream Next/Nginx defaults don't block it.
+    return [
+      {
+        source: '/widget/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: "frame-ancestors *;" },
+          { key: 'X-Frame-Options', value: 'ALLOWALL' },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

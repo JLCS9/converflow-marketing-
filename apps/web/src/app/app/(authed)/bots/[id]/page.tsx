@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/primitives';
 import { BotConnection } from './bot-connection';
 import { BotAgentSelect } from './bot-agent-select';
 import { BotEmailConnect } from './bot-email-connect';
+import { WebchatInstall } from './webchat-install';
 
 interface BotDetail {
   id: string;
@@ -48,6 +49,9 @@ export default async function BotDetailPage({
     '/agents',
   ).catch(() => []);
 
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.converflow.ai';
+
   return (
     <div className="space-y-6">
       <div>
@@ -84,16 +88,7 @@ export default async function BotDetailPage({
           </div>
         </Card>
       ) : bot.channel === 'WEBCHAT' ? (
-        <Card>
-          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Web Chat</h2>
-          <p className="mt-1 text-xs text-ink-500">
-            Embebe el widget en tu web con un iframe a{' '}
-            <code className="rounded bg-ink-100 px-1 font-mono text-xs">
-              /widget/{bot.id}
-            </code>
-            . Asigna un agente para que responda automáticamente.
-          </p>
-        </Card>
+        <WebchatInstall botId={bot.id} appUrl={appUrl} />
       ) : (
         <Card>
           <p className="text-sm text-ink-500">
