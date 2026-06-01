@@ -344,9 +344,6 @@ model Client {
   name      String
   email     String?
   phone     String?
-  nif       String?
-  address   String?
-  website   String?
   source    String?
   status    ClientStatus @default(ACTIVE)
   ownerId   String?

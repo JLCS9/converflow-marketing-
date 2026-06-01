@@ -32,7 +32,6 @@ export class ClientsService {
             ? [
                 { name: { contains: opts.search, mode: 'insensitive' } },
                 { email: { contains: opts.search, mode: 'insensitive' } },
-                { nif: { contains: opts.search, mode: 'insensitive' } },
               ]
             : undefined,
         },
@@ -63,7 +62,8 @@ export class ClientsService {
     const data = createClientSchema.parse(input);
     const customFields = await this.customFields.validateValues(
       tenantId,
-      'CLIENT',
+      // Lead y Cliente comparten un solo set de definiciones (entityType=LEAD).
+      'LEAD',
       data.customFields as Record<string, unknown> | undefined,
     );
     return this.prisma.withTenant(tenantId, (tx) =>
@@ -81,7 +81,8 @@ export class ClientsService {
     const data = updateClientSchema.parse(input);
     const customFields = await this.customFields.validateValues(
       tenantId,
-      'CLIENT',
+      // Lead y Cliente comparten un solo set de definiciones (entityType=LEAD).
+      'LEAD',
       data.customFields as Record<string, unknown> | undefined,
       { partial: true },
     );

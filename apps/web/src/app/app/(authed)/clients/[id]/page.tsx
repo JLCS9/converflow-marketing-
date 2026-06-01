@@ -11,9 +11,6 @@ interface ClientDetail {
   name: string;
   email: string | null;
   phone: string | null;
-  nif: string | null;
-  address: string | null;
-  website: string | null;
   source: string | null;
   status: string;
   customFields: Record<string, unknown> | null;
@@ -50,7 +47,6 @@ export default async function ClientDetailPage({
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">{client.name}</h1>
         <div className="mt-1 flex items-center gap-3 text-sm">
           <Badge color={client.status === 'ACTIVE' ? 'green' : 'gray'}>{client.status}</Badge>
-          {client.nif && <span className="font-mono text-xs text-ink-500">NIF: {client.nif}</span>}
         </div>
       </div>
 

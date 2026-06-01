@@ -46,9 +46,6 @@ export function CreateClientForm({ customFields }: { customFields: CustomFieldDe
             name: String(data.get('name') ?? '').trim(),
             email: String(data.get('email') ?? '').trim() || undefined,
             phone: String(data.get('phone') ?? '').trim() || undefined,
-            nif: String(data.get('nif') ?? '').trim() || undefined,
-            address: String(data.get('address') ?? '').trim() || undefined,
-            website: String(data.get('website') ?? '').trim() || undefined,
             status: (String(data.get('status') ?? 'ACTIVE')) as never,
             customFields: Object.keys(cfValues).length ? cfValues : undefined,
           };
@@ -73,24 +70,13 @@ export function CreateClientForm({ customFields }: { customFields: CustomFieldDe
           <Input name="name" type="text" required minLength={1} maxLength={150} />
         </Field>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="NIF / CIF">
-            <Input name="nif" type="text" maxLength={20} />
-          </Field>
           <Field label="Email">
             <Input name="email" type="email" />
           </Field>
-        </div>
-        <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Teléfono">
             <Input name="phone" type="tel" />
           </Field>
-          <Field label="Website">
-            <Input name="website" type="url" placeholder="https://" />
-          </Field>
         </div>
-        <Field label="Dirección">
-          <Input name="address" type="text" maxLength={255} />
-        </Field>
         <Field label="Estado">
           <Select name="status" defaultValue="ACTIVE">
             {Object.entries(CLIENT_STATUS).map(([k, v]) => (

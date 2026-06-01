@@ -12,9 +12,6 @@ interface ClientInfo {
   name: string;
   email: string | null;
   phone: string | null;
-  nif: string | null;
-  address: string | null;
-  website: string | null;
   source: string | null;
   status: string;
   createdAt: string;
@@ -30,9 +27,6 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
     name: client.name,
     email: client.email ?? '',
     phone: client.phone ?? '',
-    nif: client.nif ?? '',
-    address: client.address ?? '',
-    website: client.website ?? '',
     source: client.source ?? '',
     status: client.status,
   });
@@ -49,9 +43,6 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
           name: form.name,
           email: form.email || undefined,
           phone: form.phone || undefined,
-          nif: form.nif || undefined,
-          address: form.address || undefined,
-          website: form.website || undefined,
           source: form.source || undefined,
           status: form.status,
         },
@@ -81,9 +72,6 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
           <Field label="Nombre" required>
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </Field>
-          <Field label="NIF">
-            <Input value={form.nif} onChange={(e) => setForm({ ...form, nif: e.target.value })} />
-          </Field>
           <Field label="Email">
             <Input
               type="email"
@@ -93,12 +81,6 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
           </Field>
           <Field label="Teléfono">
             <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-          </Field>
-          <Field label="Web">
-            <Input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} />
-          </Field>
-          <Field label="Dirección">
-            <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           </Field>
           <Field label="Fuente">
             <Input value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} />
@@ -139,9 +121,6 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
       <dl className="mt-4 space-y-2 text-sm">
         <Row label="Email" value={client.email ?? '—'} />
         <Row label="Teléfono" value={client.phone ?? '—'} />
-        <Row label="NIF" value={client.nif ?? '—'} />
-        <Row label="Web" value={client.website ?? '—'} />
-        <Row label="Dirección" value={client.address ?? '—'} />
         <Row label="Fuente" value={client.source ?? '—'} />
         <Row label="Alta" value={new Date(client.createdAt).toLocaleString('es-ES')} />
       </dl>

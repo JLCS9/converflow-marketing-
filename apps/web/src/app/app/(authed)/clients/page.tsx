@@ -11,7 +11,6 @@ interface ClientRow {
   name: string;
   email: string | null;
   phone: string | null;
-  nif: string | null;
   status: string;
   createdAt: string;
 }
@@ -62,7 +61,7 @@ export default async function ClientsPage({
             </select>
           </label>
           <label className="flex flex-1 flex-col">
-            <span className="text-xs text-ink-500">Buscar (nombre, email, NIF)</span>
+            <span className="text-xs text-ink-500">Buscar (nombre o email)</span>
             <input
               type="text"
               name="search"
@@ -104,7 +103,6 @@ export default async function ClientsPage({
             <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
               <tr>
                 <th className="px-4 py-3">Nombre</th>
-                <th className="hidden px-4 py-3 md:table-cell">NIF</th>
                 <th className="hidden px-4 py-3 md:table-cell">Email</th>
                 <th className="hidden px-4 py-3 lg:table-cell">Teléfono</th>
                 <th className="px-4 py-3">Estado</th>
@@ -122,10 +120,9 @@ export default async function ClientsPage({
                       {c.name}
                     </Link>
                     <div className="mt-0.5 text-xs text-ink-500 md:hidden">
-                      {c.nif ?? c.email ?? c.phone ?? '—'}
+                      {c.email ?? c.phone ?? '—'}
                     </div>
                   </td>
-                  <td className="hidden px-4 py-3 font-mono text-xs md:table-cell">{c.nif ?? '—'}</td>
                   <td className="hidden px-4 py-3 text-xs md:table-cell">{c.email ?? '—'}</td>
                   <td className="hidden px-4 py-3 text-xs lg:table-cell">{c.phone ?? '—'}</td>
                   <td className="px-4 py-3">
