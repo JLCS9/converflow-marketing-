@@ -26,6 +26,7 @@ import { WebchatModule } from './modules/webchat/webchat.module.js';
 import { InternalModule } from './modules/internal/internal.module.js';
 import { CustomFieldsModule } from './modules/custom-fields/custom-fields.module.js';
 import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
+import { LeadScoringModule } from './modules/lead-scoring/lead-scoring.module.js';
 import { AiModule } from './common/ai/ai.module.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
 
@@ -60,6 +61,7 @@ import { PrismaModule } from './common/prisma/prisma.module.js';
     InternalModule,
     CustomFieldsModule,
     PipelinesModule,
+    LeadScoringModule,
   ],
 })
 export class AppModule {}

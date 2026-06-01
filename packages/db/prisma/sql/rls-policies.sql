@@ -261,3 +261,14 @@ CREATE POLICY tenant_isolation ON opportunity_stage_history
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- ---------------------------------------------------------------------
+-- lead_score_batches (async bulk-scoring queue state)
+-- ---------------------------------------------------------------------
+ALTER TABLE lead_score_batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lead_score_batches FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON lead_score_batches;
+CREATE POLICY tenant_isolation ON lead_score_batches
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

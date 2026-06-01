@@ -41,11 +41,6 @@ export class LeadsController {
     return this.leads.count(user.tenantId, { status, ownerId, search });
   }
 
-  @Post('score-batch')
-  scoreBatch(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
-    return this.leads.scoreBatch(user.tenantId, body as never);
-  }
-
   @Get(':id')
   findById(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.leads.findById(user.tenantId, id);

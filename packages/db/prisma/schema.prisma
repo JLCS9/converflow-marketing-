@@ -142,6 +142,7 @@ model Tenant {
   emailConnections EmailConnection[]
   customFieldDefinitions CustomFieldDefinition[]
   pipelines              Pipeline[]
+  leadScoreBatches       LeadScoreBatch[]
 
   @@map("tenants")
 }
@@ -244,6 +245,14 @@ model AccessLog {
   @@map("access_logs")
 }
 
+// Bot reply behaviour per channel — moved here from Agent so a single
+// conversational agent can be SUGGEST on WhatsApp and AUTO on WebChat.
+enum BotReplyMode {
+  OFF
+  SUGGEST
+  AUTO
+}
+
 model Bot {
   id          String    @id @default(cuid())
   tenantId    String
@@ -254,6 +263,11 @@ model Bot {
   status      BotStatus @default(PENDING)
   agentId     String?
   agent       Agent?    @relation(fields: [agentId], references: [id])
+
+  // How the bot should reply to inbound messages. Moved from Agent so the
+  // same conversational agent can be wired AUTO on a low-stakes channel
+  // (web chat) and SUGGEST on a high-stakes one (WhatsApp).
+  replyMode   BotReplyMode @default(SUGGEST)
 
   // Rate limits (overridable per bot, otherwise tenant default)
   maxMessagesPerMinute Int @default(60)
@@ -316,14 +330,19 @@ model Agent {
   model        String      @default("claude-sonnet-4-6")
   config       Json
   status       AgentStatus @default(DRAFT)
+  // CONVERSATIONAL (default) responds to channel messages via a Bot.
+  // SCORING runs the lead-scoring batch (manual trigger).
+  // TRIAGE classifies + routes incoming messages (future runtime, schema-ready).
+  type         AgentType   @default(CONVERSATIONAL)
   version      Int         @default(1)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  bots Bot[]
+  bots          Bot[]
+  scoreBatches  LeadScoreBatch[]
 
   @@unique([tenantId, name])
-  @@index([tenantId])
+  @@index([tenantId, type])
   @@map("agents")
 }
 
@@ -331,6 +350,47 @@ enum AgentStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+}
+
+enum AgentType {
+  CONVERSATIONAL
+  SCORING
+  TRIAGE
+}
+
+/// Batch of bulk lead-scoring jobs. The API enqueues one row of N jobs and
+/// updates `completed`/`failed` as the worker progresses; the frontend polls
+/// for ETA + summary.
+model LeadScoreBatch {
+  id            String              @id @default(cuid())
+  tenantId      String
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agentId       String?
+  agent         Agent?              @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  status        LeadScoreBatchStatus @default(QUEUED)
+  total         Int
+  completed     Int                 @default(0)
+  failed        Int                 @default(0)
+  statusUpdated Int                 @default(0)
+  oppsCreated   Int                 @default(0)
+  options       Json                // { updateStatus, createOpportunities }
+  errors        Json                @default("[]")
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  cancelledAt   DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([tenantId, status])
+  @@map("lead_score_batches")
+}
+
+enum LeadScoreBatchStatus {
+  QUEUED
+  RUNNING
+  DONE
+  CANCELLED
+  FAILED
 }
 
 // ============================================
