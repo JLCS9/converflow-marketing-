@@ -46,3 +46,27 @@ export function parseFlexibleDate(raw: unknown): Date | null {
   const fallback = new Date(s);
   return Number.isNaN(fallback.getTime()) ? null : fallback;
 }
+
+/**
+ * Normalise a phone number coming from a CSV / form. Strips spaces, dashes,
+ * dots and parentheses. Converts "00" international prefix to "+". When
+ * `assumeSpainPrefix` is true and the cleaned number looks like a Spanish
+ * mobile or landline (9 digits starting with 6/7/8/9), prepends "+34".
+ *
+ * Returns the cleaned string even when no prefix could be inferred so the
+ * caller can decide what to do with ambiguous inputs.
+ */
+export interface PhoneNormaliseOpts {
+  assumeSpainPrefix?: boolean;
+}
+export function normalisePhone(raw: unknown, opts: PhoneNormaliseOpts = {}): string {
+  if (typeof raw !== 'string') return '';
+  const cleaned = raw.replace(/[\s\-().·]/g, '');
+  if (!cleaned) return '';
+  if (cleaned.startsWith('+')) return cleaned;
+  if (cleaned.startsWith('00') && cleaned.length >= 5) return `+${cleaned.slice(2)}`;
+  if (opts.assumeSpainPrefix && /^[6789]\d{8}$/.test(cleaned)) {
+    return `+34${cleaned}`;
+  }
+  return cleaned;
+}

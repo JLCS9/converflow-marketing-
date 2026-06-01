@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
 import { useFeedback } from '@/components/ui/feedback';
-import { parseFlexibleDate } from '@converflow/shared';
+import { normalisePhone, parseFlexibleDate } from '@converflow/shared';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 import { parseCsv, type ParsedCsv } from './csv-parser';
 
@@ -123,6 +123,9 @@ function validateRow(
   }
 
   if (!resolved.name) return 'Falta el nombre.';
+  if (!resolved.email && !resolved.phone) {
+    return 'Hace falta email o teléfono (al menos uno).';
+  }
   if (resolved.email && !emailLooksValid(resolved.email)) {
     return `Email no válido: "${resolved.email}".`;
   }
@@ -193,6 +196,7 @@ function validateRow(
 function buildPayload(
   rows: EditableRow[],
   targets: Targets,
+  opts: { assumeSpainPrefix: boolean },
 ): { leads: Record<string, unknown>[]; rowOf: number[] } {
   const leads: Record<string, unknown>[] = [];
   const rowOf: number[] = []; // payload[i] -> original row index
@@ -209,6 +213,8 @@ function buildPayload(
       else if (target === 'status') {
         const s = normaliseStatus(raw);
         if (s) lead.status = s;
+      } else if (target === 'phone') {
+        lead.phone = normalisePhone(raw, { assumeSpainPrefix: opts.assumeSpainPrefix });
       } else lead[target] = raw;
     }
     if (!lead.name) return;
@@ -229,6 +235,7 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
   const [result, setResult] = useState<ImportResult | null>(null);
   const [pending, startTransition] = useTransition();
   const [showOnlyErrors, setShowOnlyErrors] = useState(false);
+  const [assumeSpainPrefix, setAssumeSpainPrefix] = useState(true);
 
   // Per-row validation — recomputed whenever rows / targets change.
   const rowErrors = useMemo(() => {
@@ -302,7 +309,7 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
     }
     // Build payload from VALID rows only.
     const subset = validRowsIdx.map((i) => rows[i]!);
-    const { leads, rowOf } = buildPayload(subset, targets);
+    const { leads, rowOf } = buildPayload(subset, targets, { assumeSpainPrefix });
     setError(null);
     startTransition(async () => {
       try {
@@ -403,6 +410,47 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
               <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
                 Falta mapear: <strong>{missingMappingsRequired.join(', ')}</strong>.
               </div>
+            )}
+
+            {/* Phone prefix toggle. Active by default for Spanish tenants. */}
+            {Object.values(targets).includes('phone') && (
+              <label className="flex items-start gap-2 rounded-md border border-ink-100 bg-ink-100/30 p-3 text-xs">
+                <input
+                  type="checkbox"
+                  checked={assumeSpainPrefix}
+                  onChange={(e) => setAssumeSpainPrefix(e.target.checked)}
+                  className="mt-0.5 rounded border-ink-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-ink-700">
+                  <strong>Asumir +34 para teléfonos españoles sin prefijo.</strong>
+                  <br />
+                  <span className="text-ink-500">
+                    Números de 9 dígitos que empiecen por 6, 7, 8 o 9 reciben el prefijo +34
+                    automáticamente. Los teléfonos que ya empiecen por <code>+</code> o por{' '}
+                    <code>00</code> se respetan tal cual.
+                    {(() => {
+                      // Live preview using the first non-empty phone cell we can find.
+                      const phoneHeader = Object.entries(targets).find(
+                        ([, t]) => t === 'phone',
+                      )?.[0];
+                      if (!phoneHeader) return null;
+                      const sample = rows.find((r) => r.values[phoneHeader]?.trim())?.values[
+                        phoneHeader
+                      ];
+                      if (!sample) return null;
+                      const norm = normalisePhone(sample, { assumeSpainPrefix });
+                      if (norm === sample.trim()) return null;
+                      return (
+                        <>
+                          {' '}
+                          Ejemplo: <code className="font-mono">{sample.trim()}</code> →{' '}
+                          <code className="font-mono text-primary-700">{norm}</code>
+                        </>
+                      );
+                    })()}
+                  </span>
+                </span>
+              </label>
             )}
           </section>
         </Card>
