@@ -9,13 +9,18 @@
  *   DECIDE  → "puntúa y decide"        · amber
  *   DATA    → "utilidades de datos"    · ink
  */
-import { AGENT_TYPE_STATUS, type AgentType } from '@converflow/shared';
+// NOTE: this file is being replaced by /lib/agent-templates.ts in the
+// follow-up commit. We keep it alive here only so the wizard compiles
+// against the new 3-engine AgentType enum. The `type` field is now a free
+// string (the wizard template id), not a persisted enum value.
+
+const AVAILABLE_TEMPLATES = new Set(['CONVERSATIONAL', 'SCORING', 'AGENDA_PROPOSAL']);
 
 export type AgentGroup = 'CALIFICAR' | 'VENDER' | 'FIDELIZAR' | 'TRANSVERSAL';
 export type AgentFamily = 'PEOPLE' | 'DECIDE' | 'DATA';
 
 export interface AgentPurposeMeta {
-  type: AgentType;
+  type: string;
   group: AgentGroup;
   family: AgentFamily;
   label: string;
@@ -72,10 +77,10 @@ export const FAMILY_META: Record<AgentFamily, { label: string; accent: string; c
   },
 };
 
-export function purposeMeta(type: AgentType | string): AgentPurposeMeta | undefined {
+export function purposeMeta(type: string): AgentPurposeMeta | undefined {
   return AGENT_PURPOSES.find((p) => p.type === type);
 }
 
-export function isAvailable(type: AgentType): boolean {
-  return AGENT_TYPE_STATUS[type] === 'available';
+export function isAvailable(type: string): boolean {
+  return AVAILABLE_TEMPLATES.has(type);
 }

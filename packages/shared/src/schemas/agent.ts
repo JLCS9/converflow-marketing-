@@ -13,44 +13,15 @@ export const AGENT_TOOLS = [
 // (Bot.replyMode). Schema kept for one deploy so old clients still validate.
 export const agentModeSchema = z.enum(['SUGGEST', 'AUTO']);
 export const agentStatusSchema = z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
-// 12 funnel pieces (Captar removed — Captar will be its own area later).
-// Only three are runtime-ready — see AGENT_TYPE_STATUS.
+// The Agent.type stored in the DB is the *runtime engine*, not the wizard
+// purpose. The 12 funnel pieces the wizard shows collapse into these three.
 export const agentTypeSchema = z.enum([
-  // Calificar
-  'TRIAGE',
-  'SCORING',
-  'ENRICHMENT',
-  // Vender
   'CONVERSATIONAL',
-  'FOLLOW_UP',
-  'AGENDA_PROPOSAL',
-  // Fidelizar
-  'ONBOARDING',
-  'SUPPORT',
-  'REACTIVATION',
-  // Transversal
-  'DATA_CLEANUP',
-  'REPORTS',
-  'SUMMARIES',
+  'OPPORTUNITIES',
+  'UTILITY',
 ]);
 
 export type AgentType = z.infer<typeof agentTypeSchema>;
-
-/** Which agent types the runtime can actually execute today. */
-export const AGENT_TYPE_STATUS: Record<AgentType, 'available' | 'soon'> = {
-  CONVERSATIONAL: 'available',
-  SCORING: 'available',
-  AGENDA_PROPOSAL: 'available',
-  TRIAGE: 'soon',
-  ENRICHMENT: 'soon',
-  FOLLOW_UP: 'soon',
-  ONBOARDING: 'soon',
-  SUPPORT: 'soon',
-  REACTIVATION: 'soon',
-  DATA_CLEANUP: 'soon',
-  REPORTS: 'soon',
-  SUMMARIES: 'soon',
-};
 
 // Structured settings stored in Agent.config (Json). Varies by Agent.type:
 //   CONVERSATIONAL → language, tone, businessInfo, faqs, aiDisclosure, tools
@@ -90,6 +61,9 @@ export const createAgentSchema = z.object({
   model: z.enum(AGENT_MODELS).optional(),
   status: agentStatusSchema.optional(),
   type: agentTypeSchema.optional(),
+  // Wizard template id the agent was created from (analytics + prefill).
+  // Free-form string so adding new wizard tiles never touches the API.
+  template: z.string().trim().max(40).optional(),
   config: agentConfigSchema.optional(),
 });
 

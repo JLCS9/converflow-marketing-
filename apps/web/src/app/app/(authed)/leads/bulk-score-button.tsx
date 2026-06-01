@@ -11,7 +11,7 @@ interface Agent {
   id: string;
   name: string;
   status: string;
-  type?: 'CONVERSATIONAL' | 'SCORING' | 'TRIAGE';
+  type?: 'CONVERSATIONAL' | 'OPPORTUNITIES' | 'UTILITY';
 }
 
 interface Props {
@@ -55,7 +55,7 @@ export function BulkScoreButton({ agents, total, filterQs }: Props) {
   // Old agents (no type) default to CONVERSATIONAL in the backend so they
   // won't show up here until the tenant explicitly marks one as SCORING.
   const scoringAgents = agents.filter(
-    (a) => a.status === 'PUBLISHED' && (a.type ?? 'CONVERSATIONAL') === 'SCORING',
+    (a) => a.status === 'PUBLISHED' && (a.type ?? 'CONVERSATIONAL') === 'OPPORTUNITIES',
   );
 
   // Poll while a batch is running.

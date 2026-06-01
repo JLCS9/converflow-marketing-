@@ -12,19 +12,20 @@ interface AgentRow {
   description: string | null;
   model: string;
   status: string;
-  type: 'CONVERSATIONAL' | 'SCORING' | 'TRIAGE';
+  type: 'CONVERSATIONAL' | 'OPPORTUNITIES' | 'UTILITY';
+  template: string | null;
   updatedAt: string;
 }
 
 const TYPE_LABEL: Record<AgentRow['type'], string> = {
   CONVERSATIONAL: 'Conversacional',
-  SCORING: 'Scoring',
-  TRIAGE: 'Triage',
+  OPPORTUNITIES: 'Oportunidades',
+  UTILITY: 'Utilidad',
 };
 const TYPE_COLOR: Record<AgentRow['type'], 'green' | 'blue' | 'yellow'> = {
   CONVERSATIONAL: 'green',
-  SCORING: 'blue',
-  TRIAGE: 'yellow',
+  OPPORTUNITIES: 'blue',
+  UTILITY: 'yellow',
 };
 
 export const metadata = { title: 'Agentes IA' };

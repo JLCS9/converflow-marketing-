@@ -6,10 +6,19 @@ import type { AgentType } from '@converflow/shared';
 
 export const metadata = { title: 'Nuevo agente' };
 
+// Wizard purpose ids (URL ?type=) → real persisted engine + optional
+// template. Once the next commit replaces the wizard with templates, this
+// table goes away — but during Commit A the legacy URLs still work.
+const PURPOSE_TO_ENGINE: Record<string, { engine: AgentType; template?: string }> = {
+  CONVERSATIONAL: { engine: 'CONVERSATIONAL' },
+  AGENDA_PROPOSAL: { engine: 'CONVERSATIONAL', template: 'agenda' },
+  SCORING: { engine: 'OPPORTUNITIES', template: 'oportunidades' },
+};
+
 /**
  * Two-step new-agent flow:
- *  Step 1 (no ?type): funnel grid wizard (15 pieces, 3 available, 12 soon).
- *  Step 2 (?type=X): the form for that purpose — focused, contextual.
+ *  Step 1 (no ?type): funnel grid wizard.
+ *  Step 2 (?type=X): the form for the resolved engine.
  */
 export default async function NewAgentPage({
   searchParams,
@@ -18,7 +27,8 @@ export default async function NewAgentPage({
 }) {
   const { type } = await searchParams;
   const meta = type ? purposeMeta(type) : undefined;
-  const chosen = meta && isAvailable(meta.type) ? (meta.type as AgentType) : null;
+  const resolved = meta && isAvailable(meta.type) ? PURPOSE_TO_ENGINE[meta.type] : undefined;
+  const chosen = resolved?.engine ?? null;
 
   // Step 1 — funnel grid.
   if (!chosen) {

@@ -29,7 +29,7 @@ interface ScoreBatchOutput {
 }
 
 /**
- * Scoring runner — strategy implementation for Agent.type === 'SCORING'.
+ * Scoring runner — strategy implementation for Agent.type === 'OPPORTUNITIES'.
  *
  * Takes one lead, optionally injects an agent's systemPrompt as funnel rules,
  * asks Claude for a structured score + (optional) status decision + (optional)

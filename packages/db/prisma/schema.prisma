@@ -330,10 +330,12 @@ model Agent {
   model        String      @default("claude-sonnet-4-6")
   config       Json
   status       AgentStatus @default(DRAFT)
-  // CONVERSATIONAL (default) responds to channel messages via a Bot.
-  // SCORING runs the lead-scoring batch (manual trigger).
-  // TRIAGE classifies + routes incoming messages (future runtime, schema-ready).
+  // Runtime engine. See enum AgentType below.
   type         AgentType   @default(CONVERSATIONAL)
+  // Wizard template the agent was created from (e.g. "agenda",
+  // "oportunidades", "soporte"). Used for analytics + prefilling the same
+  // form again on edit. Not part of the runtime contract.
+  template     String?
   version      Int         @default(1)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt

@@ -40,12 +40,10 @@ export interface AgentData {
   config: AgentConfig | null;
 }
 
-// Three runtime "families" inside the 15 funnel pieces. The form picks fields
-// based on the family, not the raw purpose, so most purposes don't need a
-// dedicated form yet.
-function familyOf(type: AgentType): 'CONVERSATIONAL' | 'AGENDA' | 'SCORING' | 'OTHER' {
-  if (type === 'SCORING') return 'SCORING';
-  if (type === 'AGENDA_PROPOSAL') return 'AGENDA';
+// Form family per engine. Commit C will collapse this further once the
+// AGENDA template is wired through Agent.template + agent-templates.ts.
+function familyOf(type: AgentType): 'CONVERSATIONAL' | 'SCORING' | 'OTHER' {
+  if (type === 'OPPORTUNITIES') return 'SCORING';
   if (type === 'CONVERSATIONAL') return 'CONVERSATIONAL';
   return 'OTHER';
 }
@@ -53,7 +51,7 @@ function familyOf(type: AgentType): 'CONVERSATIONAL' | 'AGENDA' | 'SCORING' | 'O
 const SYSTEM_PROMPT_PLACEHOLDER: Partial<Record<AgentType, string>> = {
   CONVERSATIONAL:
     'Eres el asistente comercial de [Empresa]. Hablas en castellano, tono profesional pero cercano. Solo respondes con la información que aparece en "Información de empresa/producto" — si no lo sabes, lo dices y propones contactar con una persona.',
-  SCORING:
+  OPPORTUNITIES:
     [
       'Para cada lead, sigue estas reglas:',
       '',
@@ -66,16 +64,6 @@ const SYSTEM_PROMPT_PLACEHOLDER: Partial<Record<AgentType, string>> = {
       '- {field.<tu_otro_campo>} sea ...',
       '',
       'Nombre de la oportunidad: "{lead.name} · <descripción>"',
-    ].join('\n'),
-  AGENDA_PROPOSAL:
-    [
-      'Eres el asistente comercial de [Empresa]. Tu objetivo es agendar una reunión cuando el lead muestra interés en uno de nuestros productos o servicios.',
-      '',
-      'Dispara la propuesta de reunión cuando:',
-      '- El lead menciona explícitamente un producto/servicio.',
-      '- El lead pide hablar/llamar/quedar.',
-      '',
-      'Flujo: identifica el producto → propón dos huecos del calendario → confirma email → agenda. Si no tenemos email, pídelo educadamente antes de cerrar.',
     ].join('\n'),
 };
 
@@ -102,9 +90,11 @@ export function AgentForm({
   }
 
   const family = familyOf(type);
-  const isConversational = family === 'CONVERSATIONAL' || family === 'AGENDA';
+  const isConversational = family === 'CONVERSATIONAL';
   const isScoring = family === 'SCORING';
-  const isAgenda = family === 'AGENDA';
+  // The previous "AGENDA" branch is gone: agenda is now a template on top of
+  // the CONVERSATIONAL engine and gets wired in commit C.
+  const isAgenda = false;
 
   return (
     <Card>
@@ -168,10 +158,9 @@ export function AgentForm({
           >
             <Select value={type} onChange={(e) => setType(e.target.value as AgentType)}>
               <option value="CONVERSATIONAL">💬 Conversacional</option>
-              <option value="SCORING">🎯 Scoring</option>
-              <option value="AGENDA_PROPOSAL">📅 Agenda + propuesta</option>
-              <option value="TRIAGE" disabled>
-                🧭 Triage · próximamente
+              <option value="OPPORTUNITIES">🎯 Oportunidades</option>
+              <option value="UTILITY" disabled>
+                ⚙️ Utilidad · próximamente
               </option>
             </Select>
           </Field>
