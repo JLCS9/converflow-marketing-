@@ -4,36 +4,65 @@ import { z } from 'zod';
 // Leads
 // ============================================
 
-export const leadStatusSchema = z.enum([
-  'NEW',
-  'CONTACTED',
-  'QUALIFIED',
-  'CONVERTED',
-  'LOST',
-]);
+// 3-state model: a contact is a LEAD until you mark them CLIENT (or LOST).
+// Old keys (NEW/CONTACTED/QUALIFIED/CONVERTED) still accepted on input as
+// aliases so older clients keep working; the API normalises them to the new
+// triplet before persisting.
+export const leadStatusSchema = z.enum(['LEAD', 'CLIENT', 'LOST']);
+
+const incomingStatusSchema = z
+  .enum(['LEAD', 'CLIENT', 'LOST', 'NEW', 'CONTACTED', 'QUALIFIED', 'CONVERTED'])
+  .transform((s): 'LEAD' | 'CLIENT' | 'LOST' => {
+    if (s === 'CONVERTED' || s === 'CLIENT') return 'CLIENT';
+    if (s === 'LOST') return 'LOST';
+    return 'LEAD';
+  });
+
+// Empty strings are tolerated and treated as "no value" so the CSV importer
+// doesn't trip on cells the user left blank.
+const optionalEmail = z
+  .union([z.string().trim().toLowerCase().email(), z.literal('')])
+  .optional()
+  .transform((v) => (v ? v : undefined));
+
+const optionalUrl = z
+  .union([z.string().trim().url(), z.literal('')])
+  .optional()
+  .transform((v) => (v ? v : undefined));
+
+const optionalTrimmed = (max: number) =>
+  z
+    .union([z.string().trim().max(max), z.literal('')])
+    .optional()
+    .transform((v) => (v ? v : undefined));
 
 export const createLeadSchema = z.object({
   name: z.string().trim().min(1).max(150),
-  email: z.string().trim().toLowerCase().email().optional(),
-  phone: z.string().trim().max(40).optional(),
-  company: z.string().trim().max(150).optional(),
-  source: z.string().trim().max(60).optional(),
-  status: leadStatusSchema.optional(),
+  lastName: optionalTrimmed(150),
+  email: optionalEmail,
+  phone: optionalTrimmed(40),
+  company: optionalTrimmed(150),
+  nif: optionalTrimmed(20),
+  address: optionalTrimmed(255),
+  website: optionalUrl,
+  source: optionalTrimmed(60),
+  status: incomingStatusSchema.optional(),
   ownerId: z.string().cuid().optional(),
   customFields: z.record(z.unknown()).optional(),
 });
 
 export const updateLeadSchema = createLeadSchema.partial().extend({
-  status: leadStatusSchema.optional(),
+  status: incomingStatusSchema.optional(),
   score: z.number().int().min(0).max(100).optional(),
 });
 
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
 
-// CSV import — accepts an array of leads at once
+// CSV import — accepts an array of raw rows. The bulkImport service validates
+// each row individually so one bad cell doesn't kill the whole batch.
 export const importLeadsSchema = z.object({
-  leads: z.array(createLeadSchema).min(1).max(1000),
+  leads: z.array(z.record(z.unknown())).min(1).max(1000),
 });
 export type ImportLeadsInput = z.infer<typeof importLeadsSchema>;
 

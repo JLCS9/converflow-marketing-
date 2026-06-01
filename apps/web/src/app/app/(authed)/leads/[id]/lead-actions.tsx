@@ -5,16 +5,14 @@ import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Select, buttonClass } from '@/components/ui/primitives';
 import { useFeedback } from '@/components/ui/feedback';
-import { LEAD_STATUS } from '@/lib/labels';
-
-const STATUSES = ['NEW', 'CONTACTED', 'QUALIFIED', 'CONVERTED', 'LOST'] as const;
+import { LEAD_STATUS_OPTIONS } from '@/lib/labels';
 
 export function LeadActions({
   leadId,
   currentStatus,
 }: {
   leadId: string;
-  currentStatus: (typeof STATUSES)[number];
+  currentStatus: string;
 }) {
   const router = useRouter();
   const { confirm, toast } = useFeedback();
@@ -25,11 +23,11 @@ export function LeadActions({
     <div className="space-y-4">
       <div className="flex items-end gap-2">
         <label className="flex flex-col text-sm">
-          <span className="text-xs text-ink-500">Cambiar status</span>
+          <span className="text-xs text-ink-500">Cambiar estado</span>
           <Select value={status} onChange={(e) => setStatus(e.target.value)}>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {LEAD_STATUS[s]}
+            {LEAD_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </Select>

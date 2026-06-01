@@ -173,11 +173,36 @@ async function seedDefaultPipelines() {
   console.info('Default pipelines + stages seeded for all tenants.');
 }
 
+async function migrateLeadStatuses() {
+  // Map the legacy 5-state model to the new 3-state model. Idempotent and safe
+  // to re-run: rows that already use LEAD / CLIENT / LOST are not touched.
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`SELECT set_config('app.bypass_rls', 'on', true)`);
+    const a = await tx.lead.updateMany({
+      where: { status: { in: ['NEW', 'CONTACTED', 'QUALIFIED'] } },
+      data: { status: 'LEAD' },
+    });
+    const b = await tx.lead.updateMany({
+      where: { status: 'CONVERTED' },
+      data: { status: 'CLIENT' },
+    });
+    return { toLead: a.count, toClient: b.count };
+  });
+  if (result.toLead || result.toClient) {
+    console.info(
+      `Migrated lead statuses: ${result.toLead} → LEAD, ${result.toClient} → CLIENT.`,
+    );
+  } else {
+    console.info('Lead statuses already on the new model — nothing to migrate.');
+  }
+}
+
 async function main() {
   try {
     await seedSuperAdmin();
     await seedFirstAppVersion();
     await seedDefaultPipelines();
+    await migrateLeadStatuses();
   } finally {
     await prisma.$disconnect();
   }

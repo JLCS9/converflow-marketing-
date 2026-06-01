@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Select, buttonClass } from '@/components/ui/primitives';
 import { useFeedback } from '@/components/ui/feedback';
-import { LEAD_STATUS } from '@/lib/labels';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 import { parseCsv, type ParsedCsv } from './csv-parser';
 
@@ -23,8 +22,12 @@ interface StandardTarget {
 }
 const STANDARD_TARGETS: StandardTarget[] = [
   { key: 'name', label: 'Nombre', required: true },
+  { key: 'lastName', label: 'Apellido' },
   { key: 'email', label: 'Email' },
   { key: 'phone', label: 'Teléfono' },
+  { key: 'nif', label: 'NIF / CIF' },
+  { key: 'address', label: 'Dirección' },
+  { key: 'website', label: 'Web' },
   { key: 'status', label: 'Estado' },
   { key: 'source', label: 'Fuente' },
 ];
@@ -50,8 +53,13 @@ function autoSuggest(
   const standardAliases: Record<string, string> = {
     nombre: 'name',
     name: 'name',
+    firstname: 'name',
     contacto: 'name',
     fullname: 'name',
+    apellido: 'lastName',
+    apellidos: 'lastName',
+    lastname: 'lastName',
+    surname: 'lastName',
     email: 'email',
     correo: 'email',
     mail: 'email',
@@ -59,6 +67,16 @@ function autoSuggest(
     phone: 'phone',
     movil: 'phone',
     celular: 'phone',
+    nif: 'nif',
+    cif: 'nif',
+    dni: 'nif',
+    direccion: 'address',
+    address: 'address',
+    domicilio: 'address',
+    web: 'website',
+    website: 'website',
+    url: 'website',
+    sitio: 'website',
     status: 'status',
     estado: 'status',
     fase: 'status',
@@ -84,18 +102,26 @@ function autoSuggest(
 
 function normaliseStatus(raw: string): string | undefined {
   const norm = raw.trim().toLowerCase();
-  // Accept both English keys and Spanish labels.
+  // Maps every previously-supported alias to the new 3-state model.
+  // The API also accepts the legacy keys but we normalise client-side so the
+  // preview already shows what's going to be persisted.
   const map: Record<string, string> = {
-    new: 'NEW',
-    nuevo: 'NEW',
-    contacted: 'CONTACTED',
-    contactado: 'CONTACTED',
-    qualified: 'QUALIFIED',
-    cualificado: 'QUALIFIED',
-    converted: 'CONVERTED',
-    convertido: 'CONVERTED',
+    lead: 'LEAD',
+    new: 'LEAD',
+    nuevo: 'LEAD',
+    contacted: 'LEAD',
+    contactado: 'LEAD',
+    qualified: 'LEAD',
+    cualificado: 'LEAD',
+    cliente: 'CLIENT',
+    client: 'CLIENT',
+    converted: 'CLIENT',
+    convertido: 'CLIENT',
+    ganado: 'CLIENT',
+    won: 'CLIENT',
     lost: 'LOST',
     perdido: 'LOST',
+    perdida: 'LOST',
   };
   return map[norm];
 }
@@ -364,8 +390,8 @@ export function ImportLeadsForm({
       {/* Hint about supported statuses */}
       {parsed && (
         <p className="text-[11px] text-ink-500">
-          Estado acepta: {Object.values(LEAD_STATUS).join(' · ')} (también los identificadores en
-          inglés: NEW / CONTACTED / QUALIFIED / CONVERTED / LOST).
+          Estado acepta: <strong>Lead</strong> · <strong>Cliente</strong> · <strong>Perdido</strong>{' '}
+          (también alias en inglés: LEAD/NEW, CLIENT/WON, LOST). Lo que no encaje queda como Lead.
         </p>
       )}
     </Card>

@@ -25,9 +25,13 @@ interface NoteWithAi {
 interface LeadDetail {
   id: string;
   name: string;
+  lastName: string | null;
   email: string | null;
   phone: string | null;
   company: string | null;
+  nif: string | null;
+  address: string | null;
+  website: string | null;
   source: string | null;
   status: string;
   score: number | null;
@@ -46,13 +50,7 @@ interface LeadDetail {
   notes: NoteWithAi[];
 }
 
-const statusColor: Record<string, 'gray' | 'green' | 'yellow' | 'red' | 'blue'> = {
-  NEW: 'gray',
-  CONTACTED: 'blue',
-  QUALIFIED: 'yellow',
-  CONVERTED: 'green',
-  LOST: 'red',
-};
+import { LEAD_STATUS, LEAD_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
 
 function scoreColor(score: number | null): string {
   if (score == null) return 'bg-ink-100 text-ink-500';
@@ -89,9 +87,14 @@ export default async function LeadDetailPage({
         </Link>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{lead.name}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {lead.name}
+              {lead.lastName && <span className="ml-2 font-normal text-ink-700">{lead.lastName}</span>}
+            </h1>
             <div className="mt-1 flex items-center gap-3 text-sm">
-              <Badge color={statusColor[lead.status] ?? 'gray'}>{lead.status}</Badge>
+              <Badge color={statusColor(LEAD_STATUS_COLOR, lead.status)}>
+                {statusLabel(LEAD_STATUS, lead.status)}
+              </Badge>
               {lead.company && <span className="text-ink-700">{lead.company}</span>}
               {lead.source && (
                 <span className="font-mono text-xs text-ink-500">fuente: {lead.source}</span>

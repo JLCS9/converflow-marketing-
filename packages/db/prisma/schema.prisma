@@ -379,11 +379,15 @@ model Lead {
   client      Client?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   name        String
+  lastName    String?
   email       String?
   phone       String?
   company     String?
+  nif         String?
+  address     String?
+  website     String?
   source      String?
-  status      LeadStatus @default(NEW)
+  status      LeadStatus @default(LEAD)
   score       Int?
   ownerId     String?
   customFields Json?
@@ -409,12 +413,22 @@ model Lead {
   @@map("leads")
 }
 
+// Status flow simplified to three values:
+//   LEAD   -> sigue siendo un lead (cualquier estado previo a "ganado")
+//   CLIENT -> ya es cliente (antes "CONVERTED")
+//   LOST   -> oportunidad perdida
+// Old values (NEW, CONTACTED, QUALIFIED, CONVERTED) stay in the enum for the
+// duration of one deploy so the seed can migrate them in place; they're not
+// exposed in the UI and a follow-up sprint will drop them once every tenant
+// is on the new triplet.
 enum LeadStatus {
-  NEW
-  CONTACTED
-  QUALIFIED
-  CONVERTED
+  LEAD
+  CLIENT
   LOST
+  NEW         @map("NEW")
+  CONTACTED   @map("CONTACTED")
+  QUALIFIED   @map("QUALIFIED")
+  CONVERTED   @map("CONVERTED")
 }
 
 model Opportunity {

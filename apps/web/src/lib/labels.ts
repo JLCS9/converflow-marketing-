@@ -7,21 +7,37 @@
 
 export type BadgeColor = 'gray' | 'green' | 'yellow' | 'red' | 'blue';
 
+// 3-state model. The DB enum still holds legacy values (NEW/CONTACTED/
+// QUALIFIED/CONVERTED) for one deploy while the seed migrates rows; we keep
+// labels for them so badges don't render as raw enum strings during the
+// transition.
 export const LEAD_STATUS: Record<string, string> = {
-  NEW: 'Nuevo',
-  CONTACTED: 'Contactado',
-  QUALIFIED: 'Cualificado',
-  CONVERTED: 'Convertido',
+  LEAD: 'Lead',
+  CLIENT: 'Cliente',
   LOST: 'Perdido',
+  NEW: 'Lead',
+  CONTACTED: 'Lead',
+  QUALIFIED: 'Lead',
+  CONVERTED: 'Cliente',
 };
 
 export const LEAD_STATUS_COLOR: Record<string, BadgeColor> = {
-  NEW: 'gray',
-  CONTACTED: 'blue',
-  QUALIFIED: 'yellow',
-  CONVERTED: 'green',
+  LEAD: 'blue',
+  CLIENT: 'green',
   LOST: 'red',
+  NEW: 'blue',
+  CONTACTED: 'blue',
+  QUALIFIED: 'blue',
+  CONVERTED: 'green',
 };
+
+// Only the three values that are exposed in the UI dropdowns. Used by the
+// create/edit forms and by the list filter.
+export const LEAD_STATUS_OPTIONS: Array<{ value: 'LEAD' | 'CLIENT' | 'LOST'; label: string }> = [
+  { value: 'LEAD', label: 'Lead' },
+  { value: 'CLIENT', label: 'Cliente' },
+  { value: 'LOST', label: 'Perdido' },
+];
 
 export const OPP_STATUS: Record<string, string> = {
   OPEN: 'Abierta',

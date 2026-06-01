@@ -4,7 +4,7 @@ import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TabBar, CRM_TABS } from '@/components/ui/tab-bar';
-import { LEAD_STATUS, LEAD_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
+import { LEAD_STATUS, LEAD_STATUS_COLOR, LEAD_STATUS_OPTIONS, statusColor, statusLabel } from '@/lib/labels';
 
 interface LeadRow {
   id: string;
@@ -62,9 +62,9 @@ export default async function LeadsPage({
               className="mt-1 rounded-md border border-ink-300 px-2 py-1.5"
             >
               <option value="">Todos</option>
-              {Object.entries(LEAD_STATUS).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
+              {LEAD_STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </select>

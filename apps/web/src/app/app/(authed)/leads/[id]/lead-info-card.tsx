@@ -5,15 +5,19 @@ import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
 import { useFeedback } from '@/components/ui/feedback';
-import { LEAD_STATUS } from '@/lib/labels';
+import { LEAD_STATUS_OPTIONS } from '@/lib/labels';
 
 interface LeadInfo {
   id: string;
   name: string;
+  lastName: string | null;
   email: string | null;
   phone: string | null;
   /** Legacy field — no longer surfaced in the create/edit form; shown only when populated. */
   company: string | null;
+  nif: string | null;
+  address: string | null;
+  website: string | null;
   source: string | null;
   status: string;
   ownerId: string | null;
@@ -22,17 +26,18 @@ interface LeadInfo {
   createdAt: string;
 }
 
-const STATUSES = ['NEW', 'CONTACTED', 'QUALIFIED', 'CONVERTED', 'LOST'] as const;
-
 export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
   const router = useRouter();
   const { toast } = useFeedback();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     name: lead.name,
+    lastName: lead.lastName ?? '',
     email: lead.email ?? '',
     phone: lead.phone ?? '',
-    company: lead.company ?? '',
+    nif: lead.nif ?? '',
+    address: lead.address ?? '',
+    website: lead.website ?? '',
     source: lead.source ?? '',
     status: lead.status,
   });
@@ -47,9 +52,12 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
         method: 'PATCH',
         json: {
           name: form.name,
+          lastName: form.lastName || undefined,
           email: form.email || undefined,
           phone: form.phone || undefined,
-          company: form.company || undefined,
+          nif: form.nif || undefined,
+          address: form.address || undefined,
+          website: form.website || undefined,
           source: form.source || undefined,
           status: form.status,
         },
@@ -76,9 +84,17 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
           </button>
         </div>
         <div className="mt-4 space-y-3">
-          <Field label="Nombre" required>
-            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Nombre" required>
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            </Field>
+            <Field label="Apellido">
+              <Input
+                value={form.lastName}
+                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+              />
+            </Field>
+          </div>
           <Field label="Email">
             <Input
               type="email"
@@ -89,14 +105,29 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
           <Field label="Teléfono">
             <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="NIF / CIF">
+              <Input value={form.nif} onChange={(e) => setForm({ ...form, nif: e.target.value })} />
+            </Field>
+            <Field label="Web">
+              <Input
+                value={form.website}
+                onChange={(e) => setForm({ ...form, website: e.target.value })}
+                placeholder="https://"
+              />
+            </Field>
+          </div>
+          <Field label="Dirección">
+            <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+          </Field>
           <Field label="Fuente">
             <Input value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} />
           </Field>
           <Field label="Estado">
             <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {LEAD_STATUS[s]}
+              {LEAD_STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </Select>
@@ -126,8 +157,12 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
         </button>
       </div>
       <dl className="mt-4 space-y-2 text-sm">
+        {lead.lastName && <Row label="Apellido" value={lead.lastName} />}
         <Row label="Email" value={lead.email ?? '—'} />
         <Row label="Teléfono" value={lead.phone ?? '—'} />
+        {lead.nif && <Row label="NIF / CIF" value={lead.nif} />}
+        {lead.website && <Row label="Web" value={lead.website} />}
+        {lead.address && <Row label="Dirección" value={lead.address} />}
         {lead.company && <Row label="Empresa" value={lead.company} />}
         <Row label="Fuente" value={lead.source ?? '—'} />
         <Row label="Creado" value={new Date(lead.createdAt).toLocaleString('es-ES')} />
@@ -135,7 +170,7 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
           <Row label="Contactado" value={new Date(lead.contactedAt).toLocaleString('es-ES')} />
         )}
         {lead.qualifiedAt && (
-          <Row label="Cualificado" value={new Date(lead.qualifiedAt).toLocaleString('es-ES')} />
+          <Row label="Cliente desde" value={new Date(lead.qualifiedAt).toLocaleString('es-ES')} />
         )}
       </dl>
     </Card>

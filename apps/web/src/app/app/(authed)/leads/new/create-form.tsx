@@ -7,7 +7,7 @@ import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primiti
 import { CustomFieldsForm } from '@/components/custom-fields/form';
 import { useFeedback } from '@/components/ui/feedback';
 import { useUnsavedWarning } from '@/lib/use-unsaved-warning';
-import { LEAD_STATUS } from '@/lib/labels';
+import { LEAD_STATUS_OPTIONS } from '@/lib/labels';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
 export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefinition[] }) {
@@ -44,8 +44,12 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
           const data = new FormData(event.currentTarget);
           const payload = {
             name: String(data.get('name') ?? '').trim(),
+            lastName: String(data.get('lastName') ?? '').trim() || undefined,
             email: String(data.get('email') ?? '').trim() || undefined,
             phone: String(data.get('phone') ?? '').trim() || undefined,
+            nif: String(data.get('nif') ?? '').trim() || undefined,
+            address: String(data.get('address') ?? '').trim() || undefined,
+            website: String(data.get('website') ?? '').trim() || undefined,
             source: String(data.get('source') ?? '').trim() || undefined,
             status: (String(data.get('status') ?? '') || undefined) as never,
             customFields: Object.keys(cfValues).length ? cfValues : undefined,
@@ -67,9 +71,14 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
           });
         }}
       >
-        <Field label="Nombre" required>
-          <Input name="name" type="text" required minLength={1} maxLength={150} />
-        </Field>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Nombre" required>
+            <Input name="name" type="text" required minLength={1} maxLength={150} />
+          </Field>
+          <Field label="Apellido">
+            <Input name="lastName" type="text" maxLength={150} />
+          </Field>
+        </div>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Email">
             <Input name="email" type="email" />
@@ -79,14 +88,27 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
           </Field>
         </div>
         <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="NIF / CIF">
+            <Input name="nif" type="text" maxLength={20} />
+          </Field>
+          <Field label="Web">
+            <Input name="website" type="url" placeholder="https://" />
+          </Field>
+        </div>
+        <Field label="Dirección">
+          <Input name="address" type="text" maxLength={255} />
+        </Field>
+        <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Fuente">
             <Input name="source" type="text" placeholder="manual, web, evento, referido…" />
           </Field>
-          <Field label="Estado inicial">
-            <Select name="status" defaultValue="NEW">
-              <option value="NEW">{LEAD_STATUS.NEW}</option>
-              <option value="CONTACTED">{LEAD_STATUS.CONTACTED}</option>
-              <option value="QUALIFIED">{LEAD_STATUS.QUALIFIED}</option>
+          <Field label="Estado" help="Cambia a Cliente cuando cierres la venta o a Perdido si no fragua.">
+            <Select name="status" defaultValue="LEAD">
+              {LEAD_STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </Select>
           </Field>
         </div>

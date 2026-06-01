@@ -111,10 +111,12 @@ export class LeadsService {
       // Auto-stamp transitions
       const now = new Date();
 
-      // When a lead is won (CONVERTED) it becomes a client: link to an existing
-      // client by email, or create one from the lead's data.
+      // When a lead is marked CLIENT it gets mirrored in the Client table for
+      // legacy compatibility (the unified data model lives on Lead, but tasks
+      // and opportunities still reference Client). We try to reuse a matching
+      // client row by email before creating a new one.
       let clientId = lead.clientId ?? undefined;
-      if (data.status === 'CONVERTED' && !lead.clientId) {
+      if (data.status === 'CLIENT' && !lead.clientId) {
         const existing = lead.email
           ? await tx.client.findFirst({ where: { email: lead.email } })
           : null;
@@ -126,6 +128,9 @@ export class LeadsService {
               name: lead.company?.trim() || lead.name,
               email: lead.email,
               phone: lead.phone,
+              nif: lead.nif,
+              address: lead.address,
+              website: lead.website,
               source: lead.source,
               ownerId: lead.ownerId,
               status: 'ACTIVE',
@@ -137,10 +142,11 @@ export class LeadsService {
       const dataWithStamps = {
         ...data,
         customFields: customFields !== undefined ? (customFields as never) : undefined,
+        // Stamp once at the very first non-LEAD transition.
         contactedAt:
-          !lead.contactedAt && data.status && data.status !== 'NEW' ? now : undefined,
+          !lead.contactedAt && data.status && data.status !== 'LEAD' ? now : undefined,
         qualifiedAt:
-          !lead.qualifiedAt && data.status === 'QUALIFIED' ? now : undefined,
+          !lead.qualifiedAt && data.status === 'CLIENT' ? now : undefined,
         clientId,
       };
       return tx.lead.update({ where: { id }, data: dataWithStamps });
@@ -268,6 +274,8 @@ export class LeadsService {
   }
 
   async bulkImport(tenantId: string, input: ImportLeadsInput) {
+    // Validate the OUTER shape only — each row is validated below so one bad
+    // cell doesn't take down the entire batch.
     const data = importLeadsSchema.parse(input);
     // Load custom field definitions once and validate each row in memory so a
     // 1k-row import doesn't hammer the DB.
@@ -288,32 +296,48 @@ export class LeadsService {
     const errors: { row: number; reason: string }[] = [];
     const valid: Array<{
       name: string;
+      lastName?: string;
       email?: string;
       phone?: string;
       company?: string;
+      nif?: string;
+      address?: string;
+      website?: string;
       source: string;
-      status: 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST';
+      status: 'LEAD' | 'CLIENT' | 'LOST';
       ownerId?: string;
       customFields?: Record<string, unknown>;
     }> = [];
 
     for (let i = 0; i < data.leads.length; i += 1) {
-      const l = data.leads[i]!;
+      const raw = data.leads[i]!;
+      const rowLabel = i + 2; // +1 header, +1 1-indexed
       try {
+        const parsed = createLeadSchema.safeParse(raw);
+        if (!parsed.success) {
+          const issue = parsed.error.issues[0];
+          const field = issue?.path?.join('.') ?? 'campo';
+          throw new Error(`${field}: ${issue?.message ?? 'inválido'}`);
+        }
+        const l = parsed.data;
         const customFields = validateCustomFieldsInMemory(definitions, l.customFields);
         valid.push({
           name: l.name,
+          lastName: l.lastName,
           email: l.email,
           phone: l.phone,
           company: l.company,
+          nif: l.nif,
+          address: l.address,
+          website: l.website,
           source: l.source ?? 'import',
-          status: (l.status ?? 'NEW') as 'NEW',
+          status: l.status ?? 'LEAD',
           ownerId: l.ownerId,
           customFields,
         });
       } catch (e) {
         errors.push({
-          row: i + 2, // +1 for header, +1 because rows are 1-indexed for users
+          row: rowLabel,
           reason: e instanceof Error ? e.message : 'Error desconocido',
         });
       }
@@ -328,9 +352,13 @@ export class LeadsService {
         data: valid.map((l) => ({
           tenantId,
           name: l.name,
+          lastName: l.lastName,
           email: l.email,
           phone: l.phone,
           company: l.company,
+          nif: l.nif,
+          address: l.address,
+          website: l.website,
           source: l.source,
           status: l.status,
           ownerId: l.ownerId,
