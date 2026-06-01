@@ -13,13 +13,9 @@ export const AGENT_TOOLS = [
 // (Bot.replyMode). Schema kept for one deploy so old clients still validate.
 export const agentModeSchema = z.enum(['SUGGEST', 'AUTO']);
 export const agentStatusSchema = z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
-// All 15 purposes (funnel pieces) that an Agent can take. Only three are
-// implemented in the runtime so far — see AGENT_TYPE_STATUS below.
+// 12 funnel pieces (Captar removed — Captar will be its own area later).
+// Only three are runtime-ready — see AGENT_TYPE_STATUS.
 export const agentTypeSchema = z.enum([
-  // Captar
-  'CONTENT',
-  'CAMPAIGNS',
-  'PROSPECTING',
   // Calificar
   'TRIAGE',
   'SCORING',
@@ -45,9 +41,6 @@ export const AGENT_TYPE_STATUS: Record<AgentType, 'available' | 'soon'> = {
   CONVERSATIONAL: 'available',
   SCORING: 'available',
   AGENDA_PROPOSAL: 'available',
-  CONTENT: 'soon',
-  CAMPAIGNS: 'soon',
-  PROSPECTING: 'soon',
   TRIAGE: 'soon',
   ENRICHMENT: 'soon',
   FOLLOW_UP: 'soon',

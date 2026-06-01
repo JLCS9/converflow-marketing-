@@ -49,9 +49,7 @@ export default async function NewAgentPage({
         <Link href="/app/agents/new" className="text-sm text-ink-500 hover:text-ink-900">
           ← Cambiar tipo
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-          {meta!.icon} {meta!.label}
-        </h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">{meta!.label}</h1>
         <p className="mt-1 text-sm text-ink-500">{meta!.blurb}</p>
       </div>
       <AgentForm initialType={chosen} lockType />

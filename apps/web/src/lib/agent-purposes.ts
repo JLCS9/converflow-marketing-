@@ -1,145 +1,76 @@
 /**
- * Frontend catalog of agent purposes (the 15 funnel pieces).
+ * Frontend catalog of agent purposes (the 12 funnel pieces).
  * Drives the wizard grid on /app/agents/new + filtering / labels across the
- * app. Mirrors AGENT_TYPE_STATUS in @converflow/shared but adds
- * presentation-only metadata.
+ * app. Mirrors AGENT_TYPE_STATUS in @converflow/shared.
+ *
+ * Layout in the wizard is by funnel stage (column), but each card is tinted
+ * by its *family* — what kind of work it does:
+ *   PEOPLE  → "habla con la gente"     · emerald
+ *   DECIDE  → "puntúa y decide"        · amber
+ *   DATA    → "utilidades de datos"    · ink
  */
 import { AGENT_TYPE_STATUS, type AgentType } from '@converflow/shared';
 
-export type AgentGroup = 'CAPTAR' | 'CALIFICAR' | 'VENDER' | 'FIDELIZAR' | 'TRANSVERSAL';
+export type AgentGroup = 'CALIFICAR' | 'VENDER' | 'FIDELIZAR' | 'TRANSVERSAL';
+export type AgentFamily = 'PEOPLE' | 'DECIDE' | 'DATA';
 
 export interface AgentPurposeMeta {
   type: AgentType;
   group: AgentGroup;
+  family: AgentFamily;
   label: string;
-  /** One-line "what this agent does", shown on the wizard cards. */
+  /** Two- to four-word "what it does" used as the card tagline. */
   blurb: string;
-  /** Emoji shown on the card (optional). */
-  icon?: string;
 }
 
 export const AGENT_PURPOSES: AgentPurposeMeta[] = [
-  // ---- Captar ----
-  {
-    type: 'CONTENT',
-    group: 'CAPTAR',
-    label: 'Contenido',
-    blurb: 'Genera contenidos para tu blog, redes y newsletters.',
-    icon: '✍️',
-  },
-  {
-    type: 'CAMPAIGNS',
-    group: 'CAPTAR',
-    label: 'Campañas',
-    blurb: 'Diseña y ejecuta campañas de captación coherentes.',
-    icon: '📣',
-  },
-  {
-    type: 'PROSPECTING',
-    group: 'CAPTAR',
-    label: 'Prospección',
-    blurb: 'Encuentra leads que encajan con tu cliente ideal.',
-    icon: '🔭',
-  },
   // ---- Calificar ----
-  {
-    type: 'TRIAGE',
-    group: 'CALIFICAR',
-    label: 'Triage',
-    blurb: 'Clasifica mensajes entrantes y los reenvía al responsable.',
-    icon: '🧭',
-  },
-  {
-    type: 'SCORING',
-    group: 'CALIFICAR',
-    label: 'Scoring',
-    blurb: 'Puntúa leads, decide su estado y abre oportunidades en masa.',
-    icon: '🎯',
-  },
-  {
-    type: 'ENRICHMENT',
-    group: 'CALIFICAR',
-    label: 'Enriquecimiento',
-    blurb: 'Completa datos de leads y empresas con fuentes públicas.',
-    icon: '✨',
-  },
+  { type: 'TRIAGE',     group: 'CALIFICAR', family: 'DECIDE', label: 'Triage',         blurb: 'Clasifica y rutea' },
+  { type: 'SCORING',    group: 'CALIFICAR', family: 'DECIDE', label: 'Oportunidades',  blurb: 'Puntúa y abre' },
+  { type: 'ENRICHMENT', group: 'CALIFICAR', family: 'DATA',   label: 'Enriquecimiento', blurb: 'Completa datos' },
   // ---- Vender ----
-  {
-    type: 'CONVERSATIONAL',
-    group: 'VENDER',
-    label: 'Conversacional',
-    blurb: 'Conversa con leads y clientes en los canales del Bot.',
-    icon: '💬',
-  },
-  {
-    type: 'FOLLOW_UP',
-    group: 'VENDER',
-    label: 'Seguimiento',
-    blurb: 'Hace seguimientos en el momento justo, sin perder oportunidades.',
-    icon: '⏰',
-  },
-  {
-    type: 'AGENDA_PROPOSAL',
-    group: 'VENDER',
-    label: 'Agenda + propuesta',
-    blurb: 'Detecta intención, propone huecos del calendario y agenda reuniones.',
-    icon: '📅',
-  },
+  { type: 'CONVERSATIONAL',  group: 'VENDER', family: 'PEOPLE', label: 'Conversacional', blurb: 'Conversa en canales' },
+  { type: 'AGENDA_PROPOSAL', group: 'VENDER', family: 'PEOPLE', label: 'Agenda',         blurb: 'Propone y agenda' },
+  { type: 'FOLLOW_UP',       group: 'VENDER', family: 'PEOPLE', label: 'Seguimiento',    blurb: 'Sigue a tiempo' },
   // ---- Fidelizar ----
-  {
-    type: 'ONBOARDING',
-    group: 'FIDELIZAR',
-    label: 'Onboarding',
-    blurb: 'Acompaña al cliente en sus primeros días con tu producto.',
-    icon: '🤝',
-  },
-  {
-    type: 'SUPPORT',
-    group: 'FIDELIZAR',
-    label: 'Soporte',
-    blurb: 'Resuelve dudas con tu información y escala lo difícil.',
-    icon: '🛟',
-  },
-  {
-    type: 'REACTIVATION',
-    group: 'FIDELIZAR',
-    label: 'Reactivación',
-    blurb: 'Recupera clientes inactivos con razones relevantes.',
-    icon: '🔁',
-  },
+  { type: 'ONBOARDING',   group: 'FIDELIZAR', family: 'PEOPLE', label: 'Onboarding',   blurb: 'Primeros días' },
+  { type: 'SUPPORT',      group: 'FIDELIZAR', family: 'PEOPLE', label: 'Soporte',      blurb: 'Resuelve y escala' },
+  { type: 'REACTIVATION', group: 'FIDELIZAR', family: 'PEOPLE', label: 'Reactivación', blurb: 'Recupera inactivos' },
   // ---- Transversal ----
-  {
-    type: 'DATA_CLEANUP',
-    group: 'TRANSVERSAL',
-    label: 'Limpieza de datos',
-    blurb: 'Normaliza, deduplica y completa registros del CRM.',
-    icon: '🧹',
-  },
-  {
-    type: 'REPORTS',
-    group: 'TRANSVERSAL',
-    label: 'Informes',
-    blurb: 'Genera informes de comercial, marketing y soporte.',
-    icon: '📊',
-  },
-  {
-    type: 'SUMMARIES',
-    group: 'TRANSVERSAL',
-    label: 'Resúmenes',
-    blurb: 'Resume conversaciones, reuniones y documentos largos.',
-    icon: '📝',
-  },
+  { type: 'DATA_CLEANUP', group: 'TRANSVERSAL', family: 'DATA', label: 'Limpieza de datos', blurb: 'Normaliza y dedup.' },
+  { type: 'REPORTS',      group: 'TRANSVERSAL', family: 'DATA', label: 'Informes',          blurb: 'Comercial, marketing' },
+  { type: 'SUMMARIES',    group: 'TRANSVERSAL', family: 'DATA', label: 'Resúmenes',         blurb: 'Charlas y reuniones' },
 ];
 
-export const AGENT_GROUP_META: Record<AgentGroup, { label: string; description: string }> = {
-  CAPTAR: { label: 'Captar', description: 'Atraer leads nuevos.' },
-  CALIFICAR: { label: 'Calificar', description: 'Clasificar y priorizar.' },
-  VENDER: { label: 'Vender', description: 'Cerrar negocio.' },
-  FIDELIZAR: { label: 'Fidelizar', description: 'Cuidar y reactivar clientes.' },
-  TRANSVERSAL: { label: 'Soporte interno · transversal', description: 'Apoya a todos los equipos.' },
+export const AGENT_GROUP_META: Record<AgentGroup, { label: string }> = {
+  CALIFICAR: { label: 'Calificar' },
+  VENDER: { label: 'Vender' },
+  FIDELIZAR: { label: 'Fidelizar' },
+  TRANSVERSAL: { label: 'Soporte interno · transversal' },
 };
 
-export const FUNNEL_GROUPS: AgentGroup[] = ['CAPTAR', 'CALIFICAR', 'VENDER', 'FIDELIZAR'];
+export const FUNNEL_GROUPS: AgentGroup[] = ['CALIFICAR', 'VENDER', 'FIDELIZAR'];
+
+export const FAMILY_META: Record<AgentFamily, { label: string; accent: string; chipBg: string; chipText: string }> = {
+  PEOPLE: {
+    label: 'Habla con la gente',
+    accent: 'border-l-emerald-600',
+    chipBg: 'bg-emerald-50',
+    chipText: 'text-emerald-700',
+  },
+  DECIDE: {
+    label: 'Puntúa y decide',
+    accent: 'border-l-amber-600',
+    chipBg: 'bg-amber-50',
+    chipText: 'text-amber-700',
+  },
+  DATA: {
+    label: 'Utilidades de datos',
+    accent: 'border-l-ink-400',
+    chipBg: 'bg-ink-100',
+    chipText: 'text-ink-700',
+  },
+};
 
 export function purposeMeta(type: AgentType | string): AgentPurposeMeta | undefined {
   return AGENT_PURPOSES.find((p) => p.type === type);

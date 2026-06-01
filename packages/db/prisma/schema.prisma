@@ -352,22 +352,14 @@ enum AgentStatus {
   ARCHIVED
 }
 
-// 15 pieces of the sales funnel as the user sees them.
-// At runtime each value resolves to one of three concrete engines:
-//   SCORING / ENRICHMENT / DATA_CLEANUP / REPORTS / SUMMARIES
-//        → batch runtime (ScoringRunner shape)
-//   CONVERSATIONAL / AGENDA_PROPOSAL / SUPPORT / ONBOARDING /
-//   REACTIVATION / FOLLOW_UP
-//        → conversational runtime
-//   TRIAGE
-//        → triage runtime (future)
-// "Available now" in the UI: CONVERSATIONAL, SCORING, AGENDA_PROPOSAL.
-// The rest are visible as "Próximamente".
+// 12 funnel pieces grouped by visual family in the wizard:
+//   "habla con la gente" → CONVERSATIONAL / AGENDA_PROPOSAL / FOLLOW_UP /
+//                          ONBOARDING / SUPPORT / REACTIVATION
+//   "puntúa y decide"    → TRIAGE / SCORING
+//   "utilidades de datos"→ ENRICHMENT / DATA_CLEANUP / REPORTS / SUMMARIES
+// "Available now": CONVERSATIONAL, SCORING (UI label: Oportunidades),
+// AGENDA_PROPOSAL. The rest render as "Próximamente".
 enum AgentType {
-  // Captar
-  CONTENT
-  CAMPAIGNS
-  PROSPECTING
   // Calificar
   TRIAGE
   SCORING
