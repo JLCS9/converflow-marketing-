@@ -352,10 +352,38 @@ enum AgentStatus {
   ARCHIVED
 }
 
+// 15 pieces of the sales funnel as the user sees them.
+// At runtime each value resolves to one of three concrete engines:
+//   SCORING / ENRICHMENT / DATA_CLEANUP / REPORTS / SUMMARIES
+//        → batch runtime (ScoringRunner shape)
+//   CONVERSATIONAL / AGENDA_PROPOSAL / SUPPORT / ONBOARDING /
+//   REACTIVATION / FOLLOW_UP
+//        → conversational runtime
+//   TRIAGE
+//        → triage runtime (future)
+// "Available now" in the UI: CONVERSATIONAL, SCORING, AGENDA_PROPOSAL.
+// The rest are visible as "Próximamente".
 enum AgentType {
-  CONVERSATIONAL
-  SCORING
+  // Captar
+  CONTENT
+  CAMPAIGNS
+  PROSPECTING
+  // Calificar
   TRIAGE
+  SCORING
+  ENRICHMENT
+  // Vender
+  CONVERSATIONAL
+  FOLLOW_UP
+  AGENDA_PROPOSAL
+  // Fidelizar
+  ONBOARDING
+  SUPPORT
+  REACTIVATION
+  // Transversal
+  DATA_CLEANUP
+  REPORTS
+  SUMMARIES
 }
 
 /// Batch of bulk lead-scoring jobs. The API enqueues one row of N jobs and

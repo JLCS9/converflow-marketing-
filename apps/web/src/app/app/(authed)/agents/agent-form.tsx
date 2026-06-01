@@ -24,7 +24,10 @@ interface AgentConfig {
   mode?: 'SUGGEST' | 'AUTO';
 }
 
-export type AgentType = 'CONVERSATIONAL' | 'SCORING' | 'TRIAGE';
+// AgentType lives in @converflow/shared (15 values). Re-exported for the
+// pages that import { AgentType } from this file (legacy convenience).
+export type { AgentType } from '@converflow/shared';
+import type { AgentType } from '@converflow/shared';
 
 export interface AgentData {
   id: string;
@@ -37,19 +40,43 @@ export interface AgentData {
   config: AgentConfig | null;
 }
 
-const AGENT_TYPE_LABEL: Record<AgentType, string> = {
-  CONVERSATIONAL: 'Conversacional',
-  SCORING: 'Scoring (puntúa leads en masa)',
-  TRIAGE: 'Triage (clasifica y rutea — próximamente)',
-};
+// Three runtime "families" inside the 15 funnel pieces. The form picks fields
+// based on the family, not the raw purpose, so most purposes don't need a
+// dedicated form yet.
+function familyOf(type: AgentType): 'CONVERSATIONAL' | 'AGENDA' | 'SCORING' | 'OTHER' {
+  if (type === 'SCORING') return 'SCORING';
+  if (type === 'AGENDA_PROPOSAL') return 'AGENDA';
+  if (type === 'CONVERSATIONAL') return 'CONVERSATIONAL';
+  return 'OTHER';
+}
 
-const AGENT_TYPE_HELP: Record<AgentType, string> = {
+const SYSTEM_PROMPT_PLACEHOLDER: Partial<Record<AgentType, string>> = {
   CONVERSATIONAL:
-    'Responde mensajes en un canal (WhatsApp, Email, Web Chat). Se asigna a un Bot.',
+    'Eres el asistente comercial de [Empresa]. Hablas en castellano, tono profesional pero cercano. Solo respondes con la información que aparece en "Información de empresa/producto" — si no lo sabes, lo dices y propones contactar con una persona.',
   SCORING:
-    'Procesa leads en masa: puntúa, decide estado y crea oportunidades. Se invoca desde la lista de Leads.',
-  TRIAGE:
-    'Clasifica mensajes entrantes y los rutea al responsable. Runtime en construcción.',
+    [
+      'Para cada lead, sigue estas reglas:',
+      '',
+      "- Si {field.<tu_campo_clave>} indica interés alto → statusDecision: CLIENT",
+      "- Si {field.<tu_campo_clave>} indica rechazo → statusDecision: LOST",
+      '- En cualquier otro caso → statusDecision: LEAD',
+      '',
+      'Crea oportunidad cuando:',
+      '- {lead.score} ≥ 70, o',
+      '- {field.<tu_otro_campo>} sea ...',
+      '',
+      'Nombre de la oportunidad: "{lead.name} · <descripción>"',
+    ].join('\n'),
+  AGENDA_PROPOSAL:
+    [
+      'Eres el asistente comercial de [Empresa]. Tu objetivo es agendar una reunión cuando el lead muestra interés en uno de nuestros productos o servicios.',
+      '',
+      'Dispara la propuesta de reunión cuando:',
+      '- El lead menciona explícitamente un producto/servicio.',
+      '- El lead pide hablar/llamar/quedar.',
+      '',
+      'Flujo: identifica el producto → propón dos huecos del calendario → confirma email → agenda. Si no tenemos email, pídelo educadamente antes de cerrar.',
+    ].join('\n'),
 };
 
 export function AgentForm({
@@ -74,8 +101,10 @@ export function AgentForm({
     setTools((v) => (v.includes(t) ? v.filter((x) => x !== t) : [...v, t]));
   }
 
-  const isConversational = type === 'CONVERSATIONAL';
-  const isScoring = type === 'SCORING';
+  const family = familyOf(type);
+  const isConversational = family === 'CONVERSATIONAL' || family === 'AGENDA';
+  const isScoring = family === 'SCORING';
+  const isAgenda = family === 'AGENDA';
 
   return (
     <Card>
@@ -128,16 +157,21 @@ export function AgentForm({
         }}
       >
         {/* Type picker — hidden when the parent already committed the type
-            (Step 2 of /app/agents/new wizard, where users can come back via
-            "← Cambiar tipo"). On the agent edit page we keep it visible so
-            the user can re-classify an existing agent. */}
+            (Step 2 of /app/agents/new wizard). On edit we keep it visible so
+            the user can re-classify an existing agent — but we only let them
+            choose from the runtime-available purposes. */}
         {!lockType && (
-          <Field label="Tipo de agente" required help={AGENT_TYPE_HELP[type]}>
+          <Field
+            label="Tipo de agente"
+            required
+            help="Solo se muestran los tipos que el runtime ya puede ejecutar. El resto del embudo está en construcción."
+          >
             <Select value={type} onChange={(e) => setType(e.target.value as AgentType)}>
-              <option value="CONVERSATIONAL">{AGENT_TYPE_LABEL.CONVERSATIONAL}</option>
-              <option value="SCORING">{AGENT_TYPE_LABEL.SCORING}</option>
+              <option value="CONVERSATIONAL">💬 Conversacional</option>
+              <option value="SCORING">🎯 Scoring</option>
+              <option value="AGENDA_PROPOSAL">📅 Agenda + propuesta</option>
               <option value="TRIAGE" disabled>
-                {AGENT_TYPE_LABEL.TRIAGE}
+                🧭 Triage · próximamente
               </option>
             </Select>
           </Field>
@@ -188,16 +222,26 @@ export function AgentForm({
           label={
             isScoring
               ? 'Reglas del funnel (system prompt)'
+              : isAgenda
+              ? 'Cuándo y cómo agendar (system prompt)'
               : 'Instrucciones (system prompt)'
           }
           required
           help={
             isScoring
-              ? 'Describe cómo categorizar a tus leads. Ej: "si reserva hecha = sí → CLIENT; vacío → LEAD; no → LOST. Crea oportunidad con name = Admisión [curso] - [nombre]".'
-              : 'Quién es el agente y cómo debe comportarse.'
+              ? 'Describe cómo categorizar tus leads y cuándo crear oportunidades. Puedes referenciar datos del lead con {lead.name}, {lead.email}, {field.<tu_campo>} (próximamente, también campos personalizados).'
+              : isAgenda
+              ? 'Qué tiene que detectar para proponer una reunión y cómo presentar los huecos. La herramienta de agenda está siempre activa para este tipo.'
+              : 'Quién es el agente y cómo debe comportarse. Puedes referenciar datos del lead con {lead.name}, {lead.email}, etc.'
           }
         >
-          <Textarea name="systemPrompt" rows={isScoring ? 8 : 4} required defaultValue={agent?.systemPrompt ?? ''} />
+          <Textarea
+            name="systemPrompt"
+            rows={isScoring || isAgenda ? 8 : 4}
+            required
+            defaultValue={agent?.systemPrompt ?? SYSTEM_PROMPT_PLACEHOLDER[type] ?? ''}
+            placeholder={SYSTEM_PROMPT_PLACEHOLDER[type] ?? ''}
+          />
         </Field>
 
         {isConversational && (
