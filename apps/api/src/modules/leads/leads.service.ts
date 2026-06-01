@@ -128,9 +128,6 @@ export class LeadsService {
               name: lead.company?.trim() || lead.name,
               email: lead.email,
               phone: lead.phone,
-              nif: lead.nif,
-              address: lead.address,
-              website: lead.website,
               source: lead.source,
               ownerId: lead.ownerId,
               status: 'ACTIVE',
@@ -300,9 +297,6 @@ export class LeadsService {
       email?: string;
       phone?: string;
       company?: string;
-      nif?: string;
-      address?: string;
-      website?: string;
       source: string;
       status: 'LEAD' | 'CLIENT' | 'LOST';
       ownerId?: string;
@@ -327,9 +321,6 @@ export class LeadsService {
           email: l.email,
           phone: l.phone,
           company: l.company,
-          nif: l.nif,
-          address: l.address,
-          website: l.website,
           source: l.source ?? 'import',
           status: l.status ?? 'LEAD',
           ownerId: l.ownerId,
@@ -356,9 +347,6 @@ export class LeadsService {
           email: l.email,
           phone: l.phone,
           company: l.company,
-          nif: l.nif,
-          address: l.address,
-          website: l.website,
           source: l.source,
           status: l.status,
           ownerId: l.ownerId,

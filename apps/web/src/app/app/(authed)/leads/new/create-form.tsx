@@ -47,9 +47,6 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
             lastName: String(data.get('lastName') ?? '').trim() || undefined,
             email: String(data.get('email') ?? '').trim() || undefined,
             phone: String(data.get('phone') ?? '').trim() || undefined,
-            nif: String(data.get('nif') ?? '').trim() || undefined,
-            address: String(data.get('address') ?? '').trim() || undefined,
-            website: String(data.get('website') ?? '').trim() || undefined,
             source: String(data.get('source') ?? '').trim() || undefined,
             status: (String(data.get('status') ?? '') || undefined) as never,
             customFields: Object.keys(cfValues).length ? cfValues : undefined,
@@ -87,17 +84,6 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
             <Input name="phone" type="tel" />
           </Field>
         </div>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="NIF / CIF">
-            <Input name="nif" type="text" maxLength={20} />
-          </Field>
-          <Field label="Web">
-            <Input name="website" type="url" placeholder="https://" />
-          </Field>
-        </div>
-        <Field label="Dirección">
-          <Input name="address" type="text" maxLength={255} />
-        </Field>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Fuente">
             <Input name="source" type="text" placeholder="manual, web, evento, referido…" />

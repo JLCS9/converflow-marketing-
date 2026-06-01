@@ -53,7 +53,7 @@ export const FIELD_TYPE_LABEL: Record<CustomFieldType, string> = {
 };
 
 export const ENTITY_LABEL: Record<CustomFieldEntity, string> = {
-  LEAD: 'Leads',
-  CLIENT: 'Clientes',
+  LEAD: 'Leads y Clientes',
+  CLIENT: 'Leads y Clientes',
   OPPORTUNITY: 'Oportunidades',
 };

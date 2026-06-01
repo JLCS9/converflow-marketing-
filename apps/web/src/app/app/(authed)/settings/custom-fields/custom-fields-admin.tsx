@@ -14,7 +14,10 @@ import {
   type CustomFieldType,
 } from '@/components/custom-fields/types';
 
-const ENTITIES: CustomFieldEntity[] = ['LEAD', 'CLIENT', 'OPPORTUNITY'];
+// Lead y Cliente comparten exactamente el mismo set de campos personalizados,
+// así que la pestaña CLIENT desaparece del admin. Las páginas de Cliente
+// siempre cargan definiciones de LEAD.
+const ENTITIES: CustomFieldEntity[] = ['LEAD', 'OPPORTUNITY'];
 const TYPES: CustomFieldType[] = [
   'TEXT',
   'LONGTEXT',

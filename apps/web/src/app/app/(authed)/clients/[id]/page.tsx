@@ -39,7 +39,8 @@ export default async function ClientDetailPage({
     throw err;
   }
   const customFieldDefs = await serverApiFetch<CustomFieldDefinition[]>(
-    '/custom-fields?entityType=CLIENT',
+    // Lead y Cliente comparten campos personalizados (mismo esquema).
+    '/custom-fields?entityType=LEAD',
   ).catch(() => []);
 
   return (
@@ -79,7 +80,7 @@ export default async function ClientDetailPage({
       </div>
 
       <CustomFieldsCard
-        entityType="CLIENT"
+        entityType="LEAD"
         apiBase={`/clients/${client.id}`}
         definitions={customFieldDefs}
         values={client.customFields}

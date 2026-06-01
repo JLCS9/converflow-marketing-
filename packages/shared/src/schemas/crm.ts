@@ -25,11 +25,6 @@ const optionalEmail = z
   .optional()
   .transform((v) => (v ? v : undefined));
 
-const optionalUrl = z
-  .union([z.string().trim().url(), z.literal('')])
-  .optional()
-  .transform((v) => (v ? v : undefined));
-
 const optionalTrimmed = (max: number) =>
   z
     .union([z.string().trim().max(max), z.literal('')])
@@ -42,9 +37,6 @@ export const createLeadSchema = z.object({
   email: optionalEmail,
   phone: optionalTrimmed(40),
   company: optionalTrimmed(150),
-  nif: optionalTrimmed(20),
-  address: optionalTrimmed(255),
-  website: optionalUrl,
   source: optionalTrimmed(60),
   status: incomingStatusSchema.optional(),
   ownerId: z.string().cuid().optional(),

@@ -29,9 +29,6 @@ interface LeadDetail {
   email: string | null;
   phone: string | null;
   company: string | null;
-  nif: string | null;
-  address: string | null;
-  website: string | null;
   source: string | null;
   status: string;
   score: number | null;

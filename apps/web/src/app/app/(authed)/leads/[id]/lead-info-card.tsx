@@ -15,9 +15,6 @@ interface LeadInfo {
   phone: string | null;
   /** Legacy field — no longer surfaced in the create/edit form; shown only when populated. */
   company: string | null;
-  nif: string | null;
-  address: string | null;
-  website: string | null;
   source: string | null;
   status: string;
   ownerId: string | null;
@@ -35,9 +32,6 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
     lastName: lead.lastName ?? '',
     email: lead.email ?? '',
     phone: lead.phone ?? '',
-    nif: lead.nif ?? '',
-    address: lead.address ?? '',
-    website: lead.website ?? '',
     source: lead.source ?? '',
     status: lead.status,
   });
@@ -55,9 +49,6 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
           lastName: form.lastName || undefined,
           email: form.email || undefined,
           phone: form.phone || undefined,
-          nif: form.nif || undefined,
-          address: form.address || undefined,
-          website: form.website || undefined,
           source: form.source || undefined,
           status: form.status,
         },
@@ -105,21 +96,6 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
           <Field label="Teléfono">
             <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </Field>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="NIF / CIF">
-              <Input value={form.nif} onChange={(e) => setForm({ ...form, nif: e.target.value })} />
-            </Field>
-            <Field label="Web">
-              <Input
-                value={form.website}
-                onChange={(e) => setForm({ ...form, website: e.target.value })}
-                placeholder="https://"
-              />
-            </Field>
-          </div>
-          <Field label="Dirección">
-            <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
-          </Field>
           <Field label="Fuente">
             <Input value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} />
           </Field>
@@ -160,9 +136,6 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
         {lead.lastName && <Row label="Apellido" value={lead.lastName} />}
         <Row label="Email" value={lead.email ?? '—'} />
         <Row label="Teléfono" value={lead.phone ?? '—'} />
-        {lead.nif && <Row label="NIF / CIF" value={lead.nif} />}
-        {lead.website && <Row label="Web" value={lead.website} />}
-        {lead.address && <Row label="Dirección" value={lead.address} />}
         {lead.company && <Row label="Empresa" value={lead.company} />}
         <Row label="Fuente" value={lead.source ?? '—'} />
         <Row label="Creado" value={new Date(lead.createdAt).toLocaleString('es-ES')} />

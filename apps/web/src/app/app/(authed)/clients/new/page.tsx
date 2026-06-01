@@ -8,7 +8,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function NewClientPage() {
   const customFields = await serverApiFetch<CustomFieldDefinition[]>(
-    '/custom-fields?entityType=CLIENT',
+    // Lead y Cliente comparten campos personalizados (mismo esquema).
+    '/custom-fields?entityType=LEAD',
   ).catch(() => []);
   return (
     <div className="mx-auto max-w-xl space-y-6">

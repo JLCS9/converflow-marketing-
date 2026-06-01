@@ -383,9 +383,6 @@ model Lead {
   email       String?
   phone       String?
   company     String?
-  nif         String?
-  address     String?
-  website     String?
   source      String?
   status      LeadStatus @default(LEAD)
   score       Int?
