@@ -29,11 +29,13 @@ import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
 import { LeadScoringModule } from './modules/lead-scoring/lead-scoring.module.js';
 import { AiModule } from './common/ai/ai.module.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
+import { GuardsModule } from './common/guards/guards.module.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    GuardsModule,
     AiModule,
     HealthModule,
     AuthModule,
