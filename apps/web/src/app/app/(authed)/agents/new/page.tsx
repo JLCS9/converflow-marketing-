@@ -1,37 +1,27 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { AgentForm } from '../agent-form';
-import { AgentPurposeWizard } from './purpose-wizard';
-import { isAvailable, purposeMeta } from '@/lib/agent-purposes';
-import type { AgentType } from '@converflow/shared';
+import { AgentTemplateWizard } from './purpose-wizard';
+import { findTemplate } from '@/lib/agent-templates';
 
 export const metadata = { title: 'Nuevo agente' };
 
-// Wizard purpose ids (URL ?type=) → real persisted engine + optional
-// template. Once the next commit replaces the wizard with templates, this
-// table goes away — but during Commit A the legacy URLs still work.
-const PURPOSE_TO_ENGINE: Record<string, { engine: AgentType; template?: string }> = {
-  CONVERSATIONAL: { engine: 'CONVERSATIONAL' },
-  AGENDA_PROPOSAL: { engine: 'CONVERSATIONAL', template: 'agenda' },
-  SCORING: { engine: 'OPPORTUNITIES', template: 'oportunidades' },
-};
-
 /**
  * Two-step new-agent flow:
- *  Step 1 (no ?type): funnel grid wizard.
- *  Step 2 (?type=X): the form for the resolved engine.
+ *  Step 1 (no ?template): funnel grid wizard rendered from AGENT_TEMPLATES.
+ *  Step 2 (?template=<id>): form for that template's engine, with defaults
+ *    prefilled (name, system prompt, tools).
  */
 export default async function NewAgentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string }>;
+  searchParams: Promise<{ template?: string }>;
 }) {
-  const { type } = await searchParams;
-  const meta = type ? purposeMeta(type) : undefined;
-  const resolved = meta && isAvailable(meta.type) ? PURPOSE_TO_ENGINE[meta.type] : undefined;
-  const chosen = resolved?.engine ?? null;
+  const { template: tplId } = await searchParams;
+  const tpl = findTemplate(tplId);
 
-  // Step 1 — funnel grid.
-  if (!chosen) {
+  // Step 1.
+  if (!tpl) {
     return (
       <div className="mx-auto max-w-6xl space-y-6">
         <div>
@@ -43,26 +33,34 @@ export default async function NewAgentPage({
           </h1>
           <p className="mt-1 text-sm text-ink-500">
             Elige una pieza del embudo. Las marcadas como{' '}
-            <span className="font-medium text-emerald-700">✓ Disponible</span> ya están listas
-            para usarse.
+            <span className="font-medium text-emerald-700">✓ Disponible</span> ya están
+            listas para usarse.
           </p>
         </div>
-        <AgentPurposeWizard />
+        <AgentTemplateWizard />
       </div>
     );
   }
 
-  // Step 2 — contextual form.
+  // Step 2: the template must be available — non-available cards never
+  // navigate here, but bookmarked URLs / direct hits should land cleanly.
+  if (!tpl.available) {
+    notFound();
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <Link href="/app/agents/new" className="text-sm text-ink-500 hover:text-ink-900">
           ← Cambiar tipo
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">{meta!.label}</h1>
-        <p className="mt-1 text-sm text-ink-500">{meta!.blurb}</p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">{tpl.label}</h1>
+        <p className="mt-1 text-sm text-ink-500">{tpl.subtitle}</p>
       </div>
-      <AgentForm initialType={chosen} lockType />
+      {/* The opportunities-engine form lands in Commit D; for now both engines
+         share the same AgentForm and we pass the template through so the
+         next commit can swap it for OpportunitiesAgentForm. */}
+      <AgentForm initialType={tpl.engine} lockType template={tpl} />
     </div>
   );
 }

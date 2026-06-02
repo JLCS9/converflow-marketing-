@@ -71,12 +71,16 @@ export function AgentForm({
   agent,
   initialType,
   lockType,
+  template,
 }: {
   agent?: AgentData;
   initialType?: AgentType;
   /** When true the Type select doesn't render (Step 2 of the new-agent wizard
    *  has the type already committed). */
   lockType?: boolean;
+  /** Wizard template that produced this form. Defaults (name, prompt, tools)
+   *  + the "Plantilla X" banner come from here in Commit C. */
+  template?: { id: string; label: string; defaults?: { name?: string; systemPrompt?: string; tools?: string[] } };
 }) {
   const router = useRouter();
   const cfg = agent?.config ?? {};

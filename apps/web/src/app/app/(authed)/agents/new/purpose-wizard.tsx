@@ -2,38 +2,41 @@
 
 import Link from 'next/link';
 import {
-  AGENT_GROUP_META,
-  AGENT_PURPOSES,
+  AGENT_TEMPLATES,
   FAMILY_META,
-  FUNNEL_GROUPS,
-  isAvailable,
-  type AgentPurposeMeta,
-} from '@/lib/agent-purposes';
+  FUNNEL_STAGE_META,
+  VISIBLE_STAGES,
+  type AgentTemplate,
+} from '@/lib/agent-templates';
 
 /**
- * Funnel wizard — uses the same Card / pill vocabulary as the rest of the
- * app: white surface, ink border, subtle hover. Family is communicated with
- * a 3px left accent + a chip tagline.
+ * Funnel wizard rendered straight from AGENT_TEMPLATES. Three stage columns
+ * + a transversal row underneath. Cards reuse the rest of the app's design
+ * language (white surface, ink border, family accent on the left edge).
+ *
+ * Click on `available` → /app/agents/new?template=<id>.
+ * Click on non-available → no navigation, no form. Just a "Próximamente"
+ * tooltip.
  */
-export function AgentPurposeWizard() {
-  const cols = FUNNEL_GROUPS.map((g) => ({
-    group: g,
-    meta: AGENT_GROUP_META[g],
-    items: AGENT_PURPOSES.filter((p) => p.group === g),
+export function AgentTemplateWizard() {
+  const byStage = VISIBLE_STAGES.map((stage) => ({
+    stage,
+    meta: FUNNEL_STAGE_META[stage],
+    items: AGENT_TEMPLATES.filter((t) => t.funnelStage === stage),
   }));
-  const transversal = AGENT_PURPOSES.filter((p) => p.group === 'TRANSVERSAL');
+  const transversal = AGENT_TEMPLATES.filter((t) => t.funnelStage === 'TRANSVERSAL');
 
   return (
     <div className="space-y-6">
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {cols.map(({ group, meta, items }) => (
-          <section key={group} className="space-y-2">
+        {byStage.map(({ stage, meta, items }) => (
+          <section key={stage} className="space-y-2">
             <h2 className="text-xs font-mono uppercase tracking-wider text-ink-500">
               {meta.label}
             </h2>
             <div className="space-y-2">
-              {items.map((p) => (
-                <PurposeCard key={p.type} meta={p} />
+              {items.map((t) => (
+                <TemplateCard key={t.id} tpl={t} />
               ))}
             </div>
           </section>
@@ -42,11 +45,11 @@ export function AgentPurposeWizard() {
 
       <section className="space-y-2 border-t border-ink-100 pt-5">
         <h2 className="text-xs font-mono uppercase tracking-wider text-ink-500">
-          {AGENT_GROUP_META.TRANSVERSAL.label}
+          {FUNNEL_STAGE_META.TRANSVERSAL.label}
         </h2>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {transversal.map((p) => (
-            <PurposeCard key={p.type} meta={p} />
+          {transversal.map((t) => (
+            <TemplateCard key={t.id} tpl={t} />
           ))}
         </div>
       </section>
@@ -56,21 +59,19 @@ export function AgentPurposeWizard() {
   );
 }
 
-function PurposeCard({ meta }: { meta: AgentPurposeMeta }) {
-  const available = isAvailable(meta.type);
-  const fam = FAMILY_META[meta.family];
-
+function TemplateCard({ tpl }: { tpl: AgentTemplate }) {
+  const fam = FAMILY_META[tpl.family];
   const base =
     'group block rounded-lg border border-ink-100 border-l-4 bg-white px-3 py-2.5 transition-colors';
-  const interactive = available
+  const interactive = tpl.available
     ? 'cursor-pointer hover:border-primary-300 hover:shadow-sm focus-visible:border-primary-400 focus-visible:outline-none'
     : 'cursor-not-allowed opacity-60';
 
   const inner = (
     <div>
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-sm font-medium text-ink-900">{meta.label}</span>
-        {available ? (
+        <span className="truncate text-sm font-medium text-ink-900">{tpl.label}</span>
+        {tpl.available ? (
           <span className="shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
             Disponible
           </span>
@@ -80,11 +81,11 @@ function PurposeCard({ meta }: { meta: AgentPurposeMeta }) {
           </span>
         )}
       </div>
-      <div className="mt-0.5 text-xs text-ink-500">{meta.blurb}</div>
+      <div className="mt-0.5 text-xs text-ink-500">{tpl.subtitle}</div>
     </div>
   );
 
-  if (!available) {
+  if (!tpl.available) {
     return (
       <div
         className={`${base} ${fam.accent} ${interactive}`}
@@ -97,7 +98,10 @@ function PurposeCard({ meta }: { meta: AgentPurposeMeta }) {
   }
 
   return (
-    <Link href={`/app/agents/new?type=${meta.type}`} className={`${base} ${fam.accent} ${interactive}`}>
+    <Link
+      href={`/app/agents/new?template=${tpl.id}`}
+      className={`${base} ${fam.accent} ${interactive}`}
+    >
       {inner}
     </Link>
   );
