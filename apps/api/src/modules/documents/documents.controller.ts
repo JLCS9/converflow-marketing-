@@ -2,7 +2,7 @@ import { Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@ne
 import { ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { BadRequestError } from '@converflow/shared';
-import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
+import { TenantOrApiKeyGuard } from '../../common/guards/tenant-or-api-key.guard.js';
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
 import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import {
@@ -23,9 +23,9 @@ type MultipartFile = {
 };
 
 @ApiTags('documents')
-@UseGuards(TenantAuthGuard, PermissionsGuard)
+@UseGuards(TenantOrApiKeyGuard, PermissionsGuard)
 @RequirePerm('documents')
-@Controller('documents')
+@Controller(['documents', 'v1/documents'])
 export class DocumentsController {
   constructor(private readonly docs: DocumentsService) {}
 

@@ -7,5 +7,6 @@ export * from './schemas/agent';
 export * from './schemas/custom-fields';
 export * from './schemas/pipelines';
 export * from './schemas/permissions';
+export * from './schemas/api-keys';
 export * from './utils';
 export * as constants from './constants';

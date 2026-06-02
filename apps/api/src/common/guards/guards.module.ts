@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { TenantAuthGuard } from './tenant-auth.guard.js';
 import { PermissionsGuard } from './permissions.guard.js';
+import { TenantOrApiKeyGuard } from './tenant-or-api-key.guard.js';
 
 /**
  * Global module that exposes the auth guards everywhere. Without this,
@@ -15,7 +16,7 @@ import { PermissionsGuard } from './permissions.guard.js';
  */
 @Global()
 @Module({
-  providers: [TenantAuthGuard, PermissionsGuard],
-  exports: [TenantAuthGuard, PermissionsGuard],
+  providers: [TenantAuthGuard, PermissionsGuard, TenantOrApiKeyGuard],
+  exports: [TenantAuthGuard, PermissionsGuard, TenantOrApiKeyGuard],
 })
 export class GuardsModule {}

@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
+import { TenantOrApiKeyGuard } from '../../common/guards/tenant-or-api-key.guard.js';
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
 import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import {
@@ -10,9 +10,9 @@ import {
 import { TasksService } from './tasks.service.js';
 
 @ApiTags('tasks')
-@UseGuards(TenantAuthGuard, PermissionsGuard)
+@UseGuards(TenantOrApiKeyGuard, PermissionsGuard)
 @RequirePerm('crm')
-@Controller('tasks')
+@Controller(['tasks', 'v1/tasks'])
 export class TasksController {
   constructor(private readonly tasks: TasksService) {}
 

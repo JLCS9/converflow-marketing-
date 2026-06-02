@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
+import { TenantOrApiKeyGuard } from '../../common/guards/tenant-or-api-key.guard.js';
+import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
+import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import {
   CurrentUser,
   type AuthenticatedUser,
@@ -8,8 +10,9 @@ import {
 import { NotesService } from './notes.service.js';
 
 @ApiTags('notes')
-@UseGuards(TenantAuthGuard)
-@Controller('notes')
+@UseGuards(TenantOrApiKeyGuard, PermissionsGuard)
+@RequirePerm('crm')
+@Controller(['notes', 'v1/notes'])
 export class NotesController {
   constructor(private readonly notes: NotesService) {}
 

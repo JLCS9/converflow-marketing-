@@ -125,6 +125,7 @@ model Tenant {
 
   users         User[]
   invitations   TenantInvitation[]
+  apiKeys       ApiKey[]
   bots          Bot[]
   agents        Agent[]
   accessLogs    AccessLog[]
@@ -226,6 +227,32 @@ model TenantInvitation {
   @@index([tenantId])
   @@index([token])
   @@map("tenant_invitations")
+}
+
+/// Long-lived bearer token for the public REST API.
+/// `prefix` is the visible "cfai_XXXXX" portion shown in the UI and used to
+/// look up the row before doing a constant-time hash compare against
+/// `keyHash` (sha256 of the full secret). The plaintext is shown to the
+/// admin once at creation and never stored.
+model ApiKey {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  prefix      String    @unique
+  keyHash     String
+  /// Array of PermissionModule strings (same enum used for users).
+  scopes      Json
+  createdBy   String
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  revokedBy   String?
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId])
+  @@index([prefix])
+  @@map("api_keys")
 }
 
 // Kit Digital requirement: per-user access logs, stored in DB,

@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
+import { TenantOrApiKeyGuard } from '../../common/guards/tenant-or-api-key.guard.js';
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
 import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import {
@@ -10,9 +10,12 @@ import {
 import { LeadsService } from './leads.service.js';
 
 @ApiTags('leads')
-@UseGuards(TenantAuthGuard, PermissionsGuard)
+// Hybrid guard: cookie session (web) OR Authorization: Bearer cfai_*
+// (third-party integration). The PermissionsGuard then checks the
+// resolved permissions/scopes against @RequirePerm.
+@UseGuards(TenantOrApiKeyGuard, PermissionsGuard)
 @RequirePerm('crm')
-@Controller('leads')
+@Controller(['leads', 'v1/leads'])
 export class LeadsController {
   constructor(private readonly leads: LeadsService) {}
 
