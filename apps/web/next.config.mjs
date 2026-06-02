@@ -8,17 +8,14 @@ const nextConfig = {
   // — a missing rule plugin or unused-var warning shouldn't fail the deploy.
   eslint: { ignoreDuringBuilds: true },
   transpilePackages: ['@converflow/shared'],
-  async redirects() {
-    // Backwards-compat: some bookmarks point to /auth/login and
-    // /admin/auth/login (legacy paths that never existed in this codebase
-    // but show up in browsers because the API endpoints have the same
-    // path under a different host). Permanent redirect to the real ones
-    // so users don't hit a 404.
-    return [
-      { source: '/auth/login', destination: '/login', permanent: true },
-      { source: '/admin/auth/login', destination: '/admin/login', permanent: true },
-    ];
-  },
+  // NOTE: do NOT add a redirect for /auth/login here. The form hits
+  // /auth/login with an XHR POST because NEXT_PUBLIC_API_URL is empty
+  // in the current build and the call goes to the same origin; Nginx
+  // upstream forwards it to api.converflow.ai. Returning a 308 from
+  // Next would re-issue the POST to /login (a GET-only page) and
+  // every login would 405. Bookmarks to /auth/login in the browser
+  // bar will hit Nginx the same way and the API will respond per its
+  // own routes.
   async rewrites() {
     // /api/* rewrite is only for local dev so the browser hits the same origin
     // as the Next app (cookies travel). In prod the web calls api.converflow.ai
