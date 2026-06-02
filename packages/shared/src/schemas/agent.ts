@@ -35,6 +35,8 @@ export const productOwnerSchema = z.object({
   keywords: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
 });
 
+export const leadSourceSchema = z.enum(['IMPORT', 'AUTOMATIC']);
+
 export const agentConfigSchema = z.object({
   // CONVERSATIONAL
   language: z.string().trim().max(20).optional(),
@@ -44,10 +46,25 @@ export const agentConfigSchema = z.object({
   aiDisclosure: z.string().trim().max(500).optional(),
   tools: z.array(z.enum(AGENT_TOOLS)).max(AGENT_TOOLS.length).optional(),
   mode: agentModeSchema.optional(),
-  // SCORING
+  // OPPORTUNITIES — legacy "default" flags kept for the bulk-score modal.
   defaultPipelineId: z.string().cuid().optional(),
   defaultUpdateStatus: z.boolean().optional(),
   defaultCreateOpportunities: z.boolean().optional(),
+  // OPPORTUNITIES — new opportunity-engine fields (Commit D).
+  /** Where leads come from. IMPORT = CSV upload, AUTOMATIC = inbound channels. */
+  leadSource: leadSourceSchema.optional(),
+  /** Score ≥ thresholdClient → state = CLIENT. */
+  thresholdClient: z.number().int().min(0).max(100).optional(),
+  /** Score ≤ thresholdLost → state = LOST. Anything in between stays LEAD. */
+  thresholdLost: z.number().int().min(0).max(100).optional(),
+  /** Open an opportunity when the score is decided. */
+  actionOpenOpportunity: z.boolean().optional(),
+  /** Assign owner from the opportunity defaults. */
+  actionAssignOwner: z.boolean().optional(),
+  /** Create a follow-up task when score is above this threshold (off when undefined). */
+  actionCreateTaskAbove: z.number().int().min(0).max(100).optional(),
+  /** Vigilancia: open a task if an opportunity goes N days without activity. */
+  watcherDaysWithoutActivity: z.number().int().min(0).max(365).optional(),
   // AGENDA_PROPOSAL
   invitationTemplate: z.string().trim().max(2000).optional(),
   productOwners: z.array(productOwnerSchema).max(50).optional(),

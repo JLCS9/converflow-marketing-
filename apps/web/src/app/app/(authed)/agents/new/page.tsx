@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AgentForm } from '../agent-form';
+import { OpportunitiesAgentForm } from '../opportunities-agent-form';
 import { AgentTemplateWizard } from './purpose-wizard';
 import { findTemplate } from '@/lib/agent-templates';
 
@@ -57,10 +58,11 @@ export default async function NewAgentPage({
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">{tpl.label}</h1>
         <p className="mt-1 text-sm text-ink-500">{tpl.subtitle}</p>
       </div>
-      {/* The opportunities-engine form lands in Commit D; for now both engines
-         share the same AgentForm and we pass the template through so the
-         next commit can swap it for OpportunitiesAgentForm. */}
-      <AgentForm initialType={tpl.engine} lockType template={tpl} />
+      {tpl.engine === 'OPPORTUNITIES' ? (
+        <OpportunitiesAgentForm template={tpl} />
+      ) : (
+        <AgentForm initialType={tpl.engine} lockType template={tpl} />
+      )}
     </div>
   );
 }
