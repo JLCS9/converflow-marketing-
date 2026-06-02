@@ -9,8 +9,16 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   transpilePackages: ['@converflow/shared'],
   async rewrites() {
-    // In dev, proxy /api/* to the NestJS API so cookies share the same origin.
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+    // /api/* rewrite is only for local dev so the browser hits the same origin
+    // as the Next app (cookies travel). In prod the web calls api.converflow.ai
+    // directly via NEXT_PUBLIC_API_URL — no rewrite needed.
+    //
+    // Guarding both with NODE_ENV and a defensive `||` (not `??`) so an empty
+    // env var doesn't slip an "" destination into the rewrite, which makes
+    // Next 15's page-data collection throw `TypeError: Invalid URL` and break
+    // the whole production build.
+    if (process.env.NODE_ENV === 'production') return [];
+    const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim() || 'http://localhost:4000';
     return [
       {
         source: '/api/:path*',
