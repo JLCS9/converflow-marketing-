@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { TabBar, CRM_TABS } from '@/components/ui/tab-bar';
 import { LEAD_STATUS, LEAD_STATUS_COLOR, LEAD_STATUS_OPTIONS, statusColor, statusLabel } from '@/lib/labels';
 import { LeadsPagination } from './pagination';
-import { BulkScoreButton } from './bulk-score-button';
+import { LeadsTopActions } from './leads-top-actions';
 
 interface LeadRow {
   id: string;
@@ -90,15 +90,11 @@ export default async function LeadsPage({
             : `${total} ${total === 1 ? 'lead en total' : 'leads en total'} · mostrando ${rangeFrom}–${rangeTo}.`
         }
         action={
-          <div className="flex flex-wrap gap-2">
-            <BulkScoreButton agents={agents} total={total} filterQs={filterQs.toString()} />
-            <Link href="/app/leads/import" className={buttonClass('secondary')}>
-              ⤒ Importar CSV
-            </Link>
-            <Link href="/app/leads/new" className={buttonClass('primary')}>
-              + Nuevo lead
-            </Link>
-          </div>
+          <LeadsTopActions
+            agents={agents}
+            total={total}
+            filterQs={filterQs.toString()}
+          />
         }
       />
 

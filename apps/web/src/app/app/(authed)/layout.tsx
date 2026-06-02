@@ -2,13 +2,15 @@ import { redirect } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { AppShell } from './app-shell';
 import { FeedbackProvider } from '@/components/ui/feedback';
+import { SessionProvider, type SessionUser } from '@/lib/session-context';
 
 interface MeResponse {
   user: {
     userId: string;
     tenantId: string;
     email: string;
-    role: string;
+    role: SessionUser['role'];
+    permissions: SessionUser['permissions'];
     mustChangePassword?: boolean;
   };
 }
@@ -53,18 +55,28 @@ export default async function TenantAuthedLayout({
     convPending = 0;
   }
 
+  const sessionUser: SessionUser = {
+    userId: me.user.userId,
+    tenantId: me.user.tenantId,
+    email: me.user.email,
+    role: me.user.role,
+    permissions: me.user.permissions ?? [],
+  };
+
   return (
     <FeedbackProvider>
-      <AppShell
-        tenantName={tenant.name}
-        userEmail={me.user.email}
-        userRole={me.user.role}
-        mustChangePassword={!!me.user.mustChangePassword}
-        convPending={convPending}
-        alertCount={alertCount}
-      >
-        {children}
-      </AppShell>
+      <SessionProvider user={sessionUser}>
+        <AppShell
+          tenantName={tenant.name}
+          userEmail={me.user.email}
+          userRole={me.user.role}
+          mustChangePassword={!!me.user.mustChangePassword}
+          convPending={convPending}
+          alertCount={alertCount}
+        >
+          {children}
+        </AppShell>
+      </SessionProvider>
     </FeedbackProvider>
   );
 }

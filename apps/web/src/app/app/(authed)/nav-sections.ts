@@ -1,6 +1,10 @@
+import type { PermissionModule } from '@converflow/shared';
+
 export interface NavItem {
   href: string;
   label: string;
+  /** Modules required to show this item (ANY match is enough). */
+  requires?: PermissionModule[];
 }
 
 export interface NavSection {
@@ -10,6 +14,8 @@ export interface NavSection {
   defaultHref: string;
   /** Routes that belong to this section (used for active highlight). */
   routes: string[];
+  /** Modules required to show this section in the sidebar (ANY match). */
+  requires?: PermissionModule[];
 }
 
 // Flat sidebar: each section is a single entry. The actual sub-navigation
@@ -24,15 +30,23 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'CRM',
     defaultHref: '/app/leads',
     routes: ['/app/leads', '/app/opportunities', '/app/clients'],
+    requires: ['crm'],
   },
   {
     key: 'ia',
     label: 'IA',
     defaultHref: '/app/bots',
     routes: ['/app/bots', '/app/agents'],
+    requires: ['agents', 'bots'],
   },
 ];
 
+/**
+ * Settings still needs ANY of `settings` or `users` to show — the section
+ * itself is multi-purpose (custom fields, pipelines, user management,
+ * profile). /app/profile is always reachable directly, so even users
+ * without settings/users can still get to their own profile.
+ */
 export const SETTINGS_SECTION: NavSection = {
   key: 'config',
   label: 'Configuración',
@@ -44,6 +58,7 @@ export const SETTINGS_SECTION: NavSection = {
     '/app/settings/custom-fields',
     '/app/settings/pipelines',
   ],
+  requires: ['settings', 'users'],
 };
 
 export function isItemActive(pathname: string, href: string): boolean {

@@ -18,6 +18,8 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
+import { useSession } from '@/lib/session-context';
+import type { PermissionModule } from '@converflow/shared';
 import {
   NAV_SECTIONS,
   SETTINGS_SECTION,
@@ -25,6 +27,12 @@ import {
   isSectionActive,
   type NavSection,
 } from './nav-sections';
+
+/** ANY-match permission gate. Sections with no `requires` are always shown. */
+function hasAny(perms: PermissionModule[], required?: PermissionModule[]): boolean {
+  if (!required || required.length === 0) return true;
+  return required.some((m) => perms.includes(m));
+}
 
 type IconType = ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 
@@ -34,11 +42,21 @@ const sectionIcons: Record<string, IconType> = {
   config: Settings,
 };
 
-const createItems: { href: string; label: string; icon: IconType }[] = [
-  { href: '/app/leads/new', label: 'Nuevo lead', icon: Contact },
-  { href: '/app/tasks/new', label: 'Nueva tarea', icon: ListChecks },
-  { href: '/app/opportunities/new', label: 'Nueva oportunidad', icon: Target },
-  { href: '/app/bots/new', label: 'Nuevo bot', icon: Bot },
+const createItems: {
+  href: string;
+  label: string;
+  icon: IconType;
+  requires?: PermissionModule[];
+}[] = [
+  { href: '/app/leads/new', label: 'Nuevo lead', icon: Contact, requires: ['crm'] },
+  { href: '/app/tasks/new', label: 'Nueva tarea', icon: ListChecks, requires: ['crm'] },
+  {
+    href: '/app/opportunities/new',
+    label: 'Nueva oportunidad',
+    icon: Target,
+    requires: ['crm'],
+  },
+  { href: '/app/bots/new', label: 'Nuevo bot', icon: Bot, requires: ['bots'] },
 ];
 
 function Count({ n, color }: { n: number; color: 'blue' | 'red' }) {
@@ -84,6 +102,17 @@ export function SidebarNav({
   alertCount: number;
 }) {
   const pathname = usePathname() ?? '';
+  const session = useSession();
+  const perms = session.permissions;
+  const isOwner = session.role === 'OWNER';
+  const visibleCreate = createItems.filter(
+    (c) => isOwner || hasAny(perms, c.requires),
+  );
+  const visibleSections = NAV_SECTIONS.filter(
+    (s) => isOwner || hasAny(perms, s.requires),
+  );
+  const showConversations = isOwner || perms.includes('conversations');
+  const showSettings = isOwner || hasAny(perms, SETTINGS_SECTION.requires);
   const [pending, setPending] = useState(convPending);
   const [menu, setMenu] = useState(false);
 
@@ -107,66 +136,72 @@ export function SidebarNav({
 
   return (
     <>
-      <div className="relative shrink-0 px-3 pb-1 pt-3">
-        <button
-          type="button"
-          onClick={() => setMenu((m) => !m)}
-          aria-haspopup="menu"
-          aria-expanded={menu}
-          aria-label="Atajos de creación"
-          title="Atajos de creación"
-          className="flex w-full items-center justify-center gap-2 rounded-md bg-ink-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-700"
-        >
-          <Plus size={16} strokeWidth={1.75} aria-hidden /> Crear
-          <ChevronRight
-            size={14}
-            strokeWidth={1.75}
-            aria-hidden
-            className={`transition-transform ${menu ? 'rotate-90' : ''}`}
-          />
-        </button>
-        {menu && (
-          <div
-            className="absolute left-3 right-3 z-20 mt-1 rounded-md border border-ink-100 bg-white p-1 shadow-[0_4px_12px_-2px_rgb(10_10_10/.10)]"
-            onMouseLeave={() => setMenu(false)}
+      {visibleCreate.length > 0 && (
+        <div className="relative shrink-0 px-3 pb-1 pt-3">
+          <button
+            type="button"
+            onClick={() => setMenu((m) => !m)}
+            aria-haspopup="menu"
+            aria-expanded={menu}
+            aria-label="Atajos de creación"
+            title="Atajos de creación"
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-ink-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-700"
           >
-            {createItems.map((c) => (
-              <Link
-                key={c.href}
-                href={c.href}
-                onClick={() => setMenu(false)}
-                className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-ink-700 hover:bg-ink-100"
-              >
-                <c.icon size={16} strokeWidth={1.75} aria-hidden />
-                {c.label}
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+            <Plus size={16} strokeWidth={1.75} aria-hidden /> Crear
+            <ChevronRight
+              size={14}
+              strokeWidth={1.75}
+              aria-hidden
+              className={`transition-transform ${menu ? 'rotate-90' : ''}`}
+            />
+          </button>
+          {menu && (
+            <div
+              className="absolute left-3 right-3 z-20 mt-1 rounded-md border border-ink-100 bg-white p-1 shadow-[0_4px_12px_-2px_rgb(10_10_10/.10)]"
+              onMouseLeave={() => setMenu(false)}
+            >
+              {visibleCreate.map((c) => (
+                <Link
+                  key={c.href}
+                  href={c.href}
+                  onClick={() => setMenu(false)}
+                  className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-ink-700 hover:bg-ink-100"
+                >
+                  <c.icon size={16} strokeWidth={1.75} aria-hidden />
+                  {c.label}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-4 pt-2 text-sm">
         <Link href="/app" className={itemCls(pathname === '/app')}>
           <Home size={18} strokeWidth={1.75} aria-hidden />
           <span>Inicio</span>
         </Link>
-        <Link
-          href="/app/conversations"
-          className={itemCls(pathname.startsWith('/app/conversations'))}
-        >
-          <MessageCircle size={18} strokeWidth={1.75} aria-hidden />
-          <span>Conversaciones</span>
-          <Count n={pending} color="blue" />
-        </Link>
+        {showConversations && (
+          <Link
+            href="/app/conversations"
+            className={itemCls(pathname.startsWith('/app/conversations'))}
+          >
+            <MessageCircle size={18} strokeWidth={1.75} aria-hidden />
+            <span>Conversaciones</span>
+            <Count n={pending} color="blue" />
+          </Link>
+        )}
         <Link href="/app/alerts" className={itemCls(pathname.startsWith('/app/alerts'))}>
           <Bell size={18} strokeWidth={1.75} aria-hidden />
           <span>Alertas</span>
           <Count n={alertCount} color="red" />
         </Link>
 
-        <div className="my-2 border-t border-ink-100" aria-hidden />
+        {visibleSections.length > 0 && (
+          <div className="my-2 border-t border-ink-100" aria-hidden />
+        )}
 
-        {NAV_SECTIONS.map((s) => (
+        {visibleSections.map((s) => (
           <SectionLink key={s.key} section={s} pathname={pathname} />
         ))}
       </nav>
@@ -177,7 +212,7 @@ export function SidebarNav({
           <HelpCircle size={18} strokeWidth={1.75} aria-hidden />
           <span>Ayuda</span>
         </Link>
-        <SectionLink section={SETTINGS_SECTION} pathname={pathname} />
+        {showSettings && <SectionLink section={SETTINGS_SECTION} pathname={pathname} />}
       </div>
     </>
   );
