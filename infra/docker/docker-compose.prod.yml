@@ -93,9 +93,11 @@ services:
       args:
         # Next.js inlines NEXT_PUBLIC_* at build time, so we must pass them as
         # build-time args. Runtime env_file values are read by the server but
-        # NOT by the already-bundled client.
+        # NOT by the already-bundled client. The build aborts if these don't
+        # look like real https URLs in production (see web.Dockerfile).
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+        REQUIRE_PUBLIC_HTTPS: "1"
     image: cfai-web:latest
     container_name: cfai-web
     restart: unless-stopped
