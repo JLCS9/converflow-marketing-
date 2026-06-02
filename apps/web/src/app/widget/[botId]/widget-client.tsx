@@ -159,6 +159,15 @@ export function WebchatWidget({ botId }: { botId: string }) {
               la conversación si se cae la conexión.
             </p>
           </div>
+          <div
+            role="note"
+            aria-label="Aviso de uso de IA"
+            className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"
+          >
+            <strong>Asistente de IA.</strong> Vas a hablar con un asistente
+            de inteligencia artificial. Puede cometer errores; si necesitas
+            ayuda de una persona, pídelo en el chat y te derivamos.
+          </div>
           <label className="block">
             <span className="text-xs text-ink-500">Nombre</span>
             <input

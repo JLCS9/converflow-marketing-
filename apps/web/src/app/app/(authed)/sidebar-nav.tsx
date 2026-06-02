@@ -15,6 +15,7 @@ import {
   Contact,
   ListChecks,
   Target,
+  HelpCircle,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import {
@@ -170,8 +171,12 @@ export function SidebarNav({
         ))}
       </nav>
 
-      {/* Configuración pinned to the bottom — primary nav stays uncluttered. */}
-      <div className="shrink-0 border-t border-ink-100 px-3 py-2 text-sm">
+      {/* Ayuda + Configuración pinned to the bottom — primary nav stays uncluttered. */}
+      <div className="shrink-0 space-y-0.5 border-t border-ink-100 px-3 py-2 text-sm">
+        <Link href="/app/ayuda" className={itemCls(pathname.startsWith('/app/ayuda'))}>
+          <HelpCircle size={18} strokeWidth={1.75} aria-hidden />
+          <span>Ayuda</span>
+        </Link>
         <SectionLink section={SETTINGS_SECTION} pathname={pathname} />
       </div>
     </>

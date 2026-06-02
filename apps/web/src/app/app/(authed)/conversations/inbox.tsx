@@ -320,6 +320,15 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
             )}
 
             <div className="flex-1 space-y-2 overflow-y-auto bg-ink-100/20 p-4">
+              <div
+                role="note"
+                aria-label="Aviso de uso de IA"
+                className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900"
+              >
+                <strong>Aviso IA.</strong> Algunas respuestas de este chat pueden
+                generarse automáticamente con un asistente de IA. Las marcadas
+                con la etiqueta IA están generadas por el modelo.
+              </div>
               {thread.messages.map((m) => (
                 <div key={m.id} className={`flex ${m.direction === 'OUT' ? 'justify-end' : 'justify-start'}`}>
                   <div

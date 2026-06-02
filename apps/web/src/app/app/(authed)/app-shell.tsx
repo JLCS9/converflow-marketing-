@@ -68,6 +68,17 @@ export function AppShell({
           {userRole}
         </div>
         <LogoutButton />
+        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-ink-400">
+          <Link href="/app/ayuda" className="hover:text-ink-700">
+            Ayuda
+          </Link>
+          <Link href="/ai-disclosure" target="_blank" className="hover:text-ink-700">
+            Aviso IA
+          </Link>
+          <Link href="/privacy" target="_blank" className="hover:text-ink-700">
+            Privacidad
+          </Link>
+        </div>
       </div>
     </>
   );
@@ -116,6 +127,17 @@ export function AppShell({
             {userRole}
           </div>
           <LogoutButton />
+          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-ink-400">
+            <Link href="/app/ayuda" className="hover:text-ink-700">
+              Ayuda
+            </Link>
+            <Link href="/ai-disclosure" target="_blank" className="hover:text-ink-700">
+              Aviso IA
+            </Link>
+            <Link href="/privacy" target="_blank" className="hover:text-ink-700">
+              Privacidad
+            </Link>
+          </div>
         </div>
       </aside>
 

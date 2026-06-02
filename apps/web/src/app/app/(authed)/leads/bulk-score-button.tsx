@@ -184,7 +184,12 @@ export function BulkScoreButton({ agents, total, filterQs }: Props) {
           <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold tracking-tight">Score IA en masa</h2>
+                <h2 className="text-lg font-semibold tracking-tight">
+                  <span className="mr-2 inline-flex items-center rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-amber-900">
+                    IA
+                  </span>
+                  Score IA en masa
+                </h2>
                 <p className="mt-1 text-sm text-ink-500">
                   La IA lee cada lead (con sus campos personalizados) y le pone un score
                   0–100. Opcionalmente actualiza estado y crea oportunidades según el
@@ -199,6 +204,15 @@ export function BulkScoreButton({ agents, total, filterQs }: Props) {
               >
                 ✕
               </button>
+            </div>
+            <div
+              role="note"
+              aria-label="Aviso de uso de IA"
+              className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+            >
+              <strong>Generado por IA.</strong> Esta función usa un modelo de
+              inteligencia artificial para puntuar leads. Revisa los resultados
+              antes de actuar sobre ellos.
             </div>
 
             {batch ? (

@@ -19,10 +19,16 @@ export function AgentPlayground({ agentId }: { agentId: string }) {
 
   return (
     <Card>
-      <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Probar agente</h2>
+      <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
+        <span className="mr-2 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[9px] tracking-wider text-amber-900">
+          IA
+        </span>
+        Probar agente
+      </h2>
       <p className="mt-1 text-xs text-ink-500">
         Escribe un mensaje como si fueras un cliente y mira cómo respondería el agente con su
-        prompt + conocimiento actuales. (Guarda los cambios antes de probar.)
+        prompt + conocimiento actuales. La respuesta la genera un asistente de IA y puede
+        contener errores. (Guarda los cambios antes de probar.)
       </p>
       <div className="mt-4 space-y-3">
         <Textarea
@@ -56,8 +62,11 @@ export function AgentPlayground({ agentId }: { agentId: string }) {
 
         {result && (
           <div className="rounded-md border border-ink-200 bg-ink-100/40 p-3">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-ink-500">
-              Respuesta del agente
+            <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-ink-500">
+              <span>Respuesta del agente</span>
+              <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-amber-900">
+                Generado por IA
+              </span>
             </div>
             <p className="mt-1 whitespace-pre-wrap text-sm text-ink-900">{result.reply}</p>
           </div>
