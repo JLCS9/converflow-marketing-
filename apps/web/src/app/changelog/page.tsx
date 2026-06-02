@@ -10,7 +10,8 @@ interface AppVersion {
 }
 
 async function fetchVersions(): Promise<AppVersion[]> {
-  const url = process.env.INTERNAL_API_URL ?? 'http://api:4000';
+  // `?.trim() ||` so an empty env var still falls back — `??` doesn't catch "".
+  const url = process.env.INTERNAL_API_URL?.trim() || 'http://api:4000';
   try {
     const res = await fetch(`${url}/app-versions`, { cache: 'no-store' });
     if (!res.ok) return [];

@@ -10,7 +10,8 @@
 import { cookies } from 'next/headers';
 import { ApiError } from './api-client';
 
-const INTERNAL_API_URL = process.env.INTERNAL_API_URL ?? 'http://api:4000';
+// `?.trim() ||` so an empty env var still falls back — `??` doesn't catch "".
+const INTERNAL_API_URL = process.env.INTERNAL_API_URL?.trim() || 'http://api:4000';
 
 type ServerRequestOptions = Omit<RequestInit, 'body'> & { json?: unknown };
 

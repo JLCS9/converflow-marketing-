@@ -1,6 +1,11 @@
 import type { Metadata, Viewport } from 'next';
 import '@/styles/globals.css';
 
+// `??` only catches null/undefined — an empty env var (NEXT_PUBLIC_SITE_URL=)
+// slips through as "" and breaks Next 15's build with `new URL('')`.
+// Use `?.trim() ||` so empty strings also fall back to the canonical site URL.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://converflow.ai';
+
 export const metadata: Metadata = {
   title: {
     default: 'converflow.ai — Agentes de IA para automatizar ventas y atención',
@@ -8,7 +13,7 @@ export const metadata: Metadata = {
   },
   description:
     'Automatiza ventas, atención al cliente y operaciones con agentes de IA que trabajan sin descanso, integrados en los canales donde ya están tus clientes.',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://converflow.ai'),
+  metadataBase: new URL(SITE_URL),
   openGraph: {
     type: 'website',
     locale: 'es_ES',
