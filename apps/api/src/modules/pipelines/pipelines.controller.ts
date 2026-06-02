@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
+import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
+import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import {
   CurrentUser,
   type AuthenticatedUser,
@@ -18,7 +20,8 @@ import {
 import { PipelinesService } from './pipelines.service.js';
 
 @ApiTags('pipelines')
-@UseGuards(TenantAuthGuard)
+@UseGuards(TenantAuthGuard, PermissionsGuard)
+@RequirePerm('settings')
 @Controller('pipelines')
 export class PipelinesController {
   constructor(private readonly svc: PipelinesService) {}

@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
+import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
+import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import {
   CurrentUser,
   type AuthenticatedUser,
@@ -16,7 +18,8 @@ interface StartBody {
 }
 
 @ApiTags('leads')
-@UseGuards(TenantAuthGuard)
+@UseGuards(TenantAuthGuard, PermissionsGuard)
+@RequirePerm('bulkAi')
 @Controller('leads/score-batch')
 export class LeadScoringController {
   constructor(private readonly svc: LeadScoringService) {}

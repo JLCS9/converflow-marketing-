@@ -1,6 +1,10 @@
 import { type CanActivate, type ExecutionContext, Injectable } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
-import { UnauthorizedError } from '@converflow/shared';
+import {
+  UnauthorizedError,
+  effectivePermissions,
+  type UserRole,
+} from '@converflow/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { hashSessionToken } from '../auth/session.util.js';
 import type { AuthenticatedUser } from '../decorators/current-user.decorator.js';
@@ -31,11 +35,21 @@ export class TenantAuthGuard implements CanActivate {
       throw new UnauthorizedError();
     }
 
+    // Resolve effective permissions once per request so downstream guards
+    // and controllers don't need to re-query the DB.
+    const rawPerms = session.user.permissions as unknown;
+    const permsArray = Array.isArray(rawPerms) ? (rawPerms as string[]) : null;
+    const permissions = effectivePermissions(
+      session.user.role as UserRole,
+      permsArray,
+    );
+
     req.user = {
       userId: session.userId,
       tenantId: session.tenantId,
       email: session.user.email,
       role: session.user.role,
+      permissions,
     };
 
     return true;

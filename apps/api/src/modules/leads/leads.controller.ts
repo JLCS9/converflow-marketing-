@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
+import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
+import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import {
   CurrentUser,
   type AuthenticatedUser,
@@ -8,7 +10,8 @@ import {
 import { LeadsService } from './leads.service.js';
 
 @ApiTags('leads')
-@UseGuards(TenantAuthGuard)
+@UseGuards(TenantAuthGuard, PermissionsGuard)
+@RequirePerm('crm')
 @Controller('leads')
 export class LeadsController {
   constructor(private readonly leads: LeadsService) {}
@@ -67,6 +70,7 @@ export class LeadsController {
   }
 
   @Post('import')
+  @RequirePerm('import')
   bulkImport(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
     return this.leads.bulkImport(user.tenantId, body as never);
   }

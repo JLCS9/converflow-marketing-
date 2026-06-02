@@ -3,6 +3,8 @@ import { ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { BadRequestError } from '@converflow/shared';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
+import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
+import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import {
   CurrentUser,
   type AuthenticatedUser,
@@ -21,7 +23,8 @@ type MultipartFile = {
 };
 
 @ApiTags('documents')
-@UseGuards(TenantAuthGuard)
+@UseGuards(TenantAuthGuard, PermissionsGuard)
+@RequirePerm('documents')
 @Controller('documents')
 export class DocumentsController {
   constructor(private readonly docs: DocumentsService) {}

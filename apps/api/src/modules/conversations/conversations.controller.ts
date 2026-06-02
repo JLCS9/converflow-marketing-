@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
+import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
+import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import {
   CurrentUser,
   type AuthenticatedUser,
@@ -8,7 +10,8 @@ import {
 import { ConversationsService } from './conversations.service.js';
 
 @ApiTags('conversations')
-@UseGuards(TenantAuthGuard)
+@UseGuards(TenantAuthGuard, PermissionsGuard)
+@RequirePerm('conversations')
 @Controller('conversations')
 export class ConversationsController {
   constructor(private readonly conversations: ConversationsService) {}

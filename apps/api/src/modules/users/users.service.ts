@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import argon2 from 'argon2';
 import { z } from 'zod';
+import { Prisma } from '@converflow/db';
 import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
   TenantLimitReachedError,
+  permissionsArraySchema,
 } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { generateReadablePassword } from '../../common/utils/password.js';
@@ -14,12 +16,19 @@ const inviteSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   name: z.string().trim().min(2).max(100),
   role: z.enum(['OWNER', 'ADMIN', 'BUILDER', 'AGENT_USER']).default('AGENT_USER'),
+  /**
+   * Optional per-user permission override. When null/omitted the user
+   * inherits the role's defaults. OWNER ignores this field at runtime.
+   */
+  permissions: permissionsArraySchema.nullable().optional(),
 });
 
 const updateSchema = z.object({
   name: z.string().trim().min(2).max(100).optional(),
   role: z.enum(['OWNER', 'ADMIN', 'BUILDER', 'AGENT_USER']).optional(),
   status: z.enum(['ACTIVE', 'SUSPENDED', 'PENDING']).optional(),
+  /** Same semantics as in invite. Pass null to reset to role defaults. */
+  permissions: permissionsArraySchema.nullable().optional(),
 });
 
 export type InviteUserInput = z.infer<typeof inviteSchema>;
@@ -39,6 +48,7 @@ export class UsersService {
           name: true,
           role: true,
           status: true,
+          permissions: true,
           lastLoginAt: true,
           emailVerifiedAt: true,
           createdAt: true,
@@ -69,6 +79,11 @@ export class UsersService {
       const tempPassword = generateReadablePassword();
       const passwordHash = await argon2.hash(tempPassword, { type: argon2.argon2id });
 
+      // OWNER ignores per-user permissions (they always have everything).
+      // Store null so the field doesn't accidentally restrict them later.
+      const permissionsToStore =
+        data.role === 'OWNER' ? null : (data.permissions ?? null);
+
       const user = await tx.user.create({
         data: {
           tenantId: ctx.tenantId,
@@ -77,6 +92,10 @@ export class UsersService {
           role: data.role,
           status: 'PENDING',
           passwordHash,
+          permissions:
+            permissionsToStore === null
+              ? Prisma.JsonNull
+              : (permissionsToStore as Prisma.InputJsonValue),
         },
       });
 
@@ -86,7 +105,11 @@ export class UsersService {
           userId: ctx.currentUserId,
           email: data.email,
           action: 'invite_user',
-          metadata: { invitedUserId: user.id, role: data.role },
+          metadata: {
+            invitedUserId: user.id,
+            role: data.role,
+            permissions: permissionsToStore,
+          },
         },
       });
 
@@ -107,12 +130,14 @@ export class UsersService {
       const target = await tx.user.findUnique({ where: { id: userId } });
       if (!target) throw new NotFoundError('Usuario no encontrado');
 
-      // Only OWNER or ADMIN can change role/status of other users.
+      // Only OWNER or ADMIN can change role/status/permissions of other users.
       if (
-        (data.role || data.status) &&
+        (data.role || data.status || data.permissions !== undefined) &&
         !['OWNER', 'ADMIN'].includes(ctx.currentUserRole)
       ) {
-        throw new ForbiddenError('Solo OWNER/ADMIN pueden cambiar rol o estado');
+        throw new ForbiddenError(
+          'Solo OWNER/ADMIN pueden cambiar rol, estado o permisos',
+        );
       }
 
       // Don't allow demoting the last OWNER.
@@ -123,7 +148,28 @@ export class UsersService {
         }
       }
 
-      const updated = await tx.user.update({ where: { id: userId }, data });
+      // Determine final role and ensure OWNERs never carry restrictive perms.
+      const finalRole = data.role ?? target.role;
+      const shouldWritePerms =
+        finalRole === 'OWNER' || data.permissions !== undefined;
+      // null sentinel for Prisma jsonb columns when we want to clear the
+      // value (so the user falls back to role defaults at runtime).
+      const permissionsValueForPrisma:
+        | typeof Prisma.JsonNull
+        | Prisma.InputJsonValue =
+        finalRole === 'OWNER' || data.permissions === null
+          ? Prisma.JsonNull
+          : (data.permissions as Prisma.InputJsonValue);
+
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: {
+          ...(data.name !== undefined ? { name: data.name } : {}),
+          ...(data.role !== undefined ? { role: data.role } : {}),
+          ...(data.status !== undefined ? { status: data.status } : {}),
+          ...(shouldWritePerms ? { permissions: permissionsValueForPrisma } : {}),
+        },
+      });
       await tx.accessLog.create({
         data: {
           tenantId: ctx.tenantId,

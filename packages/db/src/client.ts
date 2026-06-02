@@ -4,7 +4,7 @@
  * Hot-reload safe in dev: reuses the same instance across module reloads.
  * In production each process gets a fresh client.
  */
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 declare global {
   // eslint-disable-next-line no-var
@@ -26,4 +26,4 @@ if (process.env.NODE_ENV !== 'production') {
   global.__converflowPrisma = prisma;
 }
 
-export { PrismaClient };
+export { Prisma, PrismaClient };

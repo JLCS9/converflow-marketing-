@@ -1,11 +1,14 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
+import type { PermissionModule } from '@converflow/shared';
 
 export interface AuthenticatedUser {
   userId: string;
   tenantId: string;
   email: string;
   role: string;
+  /** Effective permissions, already resolved (role defaults + user override). */
+  permissions: PermissionModule[];
 }
 
 export interface AuthenticatedAdmin {

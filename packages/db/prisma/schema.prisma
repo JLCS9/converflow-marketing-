@@ -163,6 +163,11 @@ model User {
   passwordHash       String
   role               UserRole   @default(AGENT_USER)
   status             UserStatus @default(ACTIVE)
+  // Optional per-user permission override. When null, the user inherits the
+  // role's defaults from @converflow/shared/permissions. When set, it is the
+  // explicit list of allowed PermissionModule values. OWNER ignores this
+  // field at runtime — they always have full access.
+  permissions        Json?
   emailVerifiedAt    DateTime?
   lastLoginAt        DateTime?
   mustChangePassword Boolean    @default(false)

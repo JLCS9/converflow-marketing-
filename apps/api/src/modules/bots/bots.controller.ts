@@ -9,6 +9,8 @@ import {
 } from '@converflow/shared';
 import type { Bot } from '@converflow/db';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
+import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
+import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import {
   CurrentUser,
   type AuthenticatedUser,
@@ -29,7 +31,8 @@ const updateBotSchema = z.object({
 // owns CRUD over the `bots` table and dispatches start/stop commands to
 // the runner via Redis pub/sub (implemented in Fase 3).
 @ApiTags('bots')
-@UseGuards(TenantAuthGuard)
+@UseGuards(TenantAuthGuard, PermissionsGuard)
+@RequirePerm('bots')
 @Controller('bots')
 export class BotsController {
   constructor(

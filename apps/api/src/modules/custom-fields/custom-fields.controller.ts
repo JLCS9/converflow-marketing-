@@ -12,6 +12,8 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import type { CustomFieldEntity } from '@converflow/shared';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
+import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
+import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import {
   CurrentUser,
   type AuthenticatedUser,
@@ -19,7 +21,8 @@ import {
 import { CustomFieldsService } from './custom-fields.service.js';
 
 @ApiTags('custom-fields')
-@UseGuards(TenantAuthGuard)
+@UseGuards(TenantAuthGuard, PermissionsGuard)
+@RequirePerm('settings')
 @Controller('custom-fields')
 export class CustomFieldsController {
   constructor(private readonly svc: CustomFieldsService) {}
