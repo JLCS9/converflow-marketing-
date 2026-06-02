@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
@@ -22,8 +22,9 @@ const STATUSES = ['ACTIVE', 'INACTIVE', 'ARCHIVED'] as const;
 
 export function ClientInfoCard({ client }: { client: ClientInfo }) {
   const router = useRouter();
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
   const [editing, setEditing] = useState(false);
+  const [deleting, startDeleting] = useTransition();
   const [form, setForm] = useState({
     name: client.name,
     lastName: client.lastName ?? '',
@@ -125,6 +126,46 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
     );
   }
 
+  async function remove() {
+    const fullName = [client.name, client.lastName].filter(Boolean).join(' ').trim();
+    const ok = await confirm({
+      title: `Eliminar permanentemente${fullName ? ` "${fullName}"` : ' este cliente'}`,
+      description: (
+        <div className="space-y-3">
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+            <strong>Esta acción es irreversible.</strong> Se procesa como una solicitud
+            de supresión y borra los datos sin posibilidad de recuperación.
+          </div>
+          <p>Se eliminarán de forma permanente:</p>
+          <ul className="ml-4 list-disc space-y-1 text-xs text-ink-700">
+            <li>Los datos identificativos del cliente (nombre, email, teléfono).</li>
+            <li>Sus campos personalizados.</li>
+            <li>Notas, tareas y documentos asociados.</li>
+            <li>Oportunidades vinculadas a este contacto.</li>
+            <li>Conversaciones y mensajes recibidos en cualquier canal.</li>
+          </ul>
+          <p className="text-xs text-ink-500">
+            El registro de auditoría de la cuenta conserva una entrada técnica de esta
+            supresión sin datos personales, conforme al artículo 17 del RGPD.
+          </p>
+        </div>
+      ),
+      confirmLabel: 'Eliminar permanentemente',
+      cancelLabel: 'Cancelar',
+      danger: true,
+    });
+    if (!ok) return;
+    startDeleting(async () => {
+      try {
+        await apiFetch(`/clients/${client.id}`, { method: 'DELETE' });
+        toast.success('Cliente eliminado permanentemente');
+        router.replace('/app/clients');
+      } catch (err) {
+        toast.error(err instanceof ApiError ? err.message : 'No se pudo eliminar');
+      }
+    });
+  }
+
   return (
     <Card>
       <div className="flex items-center justify-between">
@@ -140,6 +181,20 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
         <Row label="Fuente" value={client.source ?? '—'} />
         <Row label="Alta" value={new Date(client.createdAt).toLocaleString('es-ES')} />
       </dl>
+      <div className="mt-5 border-t border-ink-100 pt-4">
+        <button
+          type="button"
+          disabled={deleting}
+          onClick={remove}
+          className={buttonClass('danger', 'text-xs')}
+        >
+          {deleting ? 'Eliminando…' : 'Eliminar cliente'}
+        </button>
+        <p className="mt-2 text-xs text-ink-500">
+          La eliminación es definitiva y no se puede deshacer. Cumple con el derecho de
+          supresión del RGPD (art. 17).
+        </p>
+      </div>
     </Card>
   );
 }

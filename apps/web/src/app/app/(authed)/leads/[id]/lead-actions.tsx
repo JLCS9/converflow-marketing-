@@ -9,9 +9,12 @@ import { LEAD_STATUS_OPTIONS } from '@/lib/labels';
 
 export function LeadActions({
   leadId,
+  leadName,
   currentStatus,
 }: {
   leadId: string;
+  /** Used in the GDPR confirmation prompt so the operator sees exactly who they are erasing. */
+  leadName?: string;
   currentStatus: string;
 }) {
   const router = useRouter();
@@ -58,15 +61,37 @@ export function LeadActions({
           disabled={pending}
           onClick={async () => {
             const ok = await confirm({
-              title: 'Eliminar lead',
-              description: 'Se borran también notas y conversaciones vinculadas. No se puede deshacer.',
+              title: `Eliminar permanentemente${leadName ? ` "${leadName}"` : ' este lead'}`,
+              description: (
+                <div className="space-y-3">
+                  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                    <strong>Esta acción es irreversible.</strong> Se procesa como una
+                    solicitud de supresión y borra los datos sin posibilidad de
+                    recuperación.
+                  </div>
+                  <p>Se eliminarán de forma permanente:</p>
+                  <ul className="ml-4 list-disc space-y-1 text-xs text-ink-700">
+                    <li>Los datos identificativos del lead (nombre, email, teléfono).</li>
+                    <li>Sus campos personalizados.</li>
+                    <li>Notas, tareas y documentos asociados.</li>
+                    <li>Oportunidades vinculadas a este contacto.</li>
+                    <li>Conversaciones y mensajes recibidos en cualquier canal.</li>
+                  </ul>
+                  <p className="text-xs text-ink-500">
+                    El registro de auditoría de la cuenta conserva una entrada técnica de
+                    esta supresión sin datos personales, conforme al artículo 17 del RGPD.
+                  </p>
+                </div>
+              ),
+              confirmLabel: 'Eliminar permanentemente',
+              cancelLabel: 'Cancelar',
               danger: true,
             });
             if (!ok) return;
             startTransition(async () => {
               try {
                 await apiFetch(`/leads/${leadId}`, { method: 'DELETE' });
-                toast.success('Lead eliminado');
+                toast.success('Lead eliminado permanentemente');
                 router.replace('/app/leads');
               } catch (err) {
                 toast.error(err instanceof ApiError ? err.message : 'No se pudo eliminar');
@@ -77,6 +102,10 @@ export function LeadActions({
         >
           Eliminar lead
         </button>
+        <p className="mt-2 text-xs text-ink-500">
+          La eliminación es definitiva y no se puede deshacer. Cumple con el derecho de
+          supresión del RGPD (art. 17).
+        </p>
       </div>
     </div>
   );

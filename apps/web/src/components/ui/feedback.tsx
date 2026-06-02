@@ -26,7 +26,12 @@ interface Toast {
 
 interface ConfirmOptions {
   title: string;
-  description?: string;
+  /**
+   * Plain string or ReactNode. Use a node when the confirmation needs
+   * structure (lists, emphasised words, links) — handy for GDPR-style
+   * delete prompts where the user must see exactly what will be lost.
+   */
+  description?: string | ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
@@ -215,9 +220,12 @@ function ConfirmDialog({
         <h2 id="confirm-title" className="text-base font-semibold text-ink-900">
           {opts.title}
         </h2>
-        {opts.description && (
-          <p className="mt-2 text-sm text-ink-700">{opts.description}</p>
-        )}
+        {opts.description &&
+          (typeof opts.description === 'string' ? (
+            <p className="mt-2 text-sm text-ink-700">{opts.description}</p>
+          ) : (
+            <div className="mt-2 text-sm text-ink-700">{opts.description}</div>
+          ))}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className={buttonClass('secondary', 'text-sm')} onClick={onCancel}>
             {opts.cancelLabel ?? 'Cancelar'}

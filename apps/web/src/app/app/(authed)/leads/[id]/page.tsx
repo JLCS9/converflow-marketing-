@@ -188,6 +188,7 @@ export default async function LeadDetailPage({
           <div className="mt-4">
             <LeadActions
               leadId={lead.id}
+              leadName={[lead.name, lead.lastName].filter(Boolean).join(' ').trim() || undefined}
               currentStatus={lead.status as never}
             />
           </div>
