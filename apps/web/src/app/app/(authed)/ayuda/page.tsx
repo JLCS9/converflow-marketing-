@@ -18,6 +18,7 @@ const SECTIONS: Section[] = [
   { id: 'oportunidades', title: 'Oportunidades y pipelines' },
   { id: 'campos', title: 'Campos personalizados' },
   { id: 'usuarios', title: 'Usuarios y permisos' },
+  { id: 'desarrollador', title: 'API para desarrolladores' },
   { id: 'faq', title: 'Preguntas frecuentes' },
   { id: 'aviso-ia', title: 'Aviso IA y Privacidad' },
 ];
@@ -503,6 +504,235 @@ export default function HelpCenterPage() {
             </p>
           </Section>
 
+          <Section id="desarrollador" title="API para desarrolladores">
+            <p>
+              Converflow expone una API REST para que integres tu cuenta con
+              herramientas externas (Zapier, Make, n8n, formularios propios,
+              CRMs externos, scripts internos…). La gestión de credenciales
+              vive en{' '}
+              <Link
+                href="/app/settings/developer"
+                className="text-primary-700 hover:underline"
+              >
+                Configuración → Desarrollador
+              </Link>
+              .
+            </p>
+
+            <h3>Autenticación</h3>
+            <p>
+              Cada petición debe llevar la cabecera{' '}
+              <code>Authorization: Bearer cfai_…</code>. La key se obtiene
+              creando una API key desde el panel; el secreto completo se
+              muestra una sola vez y debe guardarse en un sitio seguro.
+            </p>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>
+                Formato del token: <code>cfai_</code> + 32 caracteres
+                alfanuméricos.
+              </li>
+              <li>
+                El prefijo visible (primeros 10 caracteres) es público y se
+                muestra en el panel para identificar qué key está en uso.
+              </li>
+              <li>
+                Las keys no caducan por defecto. Puedes asignarles una fecha
+                de caducidad al crearlas.
+              </li>
+              <li>
+                Las keys pueden revocarse en cualquier momento; el efecto es
+                inmediato.
+              </li>
+            </ul>
+
+            <h3>Base URL</h3>
+            <p>
+              La API está disponible bajo{' '}
+              <code>https://api.converflow.ai/v1/&lt;recurso&gt;</code>. Todas
+              las respuestas son JSON y se devuelven en UTF-8.
+            </p>
+
+            <h3>Recursos disponibles</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Recurso</th>
+                  <th>Permiso requerido</th>
+                  <th>Operaciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <code>/v1/leads</code>
+                  </td>
+                  <td>
+                    <code>crm</code>
+                  </td>
+                  <td>Listar, ver, crear, actualizar, borrar.</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>/v1/clients</code>
+                  </td>
+                  <td>
+                    <code>crm</code>
+                  </td>
+                  <td>Listar, ver, crear, actualizar, borrar.</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>/v1/opportunities</code>
+                  </td>
+                  <td>
+                    <code>crm</code>
+                  </td>
+                  <td>Listar, ver, crear, actualizar, mover de etapa.</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>/v1/tasks</code>
+                  </td>
+                  <td>
+                    <code>crm</code>
+                  </td>
+                  <td>Listar, crear, actualizar, completar.</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>/v1/notes</code>
+                  </td>
+                  <td>
+                    <code>crm</code>
+                  </td>
+                  <td>Listar por entidad, crear, borrar.</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>/v1/conversations</code>
+                  </td>
+                  <td>
+                    <code>conversations</code>
+                  </td>
+                  <td>Listar, ver mensajes, marcar como leídas.</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>/v1/documents</code>
+                  </td>
+                  <td>
+                    <code>documents</code>
+                  </td>
+                  <td>Listar, subir, descargar, borrar.</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3>Ejemplos</h3>
+            <pre className="overflow-x-auto rounded-md border border-ink-100 bg-ink-900 p-3 text-xs text-emerald-100">
+{`# Listar los 50 últimos leads
+curl -s "https://api.converflow.ai/v1/leads?limit=50" \\
+  -H "Authorization: Bearer cfai_XXXXXXXXXXXXXXXXXXXXXXXXXXXX" \\
+  | jq .
+
+# Crear un lead nuevo
+curl -s -X POST "https://api.converflow.ai/v1/leads" \\
+  -H "Authorization: Bearer cfai_XXXXXXXXXXXXXXXXXXXXXXXXXXXX" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "Marta García",
+    "email": "marta@example.com",
+    "phone": "+34666111222",
+    "source": "web"
+  }'
+
+# Ver una conversación concreta
+curl -s "https://api.converflow.ai/v1/conversations/<id>" \\
+  -H "Authorization: Bearer cfai_XXXXXXXXXXXXXXXXXXXXXXXXXXXX"`}
+            </pre>
+
+            <h3>Errores</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Causa habitual</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>401</td>
+                  <td>
+                    Cabecera <code>Authorization</code> ausente, mal formada o
+                    la key está revocada o caducada.
+                  </td>
+                </tr>
+                <tr>
+                  <td>403</td>
+                  <td>
+                    La key no incluye el permiso necesario para el recurso
+                    (mira la columna &quot;Permiso requerido&quot;).
+                  </td>
+                </tr>
+                <tr>
+                  <td>404</td>
+                  <td>Recurso no encontrado dentro de tu tenant.</td>
+                </tr>
+                <tr>
+                  <td>409</td>
+                  <td>
+                    Conflicto (por ejemplo, un email ya registrado en otra
+                    cuenta).
+                  </td>
+                </tr>
+                <tr>
+                  <td>422</td>
+                  <td>Datos inválidos. El body incluye el detalle del campo.</td>
+                </tr>
+                <tr>
+                  <td>5xx</td>
+                  <td>Error temporal. Reintenta con backoff exponencial.</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3>Buenas prácticas</h3>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>
+                Una key por integración: si Zapier se ve comprometido, revocas
+                solo esa key sin afectar al resto.
+              </li>
+              <li>
+                Da los permisos mínimos necesarios. La mayoría de
+                integraciones solo necesitan <code>crm</code>.
+              </li>
+              <li>
+                Guarda el secreto en un vault o en las variables de entorno
+                de tu integración. Nunca lo pegues en código que vaya al
+                repositorio.
+              </li>
+              <li>
+                Rota las keys periódicamente (cada 6-12 meses) y siempre que
+                cambie de manos la persona que la administra.
+              </li>
+            </ul>
+
+            <h3>Webhooks salientes</h3>
+            <p className="text-xs text-ink-500">
+              Aún no están disponibles. Si tu integración necesita reaccionar
+              a eventos (lead creado, mensaje recibido, etc.), por ahora la
+              opción es hacer polling sobre los endpoints de listado. Si te
+              hacen falta, escríbenos a{' '}
+              <a
+                href="mailto:soporte@converflow.ai"
+                className="text-primary-700 hover:underline"
+              >
+                soporte@converflow.ai
+              </a>{' '}
+              para priorizarlos.
+            </p>
+          </Section>
+
           <Section id="faq" title="Preguntas frecuentes">
             <dl className="space-y-4">
               <FaqItem
@@ -536,6 +766,10 @@ export default function HelpCenterPage() {
               <FaqItem
                 q="¿Por qué no me aparece el menú de Configuración en mi cuenta?"
                 a="Probablemente tu usuario no tiene los permisos 'Configuración' ni 'Gestionar usuarios'. Pide al propietario que los habilite desde Configuración → Usuarios → Editar."
+              />
+              <FaqItem
+                q="¿Cómo conecto Converflow con Zapier, Make o n8n?"
+                a="Crea una API key en Configuración → Desarrollador (basta con los permisos CRM y Conversaciones para la mayoría de casos). Copia el secreto y pégalo en el conector de Zapier/Make/n8n como 'Bearer token'. La base URL es https://api.converflow.ai/v1/."
               />
             </dl>
           </Section>
