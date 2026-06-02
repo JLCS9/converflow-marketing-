@@ -17,6 +17,7 @@ const SECTIONS: Section[] = [
   { id: 'score-ia', title: 'Puntuar leads con IA' },
   { id: 'oportunidades', title: 'Oportunidades y pipelines' },
   { id: 'campos', title: 'Campos personalizados' },
+  { id: 'usuarios', title: 'Usuarios y permisos' },
   { id: 'faq', title: 'Preguntas frecuentes' },
   { id: 'aviso-ia', title: 'Aviso IA y Privacidad' },
 ];
@@ -297,6 +298,211 @@ export default function HelpCenterPage() {
             </ul>
           </Section>
 
+          <Section id="usuarios" title="Usuarios y permisos">
+            <p>
+              Converflow permite invitar a tu equipo y controlar con detalle a qué partes
+              del producto tiene acceso cada persona. La gestión vive en{' '}
+              <Link href="/app/users" className="text-primary-700 hover:underline">
+                Configuración → Usuarios
+              </Link>{' '}
+              y solo está disponible para usuarios con el permiso{' '}
+              <code>Gestionar usuarios</code> (por defecto: Propietario y Administrador).
+            </p>
+
+            <h3>Roles disponibles</h3>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>
+                <strong>Propietario</strong> — control total. Siempre tiene acceso a todos
+                los módulos; sus permisos no se pueden limitar.
+              </li>
+              <li>
+                <strong>Administrador</strong> — gestión completa del tenant: usuarios,
+                configuración, importaciones, IA, todo.
+              </li>
+              <li>
+                <strong>Constructor</strong> — diseña los agentes y los bots, opera con
+                leads y conversaciones; no entra a Configuración ni a importaciones de CSV
+                por defecto.
+              </li>
+              <li>
+                <strong>Agente</strong> — uso operativo: ver y editar leads/clientes/
+                oportunidades y atender la bandeja de conversaciones. Por defecto no puede
+                crear agentes, bots ni importar datos.
+              </li>
+            </ul>
+
+            <h3>Permisos por rol (valores por defecto)</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Módulo</th>
+                  <th>Propietario</th>
+                  <th>Admin</th>
+                  <th>Constructor</th>
+                  <th>Agente</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>CRM (leads, clientes, oportunidades, tareas)</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                </tr>
+                <tr>
+                  <td>Conversaciones</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                </tr>
+                <tr>
+                  <td>Documentos</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>Agentes (crear, editar, publicar)</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>Bots (canales y conexiones)</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>Score IA en masa</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>Importar leads (CSV)</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>—</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>Configuración (campos, tableros)</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>—</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>Gestionar usuarios</td>
+                  <td>✓</td>
+                  <td>✓</td>
+                  <td>—</td>
+                  <td>—</td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="text-xs text-ink-500">
+              ✓ Permitido por defecto · — No permitido por defecto. Los Propietarios
+              tienen siempre acceso completo y no se les pueden quitar permisos.
+            </p>
+
+            <h3>Invitar un usuario</h3>
+            <ol className="list-decimal space-y-2 pl-5">
+              <li>
+                Ve a{' '}
+                <Link href="/app/users/new" className="text-primary-700 hover:underline">
+                  Configuración → Usuarios → Invitar usuario
+                </Link>
+                .
+              </li>
+              <li>Introduce email y nombre.</li>
+              <li>
+                Elige el rol. Al cambiar el rol, los permisos por defecto se actualizan
+                automáticamente.
+              </li>
+              <li>
+                (Opcional) Activa la opción <strong>Personalizar</strong> para marcar o
+                desmarcar módulos uno a uno. Los módulos que vienen del rol llevan una
+                etiqueta <code>por rol</code> para ayudarte a distinguirlos.
+              </li>
+              <li>
+                Al pulsar <strong>Crear usuario</strong> se genera una contraseña temporal
+                única. Cópiala y compártesela al nuevo usuario por un canal seguro.
+              </li>
+              <li>
+                Cuando el nuevo usuario inicie sesión, la plataforma le pedirá cambiar la
+                contraseña antes de continuar.
+              </li>
+            </ol>
+
+            <h3>Editar el rol o los permisos de un usuario</h3>
+            <ol className="list-decimal space-y-2 pl-5">
+              <li>
+                En la tabla de Usuarios, pulsa <strong>Editar</strong> en la fila del
+                usuario.
+              </li>
+              <li>Cambia el rol o el estado (Activo / Pendiente / Suspendido).</li>
+              <li>
+                Marca <strong>Personalizar</strong> para definir un conjunto explícito de
+                permisos diferente al del rol. Si no marcas la casilla, el usuario seguirá
+                los valores por defecto del rol que tenga asignado.
+              </li>
+              <li>
+                Guarda. Los cambios se aplican en la siguiente petición que haga el
+                usuario; si está logueado, se le bloquearán inmediatamente las acciones que
+                ya no tiene permitidas.
+              </li>
+            </ol>
+            <p className="text-xs text-ink-500">
+              Aviso: el rol <strong>Propietario</strong> no admite restricciones. Si lo
+              asignas a un usuario, sus permisos se restablecen a acceso completo aunque
+              hubieran sido personalizados previamente. Esto es deliberado para evitar
+              quedarte sin un propietario válido en tu cuenta.
+            </p>
+
+            <h3>Cómo afectan los permisos a la interfaz</h3>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>
+                Los <strong>elementos del menú lateral</strong> se ocultan automáticamente
+                si el usuario no tiene acceso al módulo correspondiente.
+              </li>
+              <li>
+                Los <strong>botones contextuales</strong> (por ejemplo &quot;Importar
+                CSV&quot; o &quot;Score IA en masa&quot;) desaparecen para los usuarios
+                que no tienen el permiso.
+              </li>
+              <li>
+                Si un usuario entra a una URL directa para la que no tiene permiso, el
+                servidor responderá con un mensaje claro (&quot;Tu rol no incluye el
+                permiso X. Pide al propietario que lo habilite.&quot;).
+              </li>
+              <li>
+                La aplicación de los permisos se hace tanto en el cliente como en el
+                servidor; no es posible saltarse las restricciones por inspección de la
+                interfaz.
+              </li>
+            </ul>
+
+            <h3>Eliminar un usuario</h3>
+            <p>
+              Desde la tabla de Usuarios, pulsa <strong>Eliminar</strong>. Se pedirá
+              confirmación. El usuario pierde acceso inmediatamente y sus sesiones se
+              invalidan en la siguiente petición. No se elimina el rastro de auditoría: las
+              acciones que ya hubiera realizado siguen registradas en el log de accesos.
+            </p>
+            <p className="text-xs text-ink-500">
+              No es posible eliminar al único propietario que tenga la cuenta — primero
+              asciende a otro usuario al rol de Propietario.
+            </p>
+          </Section>
+
           <Section id="faq" title="Preguntas frecuentes">
             <dl className="space-y-4">
               <FaqItem
@@ -322,6 +528,14 @@ export default function HelpCenterPage() {
               <FaqItem
                 q="¿Cómo borro mis datos o exporto la información?"
                 a="Escríbenos a soporte@converflow.ai. Como responsables del tratamiento, gestionamos tus solicitudes de acceso, rectificación, supresión y portabilidad conforme al RGPD."
+              />
+              <FaqItem
+                q="¿Puedo dar acceso solo a ciertas partes del producto a alguien de mi equipo?"
+                a="Sí. Cada usuario hereda los permisos por defecto de su rol, pero el propietario puede personalizar módulos concretos: marca 'Personalizar' al invitar o editar y activa/desactiva los checkboxes (CRM, Conversaciones, Documentos, Agentes, Bots, Score IA, Importar, Configuración, Gestionar usuarios)."
+              />
+              <FaqItem
+                q="¿Por qué no me aparece el menú de Configuración en mi cuenta?"
+                a="Probablemente tu usuario no tiene los permisos 'Configuración' ni 'Gestionar usuarios'. Pide al propietario que los habilite desde Configuración → Usuarios → Editar."
               />
             </dl>
           </Section>
