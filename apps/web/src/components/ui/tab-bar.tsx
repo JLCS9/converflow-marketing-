@@ -86,4 +86,5 @@ export const SETTINGS_TABS: TabItem[] = [
   { href: '/app/profile', label: 'Perfil' },
   { href: '/app/settings/custom-fields', label: 'Campos personalizados' },
   { href: '/app/settings/pipelines', label: 'Tableros' },
+  { href: '/app/settings/developer', label: 'Desarrollador' },
 ];
