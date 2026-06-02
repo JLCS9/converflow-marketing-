@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, Textarea, buttonClass } from '@/components/ui/primitives';
@@ -40,32 +41,23 @@ export interface AgentData {
   config: AgentConfig | null;
 }
 
-// Form family per engine. Commit C will collapse this further once the
-// AGENDA template is wired through Agent.template + agent-templates.ts.
-function familyOf(type: AgentType): 'CONVERSATIONAL' | 'SCORING' | 'OTHER' {
-  if (type === 'OPPORTUNITIES') return 'SCORING';
-  if (type === 'CONVERSATIONAL') return 'CONVERSATIONAL';
-  return 'OTHER';
-}
+// Generic skeleton for the system prompt when no template provides one.
+const DEFAULT_CONVERSATIONAL_PROMPT =
+  'Eres el asistente comercial de [Empresa]. Hablas en castellano, tono profesional pero cercano. Solo respondes con la información que aparece en "Información de empresa/producto" — si no lo sabes, lo dices y propones contactar con una persona.';
 
-const SYSTEM_PROMPT_PLACEHOLDER: Partial<Record<AgentType, string>> = {
-  CONVERSATIONAL:
-    'Eres el asistente comercial de [Empresa]. Hablas en castellano, tono profesional pero cercano. Solo respondes con la información que aparece en "Información de empresa/producto" — si no lo sabes, lo dices y propones contactar con una persona.',
-  OPPORTUNITIES:
-    [
-      'Para cada lead, sigue estas reglas:',
-      '',
-      "- Si {field.<tu_campo_clave>} indica interés alto → statusDecision: CLIENT",
-      "- Si {field.<tu_campo_clave>} indica rechazo → statusDecision: LOST",
-      '- En cualquier otro caso → statusDecision: LEAD',
-      '',
-      'Crea oportunidad cuando:',
-      '- {lead.score} ≥ 70, o',
-      '- {field.<tu_otro_campo>} sea ...',
-      '',
-      'Nombre de la oportunidad: "{lead.name} · <descripción>"',
-    ].join('\n'),
-};
+const DEFAULT_OPPORTUNITIES_PROMPT = [
+  'Para cada lead, sigue estas reglas:',
+  '',
+  "- Si {field.<tu_campo_clave>} indica interés alto → statusDecision: CLIENT",
+  "- Si {field.<tu_campo_clave>} indica rechazo → statusDecision: LOST",
+  '- En cualquier otro caso → statusDecision: LEAD',
+  '',
+  'Crea oportunidad cuando:',
+  '- {lead.score} ≥ 70, o',
+  '- {field.<tu_otro_campo>} sea ...',
+  '',
+  'Nombre de la oportunidad: "{lead.name} · <descripción>"',
+].join('\n');
 
 export function AgentForm({
   agent,
@@ -85,7 +77,11 @@ export function AgentForm({
   const router = useRouter();
   const cfg = agent?.config ?? {};
   const [type, setType] = useState<AgentType>(agent?.type ?? initialType ?? 'CONVERSATIONAL');
-  const [tools, setTools] = useState<string[]>(cfg.tools ?? []);
+  // Tools state. When the wizard sent a template that prefills some tools,
+  // we honour it on a fresh form; an existing agent's saved tools always win.
+  const [tools, setTools] = useState<string[]>(
+    cfg.tools ?? (agent ? [] : template?.defaults?.tools ?? []),
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -93,12 +89,18 @@ export function AgentForm({
     setTools((v) => (v.includes(t) ? v.filter((x) => x !== t) : [...v, t]));
   }
 
-  const family = familyOf(type);
-  const isConversational = family === 'CONVERSATIONAL';
-  const isScoring = family === 'SCORING';
-  // The previous "AGENDA" branch is gone: agenda is now a template on top of
-  // the CONVERSATIONAL engine and gets wired in commit C.
-  const isAgenda = false;
+  const isConversational = type === 'CONVERSATIONAL';
+  const isOpportunities = type === 'OPPORTUNITIES';
+  // Tools the template marked as the "core" of this preset. Shown with a
+  // small tag, but the user can still uncheck them.
+  const templateCoreTools = new Set(template?.defaults?.tools ?? []);
+
+  // System-prompt skeleton: template default wins; otherwise fall back to a
+  // generic skeleton per engine.
+  const systemPromptSkeleton =
+    template?.defaults?.systemPrompt ??
+    (isOpportunities ? DEFAULT_OPPORTUNITIES_PROMPT : DEFAULT_CONVERSATIONAL_PROMPT);
+  const nameSkeleton = template?.defaults?.name ?? '';
 
   return (
     <Card>
@@ -114,6 +116,9 @@ export function AgentForm({
             model: String(f.get('model') ?? 'claude-sonnet-4-6'),
             status: String(f.get('status') ?? 'DRAFT'),
             type,
+            // Persist the template id only on creation; editing an agent
+            // keeps the original template (or null).
+            template: agent ? undefined : template?.id,
             config: isConversational
               ? {
                   language: String(f.get('language') ?? '').trim() || undefined,
@@ -124,7 +129,7 @@ export function AgentForm({
                     String(f.get('aiDisclosure') ?? '').trim() || DEFAULT_AI_DISCLOSURE,
                   tools,
                 }
-              : isScoring
+              : isOpportunities
               ? {
                   defaultUpdateStatus: f.get('defaultUpdateStatus') === 'on',
                   defaultCreateOpportunities: f.get('defaultCreateOpportunities') === 'on',
@@ -150,6 +155,28 @@ export function AgentForm({
           });
         }}
       >
+        {/* Template banner. Surfaces "Plantilla X" + a Change-template link
+            so the user always knows what preset they're editing. */}
+        {template && !agent && (
+          <div className="flex items-start justify-between gap-3 rounded-md border border-primary-100 bg-primary-50/40 p-3 text-sm">
+            <div>
+              <div className="text-ink-900">
+                Plantilla <strong>{template.label}</strong> —{' '}
+                {isOpportunities
+                  ? 'agente de oportunidades preconfigurado.'
+                  : 'asistente conversacional preconfigurado.'}{' '}
+                <span className="text-ink-500">Puedes cambiar todo.</span>
+              </div>
+            </div>
+            <Link
+              href="/app/agents/new"
+              className="shrink-0 text-xs text-primary-700 hover:underline"
+            >
+              Cambiar tipo →
+            </Link>
+          </div>
+        )}
+
         {/* Type picker — hidden when the parent already committed the type
             (Step 2 of /app/agents/new wizard). On edit we keep it visible so
             the user can re-classify an existing agent — but we only let them
@@ -172,7 +199,12 @@ export function AgentForm({
 
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Nombre" required>
-            <Input name="name" defaultValue={agent?.name} required maxLength={80} />
+            <Input
+              name="name"
+              defaultValue={agent?.name ?? nameSkeleton}
+              required
+              maxLength={80}
+            />
           </Field>
           <Field label="Descripción">
             <Input name="description" defaultValue={agent?.description ?? ''} maxLength={500} />
@@ -213,27 +245,23 @@ export function AgentForm({
 
         <Field
           label={
-            isScoring
+            isOpportunities
               ? 'Reglas del funnel (system prompt)'
-              : isAgenda
-              ? 'Cuándo y cómo agendar (system prompt)'
-              : 'Instrucciones (system prompt)'
+              : 'Instrucciones del agente (system prompt)'
           }
           required
           help={
-            isScoring
+            isOpportunities
               ? 'Describe cómo categorizar tus leads y cuándo crear oportunidades. Puedes referenciar datos del lead con {lead.name}, {lead.email}, {field.<tu_campo>} (próximamente, también campos personalizados).'
-              : isAgenda
-              ? 'Qué tiene que detectar para proponer una reunión y cómo presentar los huecos. La herramienta de agenda está siempre activa para este tipo.'
               : 'Quién es el agente y cómo debe comportarse. Puedes referenciar datos del lead con {lead.name}, {lead.email}, etc.'
           }
         >
           <Textarea
             name="systemPrompt"
-            rows={isScoring || isAgenda ? 8 : 4}
+            rows={isOpportunities ? 8 : 6}
             required
-            defaultValue={agent?.systemPrompt ?? SYSTEM_PROMPT_PLACEHOLDER[type] ?? ''}
-            placeholder={SYSTEM_PROMPT_PLACEHOLDER[type] ?? ''}
+            defaultValue={agent?.systemPrompt ?? systemPromptSkeleton}
+            placeholder={systemPromptSkeleton}
           />
         </Field>
 
@@ -258,19 +286,31 @@ export function AgentForm({
             <div>
               <div className="text-sm font-medium text-ink-900">Herramientas que puede usar</div>
               <p className="mb-2 text-xs text-ink-500">
-                La ejecución real se activa en la siguiente fase.
+                Marca las que el agente puede invocar. Las marcadas como{' '}
+                <em>núcleo de esta plantilla</em> vienen pre-activadas — puedes
+                desmarcarlas si no las necesitas.
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
-                {AGENT_TOOLS.map((t) => (
-                  <label key={t} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={tools.includes(t)}
-                      onChange={() => toggleTool(t)}
-                    />
-                    {toolLabels[t] ?? t}
-                  </label>
-                ))}
+                {AGENT_TOOLS.map((t) => {
+                  const isCore = templateCoreTools.has(t);
+                  return (
+                    <label key={t} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={tools.includes(t)}
+                        onChange={() => toggleTool(t)}
+                      />
+                      <span>
+                        {toolLabels[t] ?? t}
+                        {isCore && (
+                          <span className="ml-1 text-[10px] uppercase tracking-wider text-primary-700">
+                            · núcleo de esta plantilla
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
@@ -287,7 +327,7 @@ export function AgentForm({
           </>
         )}
 
-        {isScoring && (
+        {isOpportunities && (
           <div className="rounded-md border border-ink-100 bg-ink-100/40 p-3 space-y-2 text-sm">
             <div className="text-xs font-mono uppercase tracking-wider text-ink-500">
               Defaults para el batch
