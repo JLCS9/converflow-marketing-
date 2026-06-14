@@ -12,6 +12,42 @@ function toNumber(value: unknown): number {
   return typeof dec.toNumber === 'function' ? dec.toNumber() : Number(value);
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const SERIES_DAYS = 14; // 7-day sparkline + the prior 7 days for week-over-week deltas
+const TZ = 'Europe/Madrid';
+
+// Calendar-day key (YYYY-MM-DD) in the business timezone. 'en-CA' yields ISO.
+const dayKeyFmt = new Intl.DateTimeFormat('en-CA', {
+  timeZone: TZ,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+function dayKey(d: Date): string {
+  return dayKeyFmt.format(d);
+}
+
+// Ascending list of the last `count` calendar-day keys ending today (TZ-aware).
+// We anchor on today's Madrid key and walk back over plain calendar dates using
+// UTC-noon math, which is immune to DST drift (unlike subtracting 24h from a Date).
+function lastDayKeys(now: Date, count: number): string[] {
+  const [y, m, d] = dayKey(now).split('-').map(Number);
+  const anchor = Date.UTC(y!, m! - 1, d!, 12);
+  const keys: string[] = [];
+  for (let i = count - 1; i >= 0; i -= 1) {
+    keys.push(dayKey(new Date(anchor - i * DAY_MS)));
+  }
+  return keys;
+}
+
+interface Action {
+  name?: string;
+}
+function actionsOf(metadata: unknown): Action[] {
+  const actions = (metadata as { actions?: unknown } | null)?.actions;
+  return Array.isArray(actions) ? (actions as Action[]) : [];
+}
+
 @Injectable()
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -115,6 +151,124 @@ export class ReportsService {
         clients: {
           total: clientsTotal,
           active: clientsActive,
+        },
+      };
+    });
+  }
+
+  /**
+   * Time series for the Hoy home: daily buckets over the last 14 calendar days
+   * (TZ-aware) for the metrics that have a real event timestamp, plus
+   * week-over-week deltas (last 7 days vs the prior 7) and a 7-day AI activity
+   * summary derived from `ai_usage`. Point-in-time metrics (open pipeline, tasks
+   * overdue) are intentionally NOT here — we don't fabricate history we lack.
+   */
+  series(tenantId: string) {
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const now = new Date();
+      const keys = lastDayKeys(now, SERIES_DAYS);
+      const keyIndex = new Map(keys.map((k, i) => [k, i]));
+      // Generous UTC lower bound (covers the 14-day window plus tz slack); we
+      // bucket precisely by Madrid day key afterwards and drop anything older.
+      const since = new Date(now.getTime() - (SERIES_DAYS + 1) * DAY_MS);
+      const aiSince = new Date(now.getTime() - 7 * DAY_MS);
+
+      const [leadsCreated, conversions, won, inbound, aiRows] = await Promise.all([
+        tx.lead.findMany({ where: { createdAt: { gte: since } }, select: { createdAt: true } }),
+        tx.lead.findMany({
+          where: { convertedAt: { gte: since } },
+          select: { convertedAt: true },
+        }),
+        tx.opportunity.findMany({
+          where: { status: 'WON', closedAt: { gte: since } },
+          select: { closedAt: true, amount: true },
+        }),
+        tx.message.findMany({
+          where: { direction: 'IN', createdAt: { gte: since } },
+          select: { createdAt: true },
+        }),
+        tx.aiUsage.findMany({
+          where: { createdAt: { gte: aiSince } },
+          select: { feature: true, status: true, metadata: true },
+        }),
+      ]);
+
+      const zeros = () => keys.map(() => 0);
+      const counts = {
+        leadsCreated: zeros(),
+        conversions: zeros(),
+        wonCount: zeros(),
+        wonValue: zeros(),
+        inboundMessages: zeros(),
+      };
+      const bump = (series: number[], at: Date | null, amount = 1) => {
+        if (!at) return;
+        const i = keyIndex.get(dayKey(at));
+        if (i !== undefined) series[i]! += amount;
+      };
+
+      for (const r of leadsCreated) bump(counts.leadsCreated, r.createdAt);
+      for (const r of conversions) bump(counts.conversions, r.convertedAt);
+      for (const r of inbound) bump(counts.inboundMessages, r.createdAt);
+      for (const r of won) {
+        bump(counts.wonCount, r.closedAt);
+        bump(counts.wonValue, r.closedAt, toNumber(r.amount));
+      }
+
+      // Week-over-week: sum of the last 7 buckets vs the 7 before them.
+      const half = SERIES_DAYS / 2;
+      const sum = (arr: number[], from: number, to: number) =>
+        arr.slice(from, to).reduce((a, b) => a + b, 0);
+      const delta = (arr: number[]) => {
+        const current = sum(arr, half, SERIES_DAYS);
+        const previous = sum(arr, 0, half);
+        return {
+          current,
+          previous,
+          // null when there's no prior baseline — the UI shows "nuevo" rather
+          // than a misleading +100%.
+          pct: previous > 0 ? (current - previous) / previous : null,
+        };
+      };
+
+      // AI activity over the last 7 days.
+      const ai = { attended: 0, suggestions: 0, leadsScored: 0, meetings: 0, escalations: 0 };
+      for (const row of aiRows) {
+        if (row.feature === 'lead_scoring' || row.feature === 'lead_scoring_batch') {
+          ai.leadsScored += 1;
+        }
+        if (row.feature !== 'agent_reply' || row.status !== 'OK') continue;
+        const meta = row.metadata as { mode?: string; delivered?: boolean } | null;
+        if (meta?.mode === 'OFF') continue;
+        if (meta?.delivered) ai.attended += 1;
+        else ai.suggestions += 1;
+        for (const a of actionsOf(row.metadata)) {
+          if (a.name === 'schedule_meeting') ai.meetings += 1;
+          else if (a.name === 'escalate_to_human') ai.escalations += 1;
+        }
+      }
+      const handled = ai.attended + ai.suggestions;
+
+      return {
+        days: keys,
+        series: {
+          leadsCreated: counts.leadsCreated,
+          conversions: counts.conversions,
+          wonCount: counts.wonCount,
+          wonValue: counts.wonValue,
+          inboundMessages: counts.inboundMessages,
+        },
+        deltas: {
+          leadsCreated: delta(counts.leadsCreated),
+          conversions: delta(counts.conversions),
+          wonValue: delta(counts.wonValue),
+          inboundMessages: delta(counts.inboundMessages),
+        },
+        aiWeek: {
+          ...ai,
+          handled,
+          // share of handled conversations the AI resolved without a human reply
+          autoResolvedPct: handled > 0 ? ai.attended / handled : null,
         },
       };
     });

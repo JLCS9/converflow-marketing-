@@ -28,6 +28,7 @@ interface TaskRow {
   lead: { id: string; name: string } | null;
   client: { id: string; name: string } | null;
   opportunity: { id: string; name: string } | null;
+  owner: { id: string; name: string } | null;
 }
 
 export const metadata = { title: 'Tareas' };
@@ -116,6 +117,7 @@ export default async function TasksPage({
                 <th className="px-4 py-3">Prioridad</th>
                 <th className="px-4 py-3">Estado</th>
                 <th className="hidden px-4 py-3 md:table-cell">Vinculado</th>
+                <th className="hidden px-4 py-3 lg:table-cell">Responsable</th>
                 <th className="hidden px-4 py-3 md:table-cell">Vence</th>
                 <th className="hidden px-4 py-3 lg:table-cell">Origen</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
@@ -158,6 +160,9 @@ export default async function TasksPage({
                       </Link>
                     )}
                     {!t.lead && !t.client && !t.opportunity && '—'}
+                  </td>
+                  <td className="hidden px-4 py-3 text-xs lg:table-cell">
+                    {t.owner ? t.owner.name : <span className="text-ink-400">Sin asignar</span>}
                   </td>
                   <td className="hidden px-4 py-3 text-xs md:table-cell">
                     {t.dueAt ? new Date(t.dueAt).toLocaleDateString('es-ES') : '—'}

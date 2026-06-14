@@ -7,6 +7,10 @@ import {
   ListChecks,
   Bell,
   FileText,
+  Sparkles,
+  CalendarCheck,
+  Star,
+  UserCog,
   type LucideIcon,
 } from 'lucide-react';
 import { serverApiFetch } from '@/lib/server-api';
@@ -24,6 +28,64 @@ interface Overview {
   tasks: { pending: number; overdue: number; done: number };
   clients: { total: number; active: number };
 }
+
+interface Delta {
+  current: number;
+  previous: number;
+  pct: number | null;
+}
+
+interface Series {
+  days: string[];
+  series: {
+    leadsCreated: number[];
+    conversions: number[];
+    wonCount: number[];
+    wonValue: number[];
+    inboundMessages: number[];
+  };
+  deltas: {
+    leadsCreated: Delta;
+    conversions: Delta;
+    wonValue: Delta;
+    inboundMessages: Delta;
+  };
+  aiWeek: {
+    attended: number;
+    suggestions: number;
+    leadsScored: number;
+    meetings: number;
+    escalations: number;
+    handled: number;
+    autoResolvedPct: number | null;
+  };
+}
+
+const EMPTY_SERIES: Series = {
+  days: [],
+  series: {
+    leadsCreated: [],
+    conversions: [],
+    wonCount: [],
+    wonValue: [],
+    inboundMessages: [],
+  },
+  deltas: {
+    leadsCreated: { current: 0, previous: 0, pct: null },
+    conversions: { current: 0, previous: 0, pct: null },
+    wonValue: { current: 0, previous: 0, pct: null },
+    inboundMessages: { current: 0, previous: 0, pct: null },
+  },
+  aiWeek: {
+    attended: 0,
+    suggestions: 0,
+    leadsScored: 0,
+    meetings: 0,
+    escalations: 0,
+    handled: 0,
+    autoResolvedPct: null,
+  },
+};
 
 interface AlertItem {
   id: string;
@@ -152,8 +214,9 @@ function formatBytes(b: number): string {
 }
 
 export default async function TodayHome() {
-  const [data, alerts, convs, bots, agents, googleStatus, tasks, docs] = await Promise.all([
+  const [data, series, alerts, convs, bots, agents, googleStatus, tasks, docs] = await Promise.all([
     serverApiFetch<Overview>('/reports/overview'),
+    serverApiFetch<Series>('/reports/series').catch(() => EMPTY_SERIES),
     serverApiFetch<AlertItem[]>('/alerts').catch(() => [] as AlertItem[]),
     serverApiFetch<ConvRow[]>('/conversations?status=PENDING').catch(() => [] as ConvRow[]),
     serverApiFetch<{ id: string }[]>('/bots').catch(() => [] as { id: string }[]),
@@ -242,9 +305,29 @@ export default async function TodayHome() {
       <OnboardingChecklist steps={steps} />
 
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Conversión" value={`${Math.round(data.leads.conversionRate * 100)}%`} hint="Leads convertidos / total" />
-        <StatCard label="Leads" value={data.leads.total} hint={`${data.clients.total} clientes`} />
-        <StatCard label="Pipeline abierto" value={eur.format(data.opportunities.openValue)} hint={`${eur.format(data.opportunities.wonValue)} ganado`} />
+        <StatCard
+          label="Leads"
+          value={data.leads.total}
+          hint={`${series.deltas.leadsCreated.current} nuevos esta semana · ${data.clients.total} clientes`}
+          spark={series.series.leadsCreated}
+          delta={series.deltas.leadsCreated.pct}
+        />
+        <StatCard
+          label="Conversión"
+          value={`${Math.round(data.leads.conversionRate * 100)}%`}
+          hint={`${series.deltas.conversions.current} convertidos esta semana`}
+          spark={series.series.conversions}
+          sparkStroke="stroke-green-500"
+          delta={series.deltas.conversions.pct}
+        />
+        <StatCard
+          label="Ganado"
+          value={eur.format(series.deltas.wonValue.current)}
+          hint={`${eur.format(data.opportunities.openValue)} en pipeline abierto · 7 días`}
+          spark={series.series.wonValue}
+          sparkStroke="stroke-amber-500"
+          delta={series.deltas.wonValue.pct}
+        />
         <StatCard label="Tareas vencidas" value={data.tasks.overdue} hint={`${data.tasks.pending} pendientes`} />
       </section>
 
@@ -354,6 +437,71 @@ export default async function TodayHome() {
             )}
           </Card>
         </div>
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="flex items-center gap-2 text-base font-semibold">
+            <Sparkles size={16} strokeWidth={1.75} className="text-primary-600" aria-hidden /> Tu IA esta semana
+          </h2>
+          <span className="font-mono text-xs text-ink-500">últimos 7 días</span>
+        </div>
+        {series.aiWeek.handled === 0 &&
+        series.aiWeek.leadsScored === 0 &&
+        series.aiWeek.meetings === 0 ? (
+          <Card className="text-center text-sm text-ink-500">
+            Tu IA aún no ha actuado esta semana. En cuanto entren conversaciones o puntúes leads, lo verás aquí.
+          </Card>
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  Icon: MessageCircle,
+                  label: 'Conversaciones atendidas',
+                  value: series.aiWeek.attended,
+                  hint:
+                    series.aiWeek.autoResolvedPct !== null
+                      ? `${Math.round(series.aiWeek.autoResolvedPct * 100)}% resueltas sin intervención`
+                      : `${series.aiWeek.suggestions} sugerencias generadas`,
+                },
+                {
+                  Icon: Star,
+                  label: 'Leads puntuados',
+                  value: series.aiWeek.leadsScored,
+                  hint: 'Lead scoring con IA',
+                },
+                {
+                  Icon: CalendarCheck,
+                  label: 'Reuniones agendadas',
+                  value: series.aiWeek.meetings,
+                  hint: 'Por el agente',
+                },
+                {
+                  Icon: UserCog,
+                  label: 'Escaladas a humano',
+                  value: series.aiWeek.escalations,
+                  hint: 'Casos derivados',
+                },
+              ].map((t) => (
+                <div key={t.label} className="rounded-lg border border-ink-100 bg-white p-5">
+                  <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-ink-500">
+                    <t.Icon size={14} strokeWidth={1.75} aria-hidden /> {t.label}
+                  </div>
+                  <div className="mt-2 text-3xl font-semibold tracking-tight">{t.value}</div>
+                  <div className="mt-1 text-xs text-ink-500">{t.hint}</div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-ink-400">
+              Las respuestas automáticas incluyen un aviso de IA.{' '}
+              <Link href="/ai-disclosure" className="hover:underline">
+                Más info
+              </Link>
+              .
+            </p>
+          </>
+        )}
       </section>
 
       <section>

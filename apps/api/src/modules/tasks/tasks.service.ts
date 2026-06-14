@@ -39,6 +39,7 @@ export class TasksService {
           lead: { select: { id: true, name: true } },
           client: { select: { id: true, name: true } },
           opportunity: { select: { id: true, name: true } },
+          owner: { select: { id: true, name: true } },
         },
       }),
     );

@@ -23,19 +23,101 @@ export function Card({ children, className }: { children: React.ReactNode; class
   );
 }
 
+/**
+ * Minimal inline-SVG sparkline (no chart lib). Renders a normalized polyline
+ * over a fixed viewBox; the container controls the real size via CSS. Flat or
+ * empty series render a baseline.
+ */
+export function Sparkline({
+  data,
+  className,
+  strokeClass = 'stroke-primary-500',
+}: {
+  data: number[];
+  className?: string;
+  strokeClass?: string;
+}) {
+  const W = 100;
+  const H = 28;
+  const pad = 2;
+  const max = Math.max(...data, 0);
+  const min = Math.min(...data, 0);
+  const span = max - min || 1;
+  const step = data.length > 1 ? (W - pad * 2) / (data.length - 1) : 0;
+  const points = data
+    .map((v, i) => {
+      const x = pad + i * step;
+      const y = H - pad - ((v - min) / span) * (H - pad * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      className={cn('h-7 w-full', className)}
+      aria-hidden
+    >
+      <polyline
+        points={points}
+        fill="none"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={strokeClass}
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+/** Week-over-week delta chip. pct null = no prior baseline → "nuevo". */
+export function DeltaBadge({ pct, invert = false }: { pct: number | null; invert?: boolean }) {
+  if (pct === null) {
+    return <span className="text-xs font-medium text-ink-400">nuevo</span>;
+  }
+  const flat = Math.abs(pct) < 0.005;
+  const up = pct > 0;
+  // "good" is usually up; pass invert for metrics where down is good.
+  const good = flat ? null : up !== invert;
+  const tone = good === null ? 'text-ink-400' : good ? 'text-green-600' : 'text-red-600';
+  const arrow = flat ? '→' : up ? '▲' : '▼';
+  return (
+    <span className={cn('text-xs font-medium tabular-nums', tone)}>
+      {arrow} {Math.abs(Math.round(pct * 100))}%
+    </span>
+  );
+}
+
 export function StatCard({
   label,
   value,
   hint,
+  spark,
+  sparkStroke,
+  delta,
+  deltaInvert,
 }: {
   label: string;
   value: string | number;
   hint?: string;
+  spark?: number[];
+  sparkStroke?: string;
+  delta?: number | null;
+  deltaInvert?: boolean;
 }) {
   return (
     <div className="rounded-lg border border-ink-100 bg-white p-5">
-      <div className="text-xs font-mono uppercase tracking-wider text-ink-500">{label}</div>
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="text-xs font-mono uppercase tracking-wider text-ink-500">{label}</div>
+        {delta !== undefined && <DeltaBadge pct={delta} invert={deltaInvert} />}
+      </div>
       <div className="mt-2 text-3xl font-semibold tracking-tight">{value}</div>
+      {spark && spark.some((n) => n > 0) ? (
+        <div className="mt-3">
+          <Sparkline data={spark} strokeClass={sparkStroke} />
+        </div>
+      ) : null}
       {hint && <div className="mt-1 text-xs text-ink-500">{hint}</div>}
     </div>
   );

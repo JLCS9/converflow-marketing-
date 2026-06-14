@@ -170,6 +170,9 @@ export class ScoringRunner {
           aiScoreActions: call.result.recommendedActions as never,
           aiScoredAt: new Date(),
           ...(newStatus ? { status: newStatus } : {}),
+          ...(newStatus === 'CLIENT' && !lead.convertedAt
+            ? { convertedAt: new Date() }
+            : {}),
         },
       });
       if (newStatus) statusUpdated = true;

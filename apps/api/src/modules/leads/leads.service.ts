@@ -158,6 +158,8 @@ export class LeadsService {
           !lead.contactedAt && data.status && data.status !== 'LEAD' ? now : undefined,
         qualifiedAt:
           !lead.qualifiedAt && data.status === 'CLIENT' ? now : undefined,
+        convertedAt:
+          !lead.convertedAt && data.status === 'CLIENT' ? now : undefined,
         clientId,
       };
       return tx.lead.update({ where: { id }, data: dataWithStamps });

@@ -56,7 +56,7 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 - ⏳ Audit log UI (data in `admin_action_log`), AI usage dashboard
 
 ### Tenant area (app.converflow.ai/app)
-- ✅ **Dashboard reporting** (req #6): KPIs (leads, tasa de conversión, pipeline abierto €, tareas vencidas) + embudo de leads por estado, oportunidades por etapa, leads por fuente, pipeline abierto por mes de cierre. Una sola llamada `GET /reports/overview` (agregaciones con Prisma groupBy/count dentro de `withTenant`)
+- ✅ **Dashboard reporting** (req #6): KPIs (leads, tasa de conversión, pipeline abierto €, tareas vencidas) + embudo de leads por estado, oportunidades por etapa, leads por fuente, pipeline abierto por mes de cierre. Una sola llamada `GET /reports/overview` (agregaciones con Prisma groupBy/count dentro de `withTenant`). **Sprint 10**: `GET /reports/series` añade series de 14 días + deltas semana/semana + resumen IA de 7 días (ver ROADMAP Sprint 10)
 - ✅ Leads: list/filters/create/detail/status workflow/CSV import
 - ✅ **Lead Scoring IA**: POST /leads/:id/score → Claude returns score 0-100 + priority + reasoning + recommended actions; persisted; UI badge + button in lead detail
 - ✅ Opportunities: list/pipeline/create/detail/status change/delete. Create form uses **EntityPicker** (search by name, no cuid) + prefill via `?leadId=`/`?clientId=`
@@ -74,7 +74,8 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 - ✅ **Email channel** (LIVE, **two paths**):
    - Tenant **self-service IMAP/SMTP** (the user-facing channel, like WhatsApp's connect-your-account): on a Bot of channel EMAIL, `POST /bots/:id/email/connect` verifies SMTP via nodemailer + stores **AES-256-GCM encrypted** creds in `EmailConnection`; the `workers` IMAP poller (imapflow + mailparser, every ~60s) fetches new INBOX mail and forwards to `/internal/email/inbound`; outbound replies (inbox + agent AUTO) send via the tenant's own SMTP.
    - **Converflow Resend path** (system mail + fallback): outbound via Resend from `EMAIL_FROM` with `Reply-To` = the bot's address; inbound webhook `POST /internal/email/inbound` accepts `{to,from,fromName?,subject?,text?,messageId?}`. Used when a tenant hasn't connected their own mailbox (and for future system flows like password reset).
-- ✅ **Agentes IA** (`/app/agents`, **v1a + v1b + v1d LIVE**, self-service): builder with name/description/prompt + quality (Estándar/Rápida) + mode (Sugerir/Auto) + language/tone + **business info / FAQs** with hard "no inventar" guardrail + **AI disclosure** (mandatory) + **tools** toggles (`create_opportunity`, `update_opportunity`, `schedule_meeting`, `escalate_to_human`). **Playground** to test prompts. **Tool execution**: when an inbound arrives and the bot has an assigned agent, `AiService.runAgentLoop` runs Claude with the enabled tools → CRM actions execute (opp/task creates, conversation flagged) and the agent's text is delivered. **AUTO mode**: on WhatsApp sends via bot-runner with per-bot per-minute rate-limit + AI disclosure on first outbound; on EMAIL sends via the tenant SMTP. **v1c (RAG)** is pending an embeddings key from the user (recommend OpenAI `text-embedding-3-small`).
+- ✅ **Soporte / tickets** (atención al cliente): when an agent has Soporte enabled, it can open a **SUPPORT task** — either via the `create_support_task` tool (the AI invokes it on an actionable incidence) or automatically when `escalate_to_human` fires (both triggers). The ticket is **routed to a responsible user** by topic→person rules (`Agent.config.support.routes`: exact topic match → keyword match → `fallbackOwnerId`), the **assignee gets an email** (tenant's own SMTP via the first CONNECTED `EmailConnection`, Resend fallback; sent OUTSIDE the txn per lesson #1, fire-and-forget). Builder has a "Soporte / tickets" section (toggle + default priority + topic→responsible route editor + fallback). Tasks list shows the **Responsable** column + "Soporte" type. Assignable users come from `GET /users/assignable` (RequirePerm `agents`, active users only). `Task.owner` relation + `TaskType.SUPPORT` added.
+- ✅ **Agentes IA** (`/app/agents`, **v1a + v1b + v1d LIVE**, self-service): builder with name/description/prompt + quality (Estándar/Rápida) + mode (Sugerir/Auto) + language/tone + **business info / FAQs** with hard "no inventar" guardrail + **AI disclosure** (mandatory) + **tools** toggles (`create_opportunity`, `update_opportunity`, `schedule_meeting`, `escalate_to_human`, `create_support_task`). **Playground** to test prompts. **Tool execution**: when an inbound arrives and the bot has an assigned agent, `AiService.runAgentLoop` runs Claude with the enabled tools → CRM actions execute (opp/task creates, conversation flagged) and the agent's text is delivered. **AUTO mode**: on WhatsApp sends via bot-runner with per-bot per-minute rate-limit + AI disclosure on first outbound; on EMAIL sends via the tenant SMTP. **v1c (RAG)** is pending an embeddings key from the user (recommend OpenAI `text-embedding-3-small`).
 - ✅ **Design v2** (LIVE): fixed shell (`h-screen`, only content scrolls), **Lucide** icon nav, global **"Crear"** popover (lead/tarea/oportunidad/bot), **expandable nav groups** (CRM/Trabajo/IA/Configuración with subitems on expand — replaced the prior top-tab submenu), home **"Hoy"** = greeting + KPI strip (real, no sparkline) + "tu cola de hoy" (unanswered conversations + active alerts) + pulso del negocio bars. AI cost/model hidden from UI; policies banner dismissible (localStorage).
 - ✅ **Lead → Cliente automation**: when a lead's status flips to `CONVERTED`, it auto-links to an existing client by email or creates one from the lead data (company/name, email, phone, source, owner). The won lead now shows under Clientes.
 - ❌ Access logs (admin-only by decision)
@@ -89,7 +90,8 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 - Channel enum: WHATSAPP, INSTAGRAM, MESSENGER, WEBCHAT, **EMAIL**
 - Conversation: per (tenant, channel, contactJid); has emailSubject (for EMAIL reply threading), botId, leadId, status, lastInboundAt/lastOutboundAt, unreadCount, lastMessagePreview
 - Message: direction IN/OUT, body, mediaType, waMessageId (reused as the channel-native id — WA msg id, email Message-ID), AI classification fields
-- Agent: systemPrompt + model + status (DRAFT/PUBLISHED/ARCHIVED) + `config` JSON (language, tone, businessInfo, faqs, aiDisclosure, tools[], mode SUGGEST/AUTO)
+- Agent: systemPrompt + model + status (DRAFT/PUBLISHED/ARCHIVED) + `config` JSON (language, tone, businessInfo, faqs, aiDisclosure, tools[], mode SUGGEST/AUTO, **support: { enabled, routes[{topic,keywords[],ownerId}], fallbackOwnerId, defaultPriority }**)
+- Task: + `owner` relation (User, onDelete SetNull) and `TaskType.SUPPORT`. Support tickets are `type=SUPPORT, source='agent'` with `ownerId` set by the routing rules.
 - CalendarConnection (one per user): googleEmail, refreshTokenEnc + accessTokenEnc (AES-256-GCM), accessTokenExpiresAt, scope, calendarId
 - EmailConnection (one per EMAIL bot): email, imapHost/Port, smtpHost/Port, username, **passwordEnc (AES-256-GCM)**, secure, status (CONNECTED/ERROR), lastError, lastSeenUid (IMAP cursor)
 - Bot: channel + phoneNumber (channel address: phone for WA, email for EMAIL, null for WEBCHAT) + agentId; one BotSession (Baileys auth state) and one EmailConnection optional
@@ -144,9 +146,21 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 8. **WhatsApp inbound (Phase B) caveats**: lead matching is by phone heuristic (last 9 digits `contains`) — leads stored with odd formatting may create a duplicate; new WA leads store clean digits so subsequent messages match. Every inbound text triggers a Claude classify (fire-and-forget) — fine at Pyme scale, add throttling/dedup (by WA message id) if volume grows. Group chats / status / media-without-caption are skipped (media → lead captured, no note).
 9. **WhatsApp ban risk**: Baileys is an unofficial client; AUTO mode on WhatsApp does send autonomously now (per-bot rate-limit + AI disclosure on first contact), but for B2B clients at scale plan to migrate to the official **WhatsApp Cloud API** (ADR #7, scheduled as Sprint 11).
 10. **Email polling cadence**: IMAP poller runs every ~60s per `EmailConnection` (not real-time). To reduce latency, switch to **IMAP IDLE** (push) or use Gmail/Microsoft push APIs in a later iteration. First sync of a new mailbox only writes the UID cursor (does NOT import history) so you don't bulk-create thousands of conversations.
-11. **Hoy home omissions**: the action-oriented home renders real KPIs + queue + bars from `/reports/overview` + `/alerts` + `/conversations?status=PENDING`, but **sparklines + week-over-week deltas + "Tu IA esta semana"** are intentionally omitted until the historical-metrics backend (Sprint 10) — we don't render placeholder data.
+11. **Hoy home metrics** (Sprint 10 ✅): the home now renders sparklines +
+    week-over-week deltas (Leads / Conversión / Ganado) and a **"Tu IA esta
+    semana"** panel, all from `/reports/series` (on-the-fly aggregations, no
+    snapshot table). Point-in-time metrics with no event basis (open pipeline,
+    tasks overdue) still show NO delta on purpose. `Lead.convertedAt` is the only
+    schema add — **a `db push` is required on deploy** (see runbook).
 12. **Two email paths exist**: the tenant self-service IMAP/SMTP (the customer-facing channel) vs. the Converflow Resend system path (used for system mail and as a fallback when no `EmailConnection` exists for an EMAIL bot). Document this clearly to tenants during onboarding.
 13. **Agents RAG not built (v1c)**: agents currently inject `businessInfo` + `faqs` text into the prompt with a hard "no inventar" guardrail. Real RAG over uploaded documents (pgvector) waits on an embeddings provider key from the user (recommend OpenAI `text-embedding-3-small`, alternative Voyage).
+14. **`/reports/overview` funnel uses LEGACY lead statuses**: `reports.service.ts`
+    still buckets by `['NEW','CONTACTED','QUALIFIED','CONVERTED','LOST']`, but the
+    schema migrated leads to the `LEAD/CLIENT/LOST` triplet (old values kept in the
+    enum only for the migration window). So the "Embudo de leads" bars on the Hoy
+    home likely render mostly-empty legacy buckets. Fix: bucket by the new triplet
+    (and decide whether to keep a richer funnel via `contactedAt`/`qualifiedAt`/
+    `convertedAt` stamps). Out of scope for Sprint 10 — flagged, not fixed.
 
 ## Operational runbook
 
@@ -179,7 +193,7 @@ Write a `.cjs` to `/repo/apps/api/`, `require('@converflow/db')` + `require('arg
 `docker compose ... build --no-cache <svc>`; if needed `docker rmi -f cfai-<svc>:latest` first.
 
 ### Secrets in .env.prod (on VPS only)
-DATABASE/REDIS, AUTH_SECRET, **ENCRYPTION_KEY** (64 hex — used everywhere creds/tokens are at rest: `common/utils/crypto.ts` for Calendar + EmailConnection password, `bot-runner/crypto.ts` for Baileys auth state, `workers/crypto.ts` for decrypting EmailConnection password in the poller), S3_* (R2), ANTHROPIC_API_KEY, ANTHROPIC_DEFAULT_MODEL (claude-sonnet-4-6), ANTHROPIC_FAST_MODEL (claude-haiku-4-5), GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_OAUTH_REDIRECT_URI (`https://api.converflow.ai/integrations/google/callback`), **RESEND_API_KEY + EMAIL_FROM** (system mail + Converflow email-channel fallback). **BOT_RUNNER_INTERNAL_TOKEN** (≥16 chars, fail-closed) — shared internal secret used by api↔bot-runner AND workers→api (email inbound webhook). Optional: BOT_RUNNER_URL (default `http://bot-runner:4100`), API_INTERNAL_URL (workers/bot-runner → api, default `http://api:4000`), EMAIL_POLL_INTERVAL_MS (workers IMAP poller, default 60000). Per-tenant SMTP/IMAP credentials are stored encrypted in `email_connections` (NOT env).
+DATABASE/REDIS, AUTH_SECRET, **ENCRYPTION_KEY** (64 hex — used everywhere creds/tokens are at rest: `common/utils/crypto.ts` for Calendar + EmailConnection password, `bot-runner/crypto.ts` for Baileys auth state, `workers/crypto.ts` for decrypting EmailConnection password in the poller), S3_* (R2), ANTHROPIC_API_KEY, ANTHROPIC_DEFAULT_MODEL (claude-sonnet-4-6), ANTHROPIC_FAST_MODEL (claude-haiku-4-5), GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_OAUTH_REDIRECT_URI (`https://api.converflow.ai/integrations/google/callback`), **RESEND_API_KEY + EMAIL_FROM** (system mail + Converflow email-channel fallback). **BOT_RUNNER_INTERNAL_TOKEN** (≥16 chars, fail-closed) — shared internal secret used by api↔bot-runner AND workers→api (email inbound webhook). Optional: BOT_RUNNER_URL (default `http://bot-runner:4100`), API_INTERNAL_URL (workers/bot-runner → api, default `http://api:4000`), EMAIL_POLL_INTERVAL_MS (workers IMAP poller, default 60000). Per-tenant SMTP/IMAP credentials are stored encrypted in `email_connections` (NOT env). **WEB_PUBLIC_URL** must point to `https://app.converflow.ai` in prod — it's used to build the deep links in the support-ticket assignment emails (defaults to localhost otherwise).
 
 ## ROADMAP
 
@@ -268,14 +282,29 @@ adapter (transport + identity). Channels currently live:
   injects them into the prompt under a "FUENTES" section with citations.
 - [ ] UI: agent edit shows "Indexado: N fragmentos" + a "re-indexar" button.
 
-### Sprint 10 — Historical metrics + close the Hoy home
-- [ ] `metric_snapshots` rolling table or on-the-fly aggregations over `ai_usage`
-  / conversations / leads for 7-day series + week-over-week deltas.
-- [ ] `/reports/series` endpoint.
-- [ ] Wire sparklines + Delta into the Hoy home's KPI cards.
-- [ ] "Tu IA esta semana" panel (atended conversations, leads qualified,
-  meetings scheduled, % resolved without a human, escalated) — from `ai_usage`
-  metadata (tool actions are stored there since v1b).
+### Sprint 10 — Historical metrics + close the Hoy home ✅ LIVE
+Decision: **on-the-fly aggregations, NO `metric_snapshots` table, NO cron.** Every
+metric we surface has a real event timestamp (`createdAt`, `closedAt`,
+`ai_usage.createdAt`); the only gap was conversions, fixed with a single
+`Lead.convertedAt` column (stamped in `LeadsService.update` + `scoring.ts` on the
+first CLIENT transition). Point-in-time metrics with no event basis (open pipeline,
+tasks overdue) deliberately get NO sparkline/delta — consistent with the project's
+no-placeholder-data rule.
+- [x] `GET /reports/series` — daily buckets over the last 14 calendar days (TZ
+  `Europe/Madrid`, bucketed in JS, no date lib) for `leadsCreated`, `conversions`,
+  `wonCount`/`wonValue` (Opportunity WON by `closedAt`), `inboundMessages`. Returns
+  `{ days, series, deltas (last-7 vs prior-7, pct null when no baseline), aiWeek }`.
+- [x] Sparkline (inline SVG, no chart lib) + `DeltaBadge` in `primitives.tsx`;
+  `StatCard` extended with optional `spark`/`delta`. Hoy home KPI strip now:
+  **Leads** (new-this-week spark + delta), **Conversión** (conversions spark +
+  delta), **Ganado** (7-day won € spark + delta; open pipeline moved to its hint),
+  **Tareas vencidas** (point-in-time, no delta).
+- [x] **"Tu IA esta semana"** panel — conversaciones atendidas (+ % auto-resueltas),
+  leads puntuados, reuniones agendadas, escaladas a humano. Derived from `ai_usage`
+  over 7 days (`agent_reply` `metadata.{delivered,mode,actions}` + `lead_scoring`).
+  Empty-state when the AI hasn't acted (no placeholder numbers).
+- ⏳ Deferred: an `expensive` weekly email/notification of these metrics; richer
+  charting. Not needed for KD compliance.
 
 ### Sprint 11 — WhatsApp Cloud API (official) upgrade
 ADR #7: reduce ban risk for production scale. Build a second WHATSAPP adapter

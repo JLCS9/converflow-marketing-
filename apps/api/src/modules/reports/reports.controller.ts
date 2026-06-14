@@ -17,4 +17,9 @@ export class ReportsController {
   overview(@CurrentUser() user: AuthenticatedUser) {
     return this.reports.overview(user.tenantId);
   }
+
+  @Get('series')
+  series(@CurrentUser() user: AuthenticatedUser) {
+    return this.reports.series(user.tenantId);
+  }
 }

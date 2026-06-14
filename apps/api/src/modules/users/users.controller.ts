@@ -21,6 +21,14 @@ export class UsersController {
     return this.users.list(user.tenantId);
   }
 
+  // Lightweight active-user list for assignment pickers (e.g. support routing in
+  // the agent builder). Accessible to agent editors, not just user admins.
+  @Get('assignable')
+  @RequirePerm('agents')
+  listAssignable(@CurrentUser() user: AuthenticatedUser) {
+    return this.users.listAssignable(user.tenantId);
+  }
+
   @Post('invite')
   invite(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
     return this.users.invite(body as never, {

@@ -177,6 +177,7 @@ model User {
 
   sessions UserSession[]
   calendarConnection CalendarConnection?
+  assignedTasks Task[]
 
   @@index([tenantId])
   @@map("users")
@@ -494,6 +495,7 @@ model Lead {
 
   contactedAt DateTime?
   qualifiedAt DateTime?
+  convertedAt DateTime? // stamped once when the lead first becomes CLIENT (Sprint 10 metrics)
 
   opportunities Opportunity[]
   tasks         Task[]
@@ -700,6 +702,7 @@ model Task {
   status      TaskStatus @default(PENDING)
   priority    Priority   @default(MEDIUM)
   ownerId     String?
+  owner       User?      @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   dueAt       DateTime?
   completedAt DateTime?
 
@@ -720,6 +723,7 @@ enum TaskType {
   EMAIL
   MEETING
   FOLLOW_UP
+  SUPPORT
   OTHER
 }
 

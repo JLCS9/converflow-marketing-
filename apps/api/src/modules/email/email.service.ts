@@ -80,6 +80,29 @@ export class EmailService {
   }
 
   /**
+   * Internal notification to a team member (e.g. a support task was assigned).
+   * Prefers the tenant's own mailbox (the first CONNECTED EmailConnection) so
+   * the message comes from their domain; falls back to the Converflow system
+   * sender (Resend) when no mailbox is connected. Best-effort: the caller should
+   * run this OUTSIDE any Prisma transaction (SMTP/Resend are slow network I/O).
+   */
+  async notifyUser(
+    tenantId: string,
+    opts: { toEmail: string; subject: string; text: string },
+  ): Promise<{ id?: string }> {
+    const conn = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.emailConnection.findFirst({
+        where: { status: 'CONNECTED' },
+        orderBy: { updatedAt: 'desc' },
+      }),
+    );
+    if (conn) {
+      return this.sendSmtp(conn, { to: opts.toEmail, subject: opts.subject, text: opts.text });
+    }
+    return this.sendResend({ to: opts.toEmail, subject: opts.subject, text: opts.text });
+  }
+
+  /**
    * Reply to an EMAIL conversation. Prefers the tenant's own mailbox (SMTP
    * connection on the bot); falls back to Resend if none is connected.
    */

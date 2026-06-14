@@ -1,10 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DEFAULT_AI_DISCLOSURE, type AgentConfig } from '@converflow/shared';
+import {
+  DEFAULT_AI_DISCLOSURE,
+  TASK_PRIORITIES,
+  type AgentConfig,
+  type SupportConfig,
+} from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { AiService } from '../../common/ai/ai.service.js';
 import { BotRunnerService } from '../bots/bot-runner.service.js';
 import { EmailService } from '../email/email.service.js';
 import { AgentsService } from './agents.service.js';
+import { env } from '../../config/env.js';
 
 interface ToolDef {
   name: string;
@@ -63,12 +69,35 @@ const TOOL_DEFS: Record<string, ToolDef> = {
       properties: { reason: { type: 'string' } },
     },
   },
+  create_support_task: {
+    name: 'create_support_task',
+    description:
+      'Abre un ticket de soporte y lo asigna a la persona responsable cuando el cliente reporta una incidencia, queja o petición que requiere gestión humana (no para preguntas que ya puedes responder). Clasifica el tema para enrutarlo bien.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Título corto y claro de la incidencia' },
+        summary: {
+          type: 'string',
+          description: 'Resumen del caso para el responsable (qué pide el cliente y contexto).',
+        },
+        topic: {
+          type: 'string',
+          description: 'Tema/categoría de la incidencia (usa uno de los temas indicados si encaja).',
+        },
+        priority: { type: 'string', enum: [...TASK_PRIORITIES] },
+      },
+      required: ['title'],
+    },
+  },
 };
 
 interface ToolCtx {
   tenantId: string;
   leadId: string | null;
   conversationId: string;
+  support?: SupportConfig;
+  userText: string; // last inbound message — used for keyword routing
 }
 
 interface LeadCtx {
@@ -114,7 +143,11 @@ export class AgentRuntimeService {
     }
 
     const config = (agent.config ?? {}) as AgentConfig;
-    const enabledTools = (config.tools ?? [])
+    const toolNames = new Set(config.tools ?? []);
+    // Support ticketing turns the create_support_task tool on regardless of the
+    // tools[] array, so enabling Soporte is a single switch in the builder.
+    if (config.support?.enabled) toolNames.add('create_support_task');
+    const enabledTools = [...toolNames]
       .map((t) => TOOL_DEFS[t])
       .filter((d): d is ToolDef => !!d);
 
@@ -140,6 +173,11 @@ export class AgentRuntimeService {
       enabledTools.length
         ? 'Tienes herramientas para actuar en el CRM. Úsalas SOLO cuando la conversación lo justifique claramente; no las uses por defecto. Tu respuesta de texto es lo que se le enviará al cliente.'
         : '',
+      config.support?.enabled && config.support.routes?.length
+        ? `Si abres un ticket de soporte, clasifica el tema (campo "topic") usando uno de estos cuando encaje: ${config.support.routes
+            .map((r) => r.topic)
+            .join(', ')}.`
+        : '',
     ]
       .filter(Boolean)
       .join('\n\n');
@@ -153,7 +191,13 @@ export class AgentRuntimeService {
       .filter(Boolean)
       .join('\n');
 
-    const ctx: ToolCtx = { tenantId, leadId: lead?.id ?? null, conversationId };
+    const ctx: ToolCtx = {
+      tenantId,
+      leadId: lead?.id ?? null,
+      conversationId,
+      support: config.support,
+      userText,
+    };
 
     const call = await this.ai.runAgentLoop({
       model: agent.model,
@@ -323,7 +367,9 @@ export class AgentRuntimeService {
       case 'schedule_meeting':
         return this.scheduleMeeting(ctx, args);
       case 'escalate_to_human':
-        return this.escalate(ctx);
+        return this.escalate(ctx, args);
+      case 'create_support_task':
+        return this.createSupportTask(ctx, args);
       default:
         return `Herramienta desconocida: ${name}`;
     }
@@ -391,13 +437,169 @@ export class AgentRuntimeService {
     });
   }
 
-  private escalate(ctx: ToolCtx): Promise<string> {
-    return this.prisma.withTenant(ctx.tenantId, async (tx) => {
-      await tx.conversation.update({
+  private async escalate(ctx: ToolCtx, args: Record<string, unknown>): Promise<string> {
+    await this.prisma.withTenant(ctx.tenantId, (tx) =>
+      tx.conversation.update({
         where: { id: ctx.conversationId },
         data: { status: 'PENDING' },
+      }),
+    );
+    // When Soporte is on, escalating also opens an assigned, notified ticket so
+    // the case lands in someone's queue — not just flagged in the inbox.
+    if (ctx.support?.enabled) {
+      const reason = typeof args.reason === 'string' ? args.reason.trim() : '';
+      const ticket = await this.openSupportTicket(ctx, {
+        title: reason ? `Escalado: ${reason}`.slice(0, 150) : 'Conversación escalada a soporte',
+        summary: reason || undefined,
+        topic: reason || undefined,
       });
-      return 'Conversación marcada para que la atienda una persona.';
+      return `Conversación marcada para una persona. ${ticket}`;
+    }
+    return 'Conversación marcada para que la atienda una persona.';
+  }
+
+  private async createSupportTask(ctx: ToolCtx, args: Record<string, unknown>): Promise<string> {
+    if (!ctx.support?.enabled) {
+      return 'El soporte por tickets no está activado para este agente.';
+    }
+    const priorityArg = typeof args.priority === 'string' ? args.priority : '';
+    return this.openSupportTicket(ctx, {
+      title: String(args.title ?? '').trim() || 'Incidencia de soporte',
+      summary: typeof args.summary === 'string' ? args.summary.trim() || undefined : undefined,
+      topic: typeof args.topic === 'string' ? args.topic.trim() || undefined : undefined,
+      priority: (TASK_PRIORITIES as readonly string[]).includes(priorityArg)
+        ? (priorityArg as (typeof TASK_PRIORITIES)[number])
+        : undefined,
+    });
+  }
+
+  /**
+   * Create a SUPPORT task, route it to a responsible user (topic/keyword rules
+   * → fallback), and email them. DB work runs in a transaction; the email is
+   * fire-and-forget OUTSIDE it (SMTP/Resend are slow — lesson: never inside a
+   * Prisma txn). Returns a short status string for the agent loop.
+   */
+  private async openSupportTicket(
+    ctx: ToolCtx,
+    input: {
+      title: string;
+      summary?: string;
+      topic?: string;
+      priority?: (typeof TASK_PRIORITIES)[number];
+    },
+  ): Promise<string> {
+    const support = ctx.support!;
+    const ownerId = this.resolveSupportOwner(support, {
+      topic: input.topic,
+      text: ctx.userText,
+    });
+    const priority = input.priority ?? support.defaultPriority ?? 'MEDIUM';
+
+    const result = await this.prisma.withTenant(ctx.tenantId, async (tx) => {
+      // Only assign to an active user of this tenant; otherwise leave unassigned.
+      const owner = ownerId
+        ? await tx.user.findFirst({
+            where: { id: ownerId, status: 'ACTIVE' },
+            select: { id: true, name: true, email: true },
+          })
+        : null;
+
+      const descriptionParts = [
+        input.summary,
+        input.topic ? `Tema: ${input.topic}` : '',
+        `Mensaje del cliente: ${ctx.userText}`.slice(0, 1000),
+      ].filter(Boolean);
+
+      const task = await tx.task.create({
+        data: {
+          tenantId: ctx.tenantId,
+          leadId: ctx.leadId ?? undefined,
+          title: input.title.slice(0, 150),
+          description: descriptionParts.join('\n\n') || undefined,
+          type: 'SUPPORT',
+          status: 'PENDING',
+          priority,
+          ownerId: owner?.id,
+          source: 'agent',
+        },
+        select: { id: true },
+      });
+
+      const leadName = ctx.leadId
+        ? (await tx.lead.findUnique({ where: { id: ctx.leadId }, select: { name: true } }))?.name
+        : null;
+
+      return { taskId: task.id, owner, leadName };
+    });
+
+    if (result.owner?.email) {
+      // Fire-and-forget: a slow mailbox must not stall the agent's reply.
+      void this.sendSupportEmail(ctx.tenantId, {
+        toEmail: result.owner.email,
+        title: input.title,
+        priority,
+        topic: input.topic,
+        summary: input.summary,
+        leadName: result.leadName ?? null,
+      }).catch((err) => this.logger.warn({ err }, 'support notify email failed'));
+    }
+
+    if (!result.owner) {
+      return 'He creado un ticket de soporte (sin responsable asignado: revisa las reglas de enrutado).';
+    }
+    return `He creado un ticket de soporte y se lo he asignado a ${result.owner.name}, que recibirá un aviso por email.`;
+  }
+
+  /** Topic exact-match → keyword-match → fallback. Returns null if nothing matches. */
+  private resolveSupportOwner(
+    support: SupportConfig,
+    sel: { topic?: string; text?: string },
+  ): string | null {
+    const routes = support.routes ?? [];
+    const topic = sel.topic?.toLowerCase().trim();
+    const hay = `${sel.topic ?? ''} ${sel.text ?? ''}`.toLowerCase();
+
+    const byTopic = topic ? routes.find((r) => r.topic.toLowerCase() === topic) : undefined;
+    if (byTopic) return byTopic.ownerId;
+
+    const byKeyword = routes.find((r) =>
+      (r.keywords ?? []).some((k) => k && hay.includes(k.toLowerCase())),
+    );
+    if (byKeyword) return byKeyword.ownerId;
+
+    return support.fallbackOwnerId ?? null;
+  }
+
+  private async sendSupportEmail(
+    tenantId: string,
+    opts: {
+      toEmail: string;
+      title: string;
+      priority: string;
+      topic?: string;
+      summary?: string;
+      leadName: string | null;
+    },
+  ): Promise<void> {
+    const base = env.WEB_PUBLIC_URL.replace(/\/$/, '');
+    const lines = [
+      `Se te ha asignado un ticket de soporte.`,
+      ``,
+      `Asunto: ${opts.title}`,
+      `Prioridad: ${opts.priority}`,
+      opts.topic ? `Tema: ${opts.topic}` : '',
+      opts.leadName ? `Cliente: ${opts.leadName}` : '',
+      opts.summary ? `\nResumen:\n${opts.summary}` : '',
+      ``,
+      `Gestiónalo aquí: ${base}/app/tasks`,
+      `Conversación: ${base}/app/conversations`,
+      ``,
+      `— Converflow`,
+    ].filter((l) => l !== '');
+    await this.email.notifyUser(tenantId, {
+      toEmail: opts.toEmail,
+      subject: `[Soporte] ${opts.title}`,
+      text: lines.join('\n'),
     });
   }
 }

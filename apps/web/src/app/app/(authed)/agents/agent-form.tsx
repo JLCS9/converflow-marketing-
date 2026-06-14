@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
@@ -12,7 +12,38 @@ const toolLabels: Record<string, string> = {
   create_opportunity: 'Crear oportunidades',
   update_opportunity: 'Actualizar oportunidades',
   escalate_to_human: 'Escalar a una persona',
+  create_support_task: 'Crear tickets de soporte',
 };
+
+// create_support_task is driven by the Soporte section toggle below, not the
+// generic tools checklist, to keep its routing config in one place.
+const CHECKLIST_TOOLS = AGENT_TOOLS.filter((t) => t !== 'create_support_task');
+
+const PRIORITY_LABELS: Record<string, string> = {
+  LOW: 'Baja',
+  MEDIUM: 'Media',
+  HIGH: 'Alta',
+  URGENT: 'Urgente',
+};
+
+interface SupportRouteUI {
+  topic: string;
+  keywords: string; // comma-separated in the UI
+  ownerId: string;
+}
+
+interface SupportConfigData {
+  enabled?: boolean;
+  routes?: { topic: string; keywords?: string[]; ownerId: string }[];
+  fallbackOwnerId?: string;
+  defaultPriority?: string;
+}
+
+interface TenantUser {
+  id: string;
+  name: string;
+  email: string;
+}
 
 interface AgentConfig {
   language?: string;
@@ -21,6 +52,7 @@ interface AgentConfig {
   faqs?: string;
   aiDisclosure?: string;
   tools?: string[];
+  support?: SupportConfigData;
   // mode is legacy — replyMode lives on Bot now.
   mode?: 'SUGGEST' | 'AUTO';
 }
@@ -85,8 +117,64 @@ export function AgentForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  // Support / ticketing config (CONVERSATIONAL only).
+  const initSupport = cfg.support ?? {};
+  const [supportEnabled, setSupportEnabled] = useState<boolean>(initSupport.enabled ?? false);
+  const [supportPriority, setSupportPriority] = useState<string>(
+    initSupport.defaultPriority ?? 'MEDIUM',
+  );
+  const [fallbackOwnerId, setFallbackOwnerId] = useState<string>(initSupport.fallbackOwnerId ?? '');
+  const [routes, setRoutes] = useState<SupportRouteUI[]>(
+    (initSupport.routes ?? []).map((r) => ({
+      topic: r.topic,
+      keywords: (r.keywords ?? []).join(', '),
+      ownerId: r.ownerId,
+    })),
+  );
+  const [users, setUsers] = useState<TenantUser[]>([]);
+
+  // Load the tenant's users for the responsible selects (only when relevant).
+  useEffect(() => {
+    let active = true;
+    apiFetch<TenantUser[]>('/users/assignable')
+      .then((u) => active && setUsers(Array.isArray(u) ? u : []))
+      .catch(() => active && setUsers([]));
+    return () => {
+      active = false;
+    };
+  }, []);
+
   function toggleTool(t: string) {
     setTools((v) => (v.includes(t) ? v.filter((x) => x !== t) : [...v, t]));
+  }
+
+  function addRoute() {
+    setRoutes((v) => [...v, { topic: '', keywords: '', ownerId: '' }]);
+  }
+  function updateRoute(i: number, patch: Partial<SupportRouteUI>) {
+    setRoutes((v) => v.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  }
+  function removeRoute(i: number) {
+    setRoutes((v) => v.filter((_, idx) => idx !== i));
+  }
+
+  function buildSupportConfig(): SupportConfigData {
+    if (!supportEnabled) return { enabled: false };
+    return {
+      enabled: true,
+      defaultPriority: supportPriority,
+      fallbackOwnerId: fallbackOwnerId || undefined,
+      routes: routes
+        .filter((r) => r.topic.trim() && r.ownerId)
+        .map((r) => ({
+          topic: r.topic.trim(),
+          ownerId: r.ownerId,
+          keywords: r.keywords
+            .split(',')
+            .map((k) => k.trim())
+            .filter(Boolean),
+        })),
+    };
   }
 
   const isConversational = type === 'CONVERSATIONAL';
@@ -128,6 +216,7 @@ export function AgentForm({
                   aiDisclosure:
                     String(f.get('aiDisclosure') ?? '').trim() || DEFAULT_AI_DISCLOSURE,
                   tools,
+                  support: buildSupportConfig(),
                 }
               : isOpportunities
               ? {
@@ -291,7 +380,7 @@ export function AgentForm({
                 desmarcarlas si no las necesitas.
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
-                {AGENT_TOOLS.map((t) => {
+                {CHECKLIST_TOOLS.map((t) => {
                   const isCore = templateCoreTools.has(t);
                   return (
                     <label key={t} className="flex items-center gap-2 text-sm">
@@ -324,6 +413,122 @@ export function AgentForm({
                 defaultValue={cfg.aiDisclosure ?? DEFAULT_AI_DISCLOSURE}
               />
             </Field>
+
+            {/* ── Soporte / tickets ──────────────────────────────── */}
+            <div className="rounded-md border border-ink-100 bg-ink-100/40 p-4 space-y-3">
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={supportEnabled}
+                  onChange={(e) => setSupportEnabled(e.target.checked)}
+                  className="mt-0.5 rounded border-ink-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-sm">
+                  <strong>Soporte / tickets</strong> — cuando el agente detecte una incidencia (o
+                  escale a una persona), crea una tarea de soporte, la asigna al responsable y le
+                  avisa por email.
+                </span>
+              </label>
+
+              {supportEnabled && (
+                <div className="space-y-4 border-t border-ink-100 pt-3">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Prioridad por defecto">
+                      <Select
+                        value={supportPriority}
+                        onChange={(e) => setSupportPriority(e.target.value)}
+                      >
+                        {Object.entries(PRIORITY_LABELS).map(([v, l]) => (
+                          <option key={v} value={v}>
+                            {l}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field
+                      label="Responsable por defecto"
+                      help="Recibe los tickets que no encajan en ninguna regla de tema."
+                    >
+                      <Select
+                        value={fallbackOwnerId}
+                        onChange={(e) => setFallbackOwnerId(e.target.value)}
+                      >
+                        <option value="">— Sin asignar —</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name} ({u.email})
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
+
+                  <div>
+                    <div className="text-sm font-medium text-ink-900">Enrutado por tema</div>
+                    <p className="mb-2 text-xs text-ink-500">
+                      Cada regla asigna los tickets de un tema a una persona. Coincide por el tema
+                      que clasifica la IA o por palabras clave en el mensaje.
+                    </p>
+                    <div className="space-y-2">
+                      {routes.map((r, i) => (
+                        <div
+                          key={i}
+                          className="grid items-start gap-2 rounded-md border border-ink-100 bg-white p-2 sm:grid-cols-[1fr_1.2fr_1.4fr_auto]"
+                        >
+                          <Input
+                            placeholder="Tema (p. ej. Facturación)"
+                            value={r.topic}
+                            maxLength={60}
+                            onChange={(e) => updateRoute(i, { topic: e.target.value })}
+                          />
+                          <Input
+                            placeholder="Palabras clave (coma)"
+                            value={r.keywords}
+                            onChange={(e) => updateRoute(i, { keywords: e.target.value })}
+                          />
+                          <Select
+                            value={r.ownerId}
+                            onChange={(e) => updateRoute(i, { ownerId: e.target.value })}
+                          >
+                            <option value="">— Responsable —</option>
+                            {users.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name}
+                              </option>
+                            ))}
+                          </Select>
+                          <button
+                            type="button"
+                            onClick={() => removeRoute(i)}
+                            className={buttonClass('ghost', 'px-2')}
+                            aria-label="Eliminar regla"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addRoute}
+                      className={buttonClass('secondary', 'mt-2')}
+                    >
+                      + Añadir regla
+                    </button>
+                  </div>
+
+                  {users.length === 0 && (
+                    <p className="text-xs text-amber-700">
+                      No hay usuarios para asignar todavía. Invita a tu equipo en{' '}
+                      <Link href="/app/users" className="underline">
+                        Usuarios
+                      </Link>
+                      .
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </>
         )}
 

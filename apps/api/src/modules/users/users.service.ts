@@ -57,6 +57,17 @@ export class UsersService {
     );
   }
 
+  /** Active users only, minimal fields, for assignment pickers. */
+  listAssignable(tenantId: string) {
+    return this.prisma.withTenant(tenantId, (tx) =>
+      tx.user.findMany({
+        where: { status: 'ACTIVE' },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, email: true },
+      }),
+    );
+  }
+
   async invite(input: InviteUserInput, ctx: { tenantId: string; currentUserId: string }) {
     const data = inviteSchema.parse(input);
 

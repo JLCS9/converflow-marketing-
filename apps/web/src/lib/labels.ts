@@ -118,6 +118,7 @@ export const TASK_TYPE: Record<string, string> = {
   EMAIL: 'Email',
   MEETING: 'Reunión',
   FOLLOW_UP: 'Seguimiento',
+  SUPPORT: 'Soporte',
   OTHER: 'Otro',
 };
 
