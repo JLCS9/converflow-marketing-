@@ -9,6 +9,7 @@ interface Bot {
   id: string;
   name: string;
   channel: string;
+  phoneNumber: string | null; // for EMAIL bots this is the address it sends from
 }
 interface TenantUser {
   id: string;
@@ -30,13 +31,27 @@ export interface CampaignData {
     statuses?: string[];
     sources?: string[];
     ownerId?: string;
+    excludeLeadIds?: string[];
+    excludeClientIds?: string[];
   } | null;
 }
 
+interface PreviewContact {
+  leadId: string | null;
+  clientId: string | null;
+  name: string | null;
+  address: string;
+}
 interface Preview {
   total: number;
   suppressed: number;
-  sample: { name: string | null; address: string }[];
+  truncated: boolean;
+  contacts: PreviewContact[];
+}
+
+// Stable key for include/exclude bookkeeping.
+function contactKey(c: { leadId: string | null; clientId: string | null }): string {
+  return c.leadId ? `L:${c.leadId}` : c.clientId ? `C:${c.clientId}` : '';
 }
 
 const CHANNELS = [
@@ -58,6 +73,14 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
   const [statuses, setStatuses] = useState((a.statuses ?? []).join(', '));
   const [sources, setSources] = useState((a.sources ?? []).join(', '));
   const [ownerId, setOwnerId] = useState(a.ownerId ?? '');
+  // Deselected contacts (keys "L:<id>" / "C:<id>") layered on top of the filter.
+  const [excluded, setExcluded] = useState<Set<string>>(
+    () =>
+      new Set([
+        ...(a.excludeLeadIds ?? []).map((id) => `L:${id}`),
+        ...(a.excludeClientIds ?? []).map((id) => `C:${id}`),
+      ]),
+  );
 
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>(
     campaign?.scheduledAt ? 'later' : 'now',
@@ -94,12 +117,25 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
         .split(',')
         .map((x) => x.trim())
         .filter(Boolean);
+    const ex = [...excluded];
     return {
       entity,
       statuses: toList(statuses),
       sources: toList(sources),
       ownerId: ownerId || undefined,
+      excludeLeadIds: ex.filter((k) => k.startsWith('L:')).map((k) => k.slice(2)),
+      excludeClientIds: ex.filter((k) => k.startsWith('C:')).map((k) => k.slice(2)),
     };
+  }
+
+  function toggleExcluded(key: string, include: boolean) {
+    if (!key) return;
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      if (include) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   }
 
   function buildPayload() {
@@ -194,6 +230,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
             {channelBots.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
+                {b.phoneNumber ? ` — ${b.phoneNumber}` : ''}
               </option>
             ))}
           </Select>
@@ -266,23 +303,82 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
             </button>
             {preview && (
               <span className="text-sm text-ink-700">
-                <strong>{preview.total}</strong> destinatarios
+                <strong>{preview.contacts.filter((c) => !excluded.has(contactKey(c))).length}</strong>{' '}
+                seleccionados de {preview.total}
                 {preview.suppressed > 0 && (
-                  <span className="text-ink-500"> · {preview.suppressed} dados de baja excluidos</span>
+                  <span className="text-ink-500"> · {preview.suppressed} de baja excluidos</span>
                 )}
               </span>
             )}
           </div>
-          {preview && preview.sample.length > 0 && (
-            <p className="text-xs text-ink-500">
-              Ej.: {preview.sample.map((s) => s.name || s.address).slice(0, 5).join(', ')}
-              {preview.total > 5 ? '…' : ''}
-            </p>
+
+          {preview && (
+            <div className="rounded-md border border-ink-100 bg-white">
+              <div className="flex items-center justify-between border-b border-ink-100 px-3 py-2 text-xs text-ink-500">
+                <span>Desmarca los que no quieras incluir</span>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    className="hover:underline"
+                    onClick={() =>
+                      setExcluded((prev) => {
+                        const next = new Set(prev);
+                        preview.contacts.forEach((c) => next.delete(contactKey(c)));
+                        return next;
+                      })
+                    }
+                  >
+                    Todos
+                  </button>
+                  <button
+                    type="button"
+                    className="hover:underline"
+                    onClick={() =>
+                      setExcluded((prev) => {
+                        const next = new Set(prev);
+                        preview.contacts.forEach((c) => {
+                          const k = contactKey(c);
+                          if (k) next.add(k);
+                        });
+                        return next;
+                      })
+                    }
+                  >
+                    Ninguno
+                  </button>
+                </div>
+              </div>
+              <div className="max-h-64 overflow-y-auto divide-y divide-ink-50">
+                {preview.contacts.length === 0 ? (
+                  <p className="px-3 py-4 text-sm text-ink-500">Ningún contacto coincide con estos filtros.</p>
+                ) : (
+                  preview.contacts.map((c) => {
+                    const key = contactKey(c);
+                    const included = !excluded.has(key);
+                    return (
+                      <label
+                        key={key || c.address}
+                        className="flex items-center gap-3 px-3 py-1.5 text-sm hover:bg-ink-50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={included}
+                          onChange={(e) => toggleExcluded(key, e.target.checked)}
+                        />
+                        <span className="min-w-0 flex-1 truncate">{c.name || c.address}</span>
+                        <span className="shrink-0 font-mono text-xs text-ink-400">{c.address}</span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+              {preview.truncated && (
+                <p className="border-t border-ink-100 px-3 py-2 text-[11px] text-amber-700">
+                  Mostrando los primeros 1000. Afina los filtros para ver el resto.
+                </p>
+              )}
+            </div>
           )}
-          <p className="text-[11px] text-ink-400">
-            El ajuste manual de contactos concretos llegará en una próxima iteración; por ahora la
-            audiencia se define por estos filtros.
-          </p>
         </div>
 
         {/* ── Programación ──────────────────────────────────────── */}

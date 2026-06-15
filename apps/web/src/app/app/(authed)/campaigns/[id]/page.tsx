@@ -12,6 +12,8 @@ interface Recipient {
   status: string;
   error: string | null;
   sentAt: string | null;
+  openedAt: string | null;
+  openCount: number;
 }
 interface CampaignDetail extends CampaignData {
   totalRecipients: number;
@@ -76,9 +78,10 @@ export default async function CampaignDetailPage({
         <CampaignForm campaign={c} />
       ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-3">
+          <section className="grid gap-4 sm:grid-cols-4">
             <StatCard label="Destinatarios" value={c.totalRecipients} />
             <StatCard label="Enviados" value={c.sentCount} />
+            <StatCard label="Aperturas" value={c.recipients.filter((r) => r.openedAt).length} />
             <StatCard label="Fallidos" value={c.failedCount} />
           </section>
 
@@ -95,6 +98,7 @@ export default async function CampaignDetailPage({
                   <th className="px-4 py-3">Destinatario</th>
                   <th className="px-4 py-3">Dirección</th>
                   <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3">Abierto</th>
                   <th className="hidden px-4 py-3 md:table-cell">Detalle</th>
                 </tr>
               </thead>
@@ -105,6 +109,15 @@ export default async function CampaignDetailPage({
                     <td className="px-4 py-2 font-mono text-xs">{r.address}</td>
                     <td className="px-4 py-2">
                       <Badge color={REC_COLOR[r.status] ?? 'gray'}>{r.status}</Badge>
+                    </td>
+                    <td className="px-4 py-2 text-xs">
+                      {r.openedAt ? (
+                        <span className="text-green-700" title={new Date(r.openedAt).toLocaleString('es-ES')}>
+                          ✓{r.openCount > 1 ? ` ×${r.openCount}` : ''}
+                        </span>
+                      ) : (
+                        <span className="text-ink-400">—</span>
+                      )}
                     </td>
                     <td className="hidden px-4 py-2 text-xs text-ink-500 md:table-cell">
                       {r.error
@@ -117,7 +130,7 @@ export default async function CampaignDetailPage({
                 ))}
                 {c.recipients.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-sm text-ink-500">
+                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-ink-500">
                       Sin destinatarios registrados.
                     </td>
                   </tr>

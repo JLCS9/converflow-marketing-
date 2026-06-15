@@ -21,6 +21,13 @@ type PrismaTx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+function escapeHtml(s: string): string {
+  return s.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string,
+  );
+}
+
 // Per-channel pacing between sends (ms). WhatsApp is deliberately slow — Baileys
 // is an unofficial client and bulk sending risks a ban (see ADR #7 / Cloud API).
 const SEND_DELAY_MS: Record<string, number> = { EMAIL: 600, WHATSAPP: 4000 };
@@ -111,7 +118,16 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
           recipients: {
             orderBy: { createdAt: 'asc' },
             take: 500,
-            select: { id: true, name: true, address: true, status: true, error: true, sentAt: true },
+            select: {
+              id: true,
+              name: true,
+              address: true,
+              status: true,
+              error: true,
+              sentAt: true,
+              openedAt: true,
+              openCount: true,
+            },
           },
         },
       }),
@@ -209,10 +225,17 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
       deduped.map((c) => c.address),
     );
     const sendable = deduped.filter((c) => !suppressed.has(c.address.toLowerCase()));
+    const CAP = 1000;
     return {
       total: sendable.length,
       suppressed: deduped.length - sendable.length,
-      sample: sendable.slice(0, 10).map((c) => ({ name: c.name, address: c.address })),
+      truncated: sendable.length > CAP,
+      contacts: sendable.slice(0, CAP).map((c) => ({
+        leadId: c.leadId ?? null,
+        clientId: c.clientId ?? null,
+        name: c.name,
+        address: c.address,
+      })),
     };
   }
 
@@ -307,10 +330,12 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
           let messageId: string | undefined;
           if (campaign.channel === 'EMAIL') {
             const text = body + this.unsubscribeFooter(tenantId, r.address);
+            const html = this.buildHtml(tenantId, r.id, body, r.address);
             const res = await this.email.sendViaBot(tenantId, campaign.botId, {
               to: r.address,
               subject: campaign.subject ?? 'Información',
               text,
+              html,
             });
             messageId = res.id;
           } else if (campaign.channel === 'WHATSAPP') {
@@ -470,6 +495,50 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
       address,
     )}`;
     return `\n\n—\nSi no deseas recibir más comunicaciones, date de baja aquí: ${url}`;
+  }
+
+  // ---- HTML body + open tracking ------------------------------------------
+  private buildHtml(tenantId: string, recipientId: string, body: string, address: string): string {
+    const base = env.API_PUBLIC_URL.replace(/\/$/, '');
+    const bodyHtml = escapeHtml(body).replace(/\n/g, '<br>');
+    const unsubUrl = `${base}/unsubscribe?token=${this.tokenFor(tenantId, 'EMAIL', address)}`;
+    const pixel = `${base}/c/o/${this.trackToken(recipientId)}`;
+    return `<!doctype html><html><body style="font-family:system-ui,Arial,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5">
+<div>${bodyHtml}</div>
+<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+<p style="font-size:12px;color:#888">Si no deseas recibir más comunicaciones, <a href="${unsubUrl}" style="color:#888">date de baja aquí</a>.</p>
+<img src="${pixel}" width="1" height="1" alt="" style="display:none">
+</body></html>`;
+  }
+
+  private trackToken(recipientId: string): string {
+    const payload = Buffer.from(recipientId).toString('base64url');
+    const sig = createHmac('sha256', env.AUTH_SECRET).update(payload).digest('base64url');
+    return `${payload}.${sig}`;
+  }
+
+  /** Record an email open from the tracking pixel. Tenant-agnostic (bypass). */
+  async trackOpen(token: string): Promise<void> {
+    const [payload, sig] = token.split('.');
+    if (!payload || !sig) return;
+    const expected = createHmac('sha256', env.AUTH_SECRET).update(payload).digest('base64url');
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return;
+    const recipientId = Buffer.from(payload, 'base64url').toString('utf8');
+    await this.prisma
+      .bypass(async (tx) => {
+        // openedAt = first open only; openCount bumps on every open.
+        await tx.campaignRecipient.updateMany({
+          where: { id: recipientId, openedAt: null },
+          data: { openedAt: new Date() },
+        });
+        await tx.campaignRecipient.updateMany({
+          where: { id: recipientId },
+          data: { openCount: { increment: 1 } },
+        });
+      })
+      .catch(() => undefined);
   }
 
   /** Verify a token and add the address to the suppression list. Returns the address. */

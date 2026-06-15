@@ -1077,6 +1077,8 @@ model CampaignRecipient {
   error     String?
   messageId String?
   sentAt    DateTime?
+  openedAt  DateTime? // first open (EMAIL tracking pixel)
+  openCount Int       @default(0)
 
   createdAt DateTime @default(now())
 

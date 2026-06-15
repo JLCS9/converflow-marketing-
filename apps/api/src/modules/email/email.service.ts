@@ -23,7 +23,7 @@ export class EmailService {
   /** Send via the tenant's own SMTP mailbox. */
   async sendSmtp(
     conn: SmtpConn,
-    opts: { to: string; subject: string; text: string; inReplyTo?: string },
+    opts: { to: string; subject: string; text: string; html?: string; inReplyTo?: string },
   ): Promise<{ id?: string }> {
     const transporter = nodemailer.createTransport({
       host: conn.smtpHost,
@@ -36,6 +36,7 @@ export class EmailService {
       to: opts.to,
       subject: opts.subject,
       text: opts.text,
+      html: opts.html,
       inReplyTo: opts.inReplyTo,
       references: opts.inReplyTo,
     });
@@ -47,6 +48,7 @@ export class EmailService {
     to: string;
     subject: string;
     text: string;
+    html?: string;
     replyTo?: string;
     inReplyTo?: string;
   }): Promise<{ id?: string }> {
@@ -66,6 +68,7 @@ export class EmailService {
         to: [opts.to],
         subject: opts.subject,
         text: opts.text,
+        html: opts.html,
         reply_to: opts.replyTo,
         headers: Object.keys(headers).length ? headers : undefined,
       }),
@@ -88,7 +91,7 @@ export class EmailService {
   async sendViaBot(
     tenantId: string,
     botId: string | null,
-    opts: { to: string; subject: string; text: string },
+    opts: { to: string; subject: string; text: string; html?: string },
   ): Promise<{ id?: string }> {
     const conn = botId
       ? await this.prisma.withTenant(tenantId, (tx) =>
@@ -96,9 +99,19 @@ export class EmailService {
         )
       : null;
     if (conn && conn.status === 'CONNECTED') {
-      return this.sendSmtp(conn, { to: opts.to, subject: opts.subject, text: opts.text });
+      return this.sendSmtp(conn, {
+        to: opts.to,
+        subject: opts.subject,
+        text: opts.text,
+        html: opts.html,
+      });
     }
-    return this.sendResend({ to: opts.to, subject: opts.subject, text: opts.text });
+    return this.sendResend({
+      to: opts.to,
+      subject: opts.subject,
+      text: opts.text,
+      html: opts.html,
+    });
   }
 
   /**
