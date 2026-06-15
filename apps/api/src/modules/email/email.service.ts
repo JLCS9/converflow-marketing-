@@ -80,6 +80,28 @@ export class EmailService {
   }
 
   /**
+   * Send a standalone email through a specific bot's mailbox (campaigns). Uses
+   * the bot's CONNECTED SMTP connection; falls back to the Converflow system
+   * sender (Resend) when the bot has no connected mailbox. Caller runs this
+   * OUTSIDE any Prisma transaction.
+   */
+  async sendViaBot(
+    tenantId: string,
+    botId: string | null,
+    opts: { to: string; subject: string; text: string },
+  ): Promise<{ id?: string }> {
+    const conn = botId
+      ? await this.prisma.withTenant(tenantId, (tx) =>
+          tx.emailConnection.findUnique({ where: { botId } }),
+        )
+      : null;
+    if (conn && conn.status === 'CONNECTED') {
+      return this.sendSmtp(conn, { to: opts.to, subject: opts.subject, text: opts.text });
+    }
+    return this.sendResend({ to: opts.to, subject: opts.subject, text: opts.text });
+  }
+
+  /**
    * Internal notification to a team member (e.g. a support task was assigned).
    * Prefers the tenant's own mailbox (the first CONNECTED EmailConnection) so
    * the message comes from their domain; falls back to the Converflow system

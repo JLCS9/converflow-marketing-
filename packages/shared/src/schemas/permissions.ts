@@ -44,6 +44,8 @@ export const PERMISSION_MODULES = [
   'settings',
   /** Invite, edit and remove other users of the tenant. */
   'users',
+  /** Create and send bulk outbound campaigns (email/WhatsApp). */
+  'campaigns',
 ] as const;
 export type PermissionModule = (typeof PERMISSION_MODULES)[number];
 
@@ -58,6 +60,7 @@ const ADMIN_DEFAULTS: ReadonlyArray<PermissionModule> = [
   'import',
   'settings',
   'users',
+  'campaigns',
 ];
 
 const BUILDER_DEFAULTS: ReadonlyArray<PermissionModule> = [

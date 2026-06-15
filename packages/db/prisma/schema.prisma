@@ -144,6 +144,9 @@ model Tenant {
   customFieldDefinitions CustomFieldDefinition[]
   pipelines              Pipeline[]
   leadScoreBatches       LeadScoreBatch[]
+  campaigns              Campaign[]
+  campaignRecipients     CampaignRecipient[]
+  suppressions           Suppression[]
 
   @@map("tenants")
 }
@@ -317,6 +320,7 @@ model Bot {
   session BotSession?
   conversations Conversation[]
   emailConnection EmailConnection?
+  campaigns Campaign[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -1012,4 +1016,102 @@ model EmailConnection {
 
   @@index([tenantId])
   @@map("email_connections")
+}
+
+// ============================================
+// Campaigns (bulk outbound to groups of contacts)
+// One channel per campaign (EMAIL now; WHATSAPP + others as bots connect).
+// Audience = filtered leads/clients + manual include/exclude. Sending runs in
+// the API (background loop, per-channel rate limit); a scheduler launches due
+// SCHEDULED campaigns. Suppression list enforces opt-out / GDPR.
+// ============================================
+model Campaign {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name    String
+  channel Channel @default(EMAIL)
+  botId   String? // the connected bot/channel used to send
+  bot     Bot?    @relation(fields: [botId], references: [id], onDelete: SetNull)
+
+  subject String? // EMAIL only
+  body    String  // template with {nombre} {empresa} {email} placeholders
+
+  status      CampaignStatus @default(DRAFT)
+  scheduledAt DateTime? // null = send immediately on launch
+
+  // Audience snapshot: { entity, statuses[], sources[], ownerId, includeIds[], excludeIds[] }
+  audience Json?
+
+  totalRecipients Int @default(0)
+  sentCount       Int @default(0)
+  failedCount     Int @default(0)
+
+  createdByUserId String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  recipients CampaignRecipient[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, scheduledAt])
+  @@map("campaigns")
+}
+
+model CampaignRecipient {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  leadId   String?
+  clientId String?
+  name     String?
+  address  String // email or phone (the channel-native destination)
+
+  status    CampaignRecipientStatus @default(PENDING)
+  error     String?
+  messageId String?
+  sentAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([campaignId, address])
+  @@index([campaignId, status])
+  @@map("campaign_recipients")
+}
+
+model Suppression {
+  id       String  @id @default(cuid())
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  channel  Channel
+  address  String // email or phone
+  reason   String  @default("UNSUBSCRIBE") // UNSUBSCRIBE | MANUAL | BOUNCE
+
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, channel, address])
+  @@index([tenantId, channel])
+  @@map("suppressions")
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELLED
+  FAILED
+}
+
+enum CampaignRecipientStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
 }

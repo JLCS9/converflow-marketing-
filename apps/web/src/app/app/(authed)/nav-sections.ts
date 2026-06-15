@@ -39,6 +39,13 @@ export const NAV_SECTIONS: NavSection[] = [
     routes: ['/app/bots', '/app/agents'],
     requires: ['agents', 'bots'],
   },
+  {
+    key: 'campaigns',
+    label: 'Campañas',
+    defaultHref: '/app/campaigns',
+    routes: ['/app/campaigns'],
+    requires: ['campaigns'],
+  },
 ];
 
 /**

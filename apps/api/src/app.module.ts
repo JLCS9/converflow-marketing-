@@ -28,6 +28,7 @@ import { CustomFieldsModule } from './modules/custom-fields/custom-fields.module
 import { PipelinesModule } from './modules/pipelines/pipelines.module.js';
 import { LeadScoringModule } from './modules/lead-scoring/lead-scoring.module.js';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module.js';
+import { CampaignsModule } from './modules/campaigns/campaigns.module.js';
 import { AiModule } from './common/ai/ai.module.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
 import { GuardsModule } from './common/guards/guards.module.js';
@@ -66,6 +67,7 @@ import { GuardsModule } from './common/guards/guards.module.js';
     PipelinesModule,
     LeadScoringModule,
     ApiKeysModule,
+    CampaignsModule,
   ],
 })
 export class AppModule {}

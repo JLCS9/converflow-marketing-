@@ -74,6 +74,7 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 - ✅ **Email channel** (LIVE, **two paths**):
    - Tenant **self-service IMAP/SMTP** (the user-facing channel, like WhatsApp's connect-your-account): on a Bot of channel EMAIL, `POST /bots/:id/email/connect` verifies SMTP via nodemailer + stores **AES-256-GCM encrypted** creds in `EmailConnection`; the `workers` IMAP poller (imapflow + mailparser, every ~60s) fetches new INBOX mail and forwards to `/internal/email/inbound`; outbound replies (inbox + agent AUTO) send via the tenant's own SMTP.
    - **Converflow Resend path** (system mail + fallback): outbound via Resend from `EMAIL_FROM` with `Reply-To` = the bot's address; inbound webhook `POST /internal/email/inbound` accepts `{to,from,fromName?,subject?,text?,messageId?}`. Used when a tenant hasn't connected their own mailbox (and for future system flows like password reset).
+- ✅ **Campañas** (`/app/campaigns`, envíos masivos): crea campañas a grupos de leads/clientes. **1 canal por campaña** (EMAIL ya; WHATSAPP y otros según bot conectado). Audiencia = filtros (entidad lead/cliente/ambos + estados + fuentes + responsable) con **previsualización de recuento en vivo** (`POST /campaigns/preview`) — el ajuste manual de contactos concretos está soportado en backend (`includeLeadIds`/`excludeLeadIds`…) pero aún no en la UI (próximo incremento). Cuerpo tipo plantilla con variables `{nombre}/{first_name}/{email}/{telefono}`. **Envío en la API** (bucle background con rate-limit por canal: EMAIL ~0.6s, WHATSAPP ~4s) — EMAIL por el SMTP del bot (fallback Resend) con **pie de baja**, WHATSAPP por bot-runner. **Programable** (`scheduledAt`) vía un scheduler `setInterval` en la API (`onModuleInit`, claim atómico SCHEDULED→SENDING). **Bajas/RGPD**: tabla `Suppression` (tenant+channel+address); endpoint público `GET /unsubscribe?token=` (HMAC con `AUTH_SECRET`) añade la supresión; las campañas excluyen suprimidos. Permiso `campaigns` (default OWNER/ADMIN). ⚠️ WhatsApp masivo por Baileys = riesgo de baneo (rate-limit agresivo; a escala → Cloud API, Sprint 11).
 - ✅ **Soporte / tickets** (atención al cliente): when an agent has Soporte enabled, it can open a **SUPPORT task** — either via the `create_support_task` tool (the AI invokes it on an actionable incidence) or automatically when `escalate_to_human` fires (both triggers). The ticket is **routed to a responsible user** by topic→person rules (`Agent.config.support.routes`: exact topic match → keyword match → `fallbackOwnerId`), the **assignee gets an email** (tenant's own SMTP via the first CONNECTED `EmailConnection`, Resend fallback; sent OUTSIDE the txn per lesson #1, fire-and-forget). Builder has a "Soporte / tickets" section (toggle + default priority + topic→responsible route editor + fallback). Tasks list shows the **Responsable** column + "Soporte" type. Assignable users come from `GET /users/assignable` (RequirePerm `agents`, active users only). `Task.owner` relation + `TaskType.SUPPORT` added.
 - ✅ **Agentes IA** (`/app/agents`, **v1a + v1b + v1d LIVE**, self-service): builder with name/description/prompt + quality (Estándar/Rápida) + mode (Sugerir/Auto) + language/tone + **business info / FAQs** with hard "no inventar" guardrail + **AI disclosure** (mandatory) + **tools** toggles (`create_opportunity`, `update_opportunity`, `schedule_meeting`, `escalate_to_human`, `create_support_task`). **Playground** to test prompts. **Tool execution**: when an inbound arrives and the bot has an assigned agent, `AiService.runAgentLoop` runs Claude with the enabled tools → CRM actions execute (opp/task creates, conversation flagged) and the agent's text is delivered. **AUTO mode**: on WhatsApp sends via bot-runner with per-bot per-minute rate-limit + AI disclosure on first outbound; on EMAIL sends via the tenant SMTP. **v1c (RAG)** is pending an embeddings key from the user (recommend OpenAI `text-embedding-3-small`).
 - ✅ **Design v2** (LIVE): fixed shell (`h-screen`, only content scrolls), **Lucide** icon nav, global **"Crear"** popover (lead/tarea/oportunidad/bot), **expandable nav groups** (CRM/Trabajo/IA/Configuración with subitems on expand — replaced the prior top-tab submenu), home **"Hoy"** = greeting + KPI strip (real, no sparkline) + "tu cola de hoy" (unanswered conversations + active alerts) + pulso del negocio bars. AI cost/model hidden from UI; policies banner dismissible (localStorage).
@@ -92,6 +93,7 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 - Message: direction IN/OUT, body, mediaType, waMessageId (reused as the channel-native id — WA msg id, email Message-ID), AI classification fields
 - Agent: systemPrompt + model + status (DRAFT/PUBLISHED/ARCHIVED) + `config` JSON (language, tone, businessInfo, faqs, aiDisclosure, tools[], mode SUGGEST/AUTO, **support: { enabled, routes[{topic,keywords[],ownerId}], fallbackOwnerId, defaultPriority }**)
 - Task: + `owner` relation (User, onDelete SetNull) and `TaskType.SUPPORT`. Support tickets are `type=SUPPORT, source='agent'` with `ownerId` set by the routing rules.
+- **Campaign** (channel, botId, subject, body, status DRAFT/SCHEDULED/SENDING/SENT/CANCELLED/FAILED, scheduledAt, `audience` Json snapshot, counters), **CampaignRecipient** (leadId/clientId + name/address snapshot, status PENDING/SENT/FAILED/SKIPPED, unique [campaignId,address]), **Suppression** (tenant+channel+address, unique). New permission module `campaigns`.
 - CalendarConnection (one per user): googleEmail, refreshTokenEnc + accessTokenEnc (AES-256-GCM), accessTokenExpiresAt, scope, calendarId
 - EmailConnection (one per EMAIL bot): email, imapHost/Port, smtpHost/Port, username, **passwordEnc (AES-256-GCM)**, secure, status (CONNECTED/ERROR), lastError, lastSeenUid (IMAP cursor)
 - Bot: channel + phoneNumber (channel address: phone for WA, email for EMAIL, null for WEBCHAT) + agentId; one BotSession (Baileys auth state) and one EmailConnection optional
@@ -161,6 +163,27 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
     home likely render mostly-empty legacy buckets. Fix: bucket by the new triplet
     (and decide whether to keep a richer funnel via `contactedAt`/`qualifiedAt`/
     `convertedAt` stamps). Out of scope for Sprint 10 — flagged, not fixed.
+15. **⚠️ EMAIL FEEDBACK LOOP (P1, fix pending)**: the support-ticket assignment
+    email (and AUTO email replies) are sent via the tenant's SMTP. If the recipient
+    is invalid/undeliverable (real case: a test assignee `jose1@…`) the **bounce
+    (Mailer-Daemon) lands back in the polled INBOX**, the IMAP poller re-ingests it
+    as a new inbound, the agent runs again → sends again → bounces again → **infinite
+    loop** (each cycle = 1 Claude call + 1 SMTP send). Same risk for any auto-reply /
+    OOO. Mitigated in the incident by removing the Anthropic key (no AI → no agent).
+    **FIX (not yet implemented)**: in `conversation-ingest` skip inbound from our own
+    bot addresses + system senders (`mailer-daemon@`, `postmaster@`, `no-reply@`) +
+    messages with `Auto-Submitted`/`Precedence: bulk` headers; add a per-conversation
+    auto-reply rate cap as a backstop. **Do not enable AUTO email + Soporte broadly
+    until this ships.**
+16. **Anthropic credit exhaustion tanks ALL AI silently (operational)**: when the
+    Anthropic account runs out of credits every call 400s with `invalid_request_error`
+    ("credit balance is too low"). The agent loop AND the fallback classifier both
+    fail, so inbound processing produces NO suggestion, NO auto-reply and NO tool
+    actions — and the only signal is a `WARN` in `cfai-api` logs (looks like "nothing
+    happens"). Happened in prod 2026-06. **Mitigations**: enable **Auto-reload** on
+    the Anthropic billing page; and (code, pending) detect billing/quota errors
+    (400 billing / 429) and surface "IA no disponible" in the UI + optional email
+    alert to the owner instead of failing silently.
 
 ## Operational runbook
 

@@ -16,6 +16,7 @@ export const PERMISSION_LABELS: Record<PermissionModule, string> = {
   import: 'Importar leads (CSV)',
   settings: 'Configuración',
   users: 'Gestionar usuarios',
+  campaigns: 'Campañas',
 };
 
 export const PERMISSION_DESCRIPTIONS: Record<PermissionModule, string> = {
@@ -28,6 +29,7 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionModule, string> = {
   import: 'Importar leads desde un CSV.',
   settings: 'Campos personalizados, tableros (pipelines).',
   users: 'Invitar, editar y eliminar otros usuarios del tenant.',
+  campaigns: 'Crear y enviar campañas masivas (email/WhatsApp).',
 };
 
 /**
