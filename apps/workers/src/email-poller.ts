@@ -27,6 +27,12 @@ interface Conn {
   lastSeenUid: number | null;
 }
 
+// Senders that are never real customers — bounces, daemons, no-reply boxes.
+const AUTOMATED_SENDER = /^(mailer-daemon|postmaster|no-?reply|do-?not-?reply|bounce|bounces|notifications?|mailer|abuse)[@+]/i;
+function isAutomatedSender(address: string): boolean {
+  return AUTOMATED_SENDER.test(address.trim());
+}
+
 async function forwardInbound(payload: {
   to: string;
   from: string;
@@ -96,6 +102,24 @@ async function pollConnection(conn: Conn): Promise<void> {
           const sender = parsed.from?.value?.[0];
           const from = sender?.address ?? '';
           if (!from) continue;
+
+          // Anti-loop guard: never ingest bounces / auto-replies / system mail,
+          // nor our own address. Otherwise an undeliverable campaign (or an
+          // out-of-office) bounces into this INBOX → agent replies → bounces →
+          // infinite loop. Headers are only available here (mailparser), so we
+          // gate at the poller. The cursor still advances (we don't re-fetch).
+          const autoSubmitted = String(parsed.headers.get('auto-submitted') ?? '').toLowerCase();
+          const precedence = String(parsed.headers.get('precedence') ?? '').toLowerCase();
+          if (
+            (autoSubmitted && autoSubmitted !== 'no') ||
+            ['bulk', 'auto_reply', 'list', 'junk'].includes(precedence) ||
+            isAutomatedSender(from) ||
+            from.toLowerCase() === conn.email.toLowerCase()
+          ) {
+            logger.info({ from }, 'skipping automated/bounce email (anti-loop)');
+            continue;
+          }
+
           await forwardInbound({
             to: conn.email,
             from,

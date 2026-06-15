@@ -925,6 +925,7 @@ model Conversation {
   bot      Bot?    @relation(fields: [botId], references: [id], onDelete: SetNull)
   leadId   String?
   lead     Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  agentId  String? // optional override: agent for this conversation (e.g. set by a campaign)
 
   channel      Channel            @default(WHATSAPP)
   contactJid   String // stable contact id per channel (WA lid/pn, email address, webchat session)
@@ -1037,6 +1038,7 @@ model Campaign {
 
   subject String? // EMAIL only
   body    String  // template with {nombre} {empresa} {email} placeholders
+  agentId String? // optional: agent that handles REPLIES from this campaign's recipients
 
   status      CampaignStatus @default(DRAFT)
   scheduledAt DateTime? // null = send immediately on launch

@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
+import { type PrismaClient } from '@converflow/db';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { AiService } from '../../common/ai/ai.service.js';
 import { AgentRuntimeService } from '../agents/agent-runtime.service.js';
+
+type PrismaTx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
 export const whatsappEventSchema = z.object({
   // Ignored for tenant routing — the tenant is derived from the bot (see below).
@@ -17,6 +20,13 @@ export const whatsappEventSchema = z.object({
   mediaType: z.string().max(40).optional(),
 });
 export type WhatsappEventInput = z.infer<typeof whatsappEventSchema>;
+
+// Senders that are never real customers — bounces, daemons, no-reply boxes.
+const AUTOMATED_SENDER =
+  /^(mailer-daemon|postmaster|no-?reply|do-?not-?reply|bounce|bounces|notifications?|mailer|abuse)[@+]/i;
+function isAutomatedSender(address: string): boolean {
+  return AUTOMATED_SENDER.test(address.trim());
+}
 
 @Injectable()
 export class ConversationIngestService {
@@ -338,6 +348,14 @@ export class ConversationIngestService {
     const from = (input.from ?? '').trim().toLowerCase();
     if (!to || !from) return { ok: false, reason: 'bad_payload' };
 
+    // Anti-loop guard (defense in depth — the IMAP poller also gates on headers):
+    // never ingest bounces / no-reply / our own address, or a campaign that
+    // bounces could ping-pong with the agent. See CURRENT_STATE issue #15.
+    if (from === to || isAutomatedSender(from)) {
+      this.logger.log(`email IN from ${from} ignored (automated/bounce sender)`);
+      return { ok: false, reason: 'automated_sender' };
+    }
+
     const bot = await this.prisma.bypass((tx) =>
       tx.bot.findFirst({
         where: { channel: 'EMAIL', phoneNumber: to },
@@ -372,12 +390,19 @@ export class ConversationIngestService {
       const existing = await tx.conversation.findUnique({
         where: { tenantId_channel_contactJid: { tenantId, channel: 'EMAIL', contactJid: from } },
       });
+
+      // If this address was a recipient of a campaign that pins a reply agent,
+      // route the conversation to that agent (don't override an existing one).
+      const campaignAgentId =
+        existing?.agentId ?? (await this.resolveCampaignAgent(tx, 'EMAIL', from));
+
       const conv = existing
         ? await tx.conversation.update({
             where: { id: existing.id },
             data: {
               botId: existing.botId ?? bot.id,
               leadId: existing.leadId ?? lead.id,
+              agentId: existing.agentId ?? campaignAgentId,
               contactName: input.fromName?.trim() || existing.contactName,
               emailSubject: existing.emailSubject ?? (subject || null),
               status: 'PENDING',
@@ -396,6 +421,7 @@ export class ConversationIngestService {
               contactName: input.fromName?.trim() || from,
               emailSubject: subject || null,
               leadId: lead.id,
+              agentId: campaignAgentId,
               status: 'PENDING',
               lastMessageAt: now,
               lastMessagePreview: preview,
@@ -424,9 +450,25 @@ export class ConversationIngestService {
 
     this.logger.log(`email IN from ${from} → conv ${result.conv.id}${result.dupe ? ' (dupe)' : ''}`);
     if (body && !result.dupe) {
-      this.dispatchInbound(tenantId, bot.agentId, result.conv.id, result.message.id, body, result.lead);
+      // Campaign reply agent (conversation override) wins over the bot's agent.
+      const agentId = result.conv.agentId ?? bot.agentId;
+      this.dispatchInbound(tenantId, agentId, result.conv.id, result.message.id, body, result.lead);
     }
     return { ok: true, conversationId: result.conv.id, messageId: result.message.id };
+  }
+
+  /** Most recent campaign for this contact+channel that pins a reply agent. */
+  private async resolveCampaignAgent(
+    tx: PrismaTx,
+    channel: 'EMAIL' | 'WHATSAPP',
+    address: string,
+  ): Promise<string | null> {
+    const rec = await tx.campaignRecipient.findFirst({
+      where: { address, campaign: { channel, agentId: { not: null } } },
+      orderBy: { createdAt: 'desc' },
+      select: { campaign: { select: { agentId: true } } },
+    });
+    return rec?.campaign.agentId ?? null;
   }
 
   /** Public: messages of a web-chat session, for the widget to poll. */

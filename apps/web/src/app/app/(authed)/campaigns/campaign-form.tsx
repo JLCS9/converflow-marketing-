@@ -16,12 +16,18 @@ interface TenantUser {
   name: string;
   email: string;
 }
+interface Agent {
+  id: string;
+  name: string;
+  status: string;
+}
 
 export interface CampaignData {
   id: string;
   name: string;
   channel: string;
   botId: string | null;
+  agentId: string | null;
   subject: string | null;
   body: string;
   status: string;
@@ -66,6 +72,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
   const [name, setName] = useState(campaign?.name ?? '');
   const [channel, setChannel] = useState(campaign?.channel ?? 'EMAIL');
   const [botId, setBotId] = useState(campaign?.botId ?? '');
+  const [agentId, setAgentId] = useState(campaign?.agentId ?? '');
   const [subject, setSubject] = useState(campaign?.subject ?? '');
   const [body, setBody] = useState(campaign?.body ?? '');
 
@@ -91,6 +98,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
 
   const [bots, setBots] = useState<Bot[]>([]);
   const [users, setUsers] = useState<TenantUser[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +111,9 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
       .catch(() => undefined);
     apiFetch<TenantUser[]>('/users/assignable')
       .then((u) => active && setUsers(Array.isArray(u) ? u : []))
+      .catch(() => undefined);
+    apiFetch<Agent[]>('/agents')
+      .then((ag) => active && setAgents(Array.isArray(ag) ? ag : []))
       .catch(() => undefined);
     return () => {
       active = false;
@@ -143,6 +154,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
       name: name.trim(),
       channel,
       botId: botId || undefined,
+      agentId: agentId || undefined,
       subject: channel === 'EMAIL' ? subject.trim() : undefined,
       body: body.trim(),
       audience: buildAudience(),
@@ -253,6 +265,22 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
             rows={channel === 'EMAIL' ? 8 : 5}
             placeholder={'Hola {first_name},\n\n…'}
           />
+        </Field>
+
+        <Field
+          label="Agente para respuestas (opcional)"
+          help="Si un destinatario responde, esa conversación la atenderá este agente (en vez del agente del bot). Solo afecta a los contactos de esta campaña."
+        >
+          <Select value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+            <option value="">— El del bot / ninguno —</option>
+            {agents
+              .filter((ag) => ag.status !== 'ARCHIVED')
+              .map((ag) => (
+                <option key={ag.id} value={ag.id}>
+                  {ag.name}
+                </option>
+              ))}
+          </Select>
         </Field>
 
         {/* ── Audiencia ─────────────────────────────────────────── */}
