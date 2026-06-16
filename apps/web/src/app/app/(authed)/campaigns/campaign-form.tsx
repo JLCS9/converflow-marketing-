@@ -230,15 +230,16 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
         </div>
 
         <Field
-          label={channel === 'EMAIL' ? 'Bandeja de envío' : 'Bot de WhatsApp'}
+          label={channel === 'EMAIL' ? 'Buzón de envío' : 'Bot de WhatsApp'}
+          required
           help={
             channel === 'EMAIL'
-              ? 'Se envía desde el buzón conectado del bot; si eliges "Sistema", sale por Converflow (Resend).'
+              ? 'Se envía desde el buzón conectado de este bot (tu propio correo). Si no aparece ninguno, conecta el buzón en IA → Bots.'
               : 'El número de WhatsApp conectado desde el que se enviará.'
           }
         >
           <Select value={botId} onChange={(e) => setBotId(e.target.value)}>
-            <option value="">{channel === 'EMAIL' ? 'Sistema (Resend)' : '— Selecciona un bot —'}</option>
+            <option value="">— Selecciona el buzón conectado —</option>
             {channelBots.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}

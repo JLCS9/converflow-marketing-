@@ -250,8 +250,19 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
     if (campaign.status !== 'DRAFT' && campaign.status !== 'SCHEDULED') {
       throw new AppError('CONFLICT', 'La campaña ya se ha lanzado', 409);
     }
-    if (campaign.channel === 'EMAIL' && !campaign.subject?.trim()) {
-      throw new AppError('BAD_REQUEST', 'Falta el asunto del email', 400);
+    if (campaign.channel === 'EMAIL') {
+      if (!campaign.subject?.trim()) {
+        throw new AppError('BAD_REQUEST', 'Falta el asunto del email', 400);
+      }
+      // Campaigns send ONLY through the tenant's own mailbox — never Resend.
+      const conn = await this.resolveEmailConn(tenantId, campaign.botId);
+      if (!conn) {
+        throw new AppError(
+          'BAD_REQUEST',
+          'Selecciona un bot de email con buzón conectado antes de enviar. Las campañas se envían desde tu propio correo (no usamos Resend).',
+          400,
+        );
+      }
     }
 
     // Future schedule → just mark SCHEDULED; the scheduler fires it later.
@@ -317,6 +328,20 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
         tx.campaignRecipient.findMany({ where: { campaignId: id, status: 'PENDING' } }),
       );
 
+      // EMAIL: resolve the tenant's connected mailbox up front. No Resend fallback
+      // for campaigns — if there's no connected mailbox we fail the whole campaign.
+      const emailConn =
+        campaign.channel === 'EMAIL'
+          ? await this.resolveEmailConn(tenantId, campaign.botId)
+          : null;
+      if (campaign.channel === 'EMAIL' && !emailConn) {
+        await this.prisma.withTenant(tenantId, (tx) =>
+          tx.campaign.update({ where: { id }, data: { status: 'FAILED' } }),
+        );
+        this.logger.warn(`campaign ${id} aborted: no connected mailbox (no Resend fallback)`);
+        return;
+      }
+
       const delay = SEND_DELAY_MS[campaign.channel] ?? 1000;
       let sent = 0;
       let failed = 0;
@@ -333,7 +358,8 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
           if (campaign.channel === 'EMAIL') {
             const text = body + this.unsubscribeFooter(tenantId, r.address);
             const html = this.buildHtml(tenantId, r.id, body, r.address);
-            const res = await this.email.sendViaBot(tenantId, campaign.botId, {
+            // SMTP only (tenant's own mailbox) — never Resend for campaigns.
+            const res = await this.email.sendSmtp(emailConn!, {
               to: r.address,
               subject: campaign.subject ?? 'Información',
               text,
@@ -449,6 +475,14 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
     }
 
     return out;
+  }
+
+  /** The tenant's CONNECTED mailbox for a bot, or null. No Resend fallback. */
+  private resolveEmailConn(tenantId: string, botId: string | null) {
+    if (!botId) return Promise.resolve(null);
+    return this.prisma.withTenant(tenantId, (tx) =>
+      tx.emailConnection.findFirst({ where: { botId, status: 'CONNECTED' } }),
+    );
   }
 
   private dedupe(contacts: Contact[]): Contact[] {
