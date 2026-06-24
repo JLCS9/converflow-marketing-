@@ -19,7 +19,6 @@ export function TemplateForm({ template }: { template?: TemplateData }) {
   const [name, setName] = useState(template?.name ?? '');
   const [subject, setSubject] = useState(template?.subject ?? '');
   const [mjml, setMjml] = useState(template?.mjml ?? '');
-  const [html, setHtml] = useState(template?.bodyHtml ?? '');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [testTo, setTestTo] = useState('');
@@ -45,13 +44,13 @@ export function TemplateForm({ template }: { template?: TemplateData }) {
       setError('Ponle un nombre a la plantilla.');
       return;
     }
-    if (!html.trim()) {
-      setError('El diseño está vacío.');
+    if (!mjml.trim()) {
+      setError('El diseño está vacío. Arrastra al menos un bloque al lienzo.');
       return;
     }
     startTransition(async () => {
       try {
-        const payload = { name: name.trim(), subject: subject.trim() || undefined, bodyHtml: html, mjml };
+        const payload = { name: name.trim(), subject: subject.trim() || undefined, mjml };
         if (template) {
           await apiFetch(`/email-templates/${template.id}`, { method: 'PATCH', json: payload });
         } else {
@@ -87,10 +86,7 @@ export function TemplateForm({ template }: { template?: TemplateData }) {
 
       <MjmlEmailBuilder
         initialMjml={template?.mjml ?? undefined}
-        onChange={(v) => {
-          setMjml(v.mjml);
-          setHtml(v.html);
-        }}
+        onChange={(v) => setMjml(v.mjml)}
       />
 
       {error && (

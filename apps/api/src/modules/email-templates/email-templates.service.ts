@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import mjml2html from 'mjml';
 import {
   NotFoundError,
   createEmailTemplateSchema,
@@ -9,6 +10,18 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
 import { stripUnsafeHtml, htmlToText } from '../../common/utils/email-html.js';
+
+/** Compile MJML → responsive HTML (server-side, reliable) and strip scripts. */
+function compileMjml(mjml: string): string {
+  const t = mjml.trim();
+  const doc = t.startsWith('<mjml')
+    ? t
+    : t.startsWith('<mj-body')
+      ? `<mjml>${t}</mjml>`
+      : `<mjml><mj-body>${t}</mj-body></mjml>`;
+  const { html } = mjml2html(doc, { validationLevel: 'soft' });
+  return stripUnsafeHtml(html);
+}
 
 @Injectable()
 export class EmailTemplatesService {
@@ -33,13 +46,17 @@ export class EmailTemplatesService {
 
   create(tenantId: string, userId: string | undefined, input: CreateEmailTemplateInput) {
     const data = createEmailTemplateSchema.parse(input);
+    const bodyHtml = data.mjml?.trim()
+      ? compileMjml(data.mjml)
+      : stripUnsafeHtml(data.bodyHtml ?? '');
+    if (!bodyHtml.trim()) throw new BadRequestException('El diseño está vacío');
     return this.prisma.withTenant(tenantId, (tx) =>
       tx.emailTemplate.create({
         data: {
           tenantId,
           name: data.name,
           subject: data.subject,
-          bodyHtml: stripUnsafeHtml(data.bodyHtml),
+          bodyHtml,
           mjml: data.mjml,
           createdByUserId: userId,
         },
@@ -50,13 +67,17 @@ export class EmailTemplatesService {
   async update(tenantId: string, id: string, input: UpdateEmailTemplateInput) {
     const data = updateEmailTemplateSchema.parse(input);
     await this.get(tenantId, id);
+    // Recompile bodyHtml from MJML when the builder sends it; else keep legacy.
+    let bodyHtml: string | undefined;
+    if (data.mjml?.trim()) bodyHtml = compileMjml(data.mjml);
+    else if (data.bodyHtml !== undefined) bodyHtml = stripUnsafeHtml(data.bodyHtml);
     return this.prisma.withTenant(tenantId, (tx) =>
       tx.emailTemplate.update({
         where: { id },
         data: {
           name: data.name,
           subject: data.subject,
-          bodyHtml: data.bodyHtml === undefined ? undefined : stripUnsafeHtml(data.bodyHtml),
+          bodyHtml,
           mjml: data.mjml === undefined ? undefined : data.mjml,
         },
       }),

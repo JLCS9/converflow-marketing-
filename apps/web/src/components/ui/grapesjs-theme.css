@@ -1,0 +1,51 @@
+/* Converflow theme for the GrapesJS email builder — readability + brand.
+   Scoped under .cf-builder so it never leaks to the rest of the app. */
+.cf-builder {
+  --gjs-primary-color: #374151; /* panel chrome / icons */
+  --gjs-secondary-color: #6b7280;
+  --gjs-tertiary-color: #2563eb; /* active / brand */
+  --gjs-quaternary-color: #2563eb;
+  --gjs-font-color: #1f2937;
+  --gjs-font-color-active: #ffffff;
+  --gjs-main-font: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Panels + canvas backgrounds, lighter and cleaner than the default dark gray */
+.cf-builder .gjs-one-bg { background-color: #ffffff; }
+.cf-builder .gjs-pn-panel { background-color: #f9fafb; }
+.cf-builder .gjs-cv-canvas { background-color: #eef1f5; }
+.cf-builder .gjs-two-color { color: #374151; }
+
+/* Block tiles: show as labeled cards in a 2-col grid, not cramped icons */
+.cf-builder .gjs-blocks-c { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
+.cf-builder .gjs-block {
+  width: auto;
+  min-height: auto;
+  margin: 0;
+  padding: 12px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: 12px;
+  color: #374151;
+  transition: border-color .15s, background-color .15s;
+}
+.cf-builder .gjs-block:hover { border-color: #2563eb; background-color: #eff6ff; }
+.cf-builder .gjs-block svg, .cf-builder .gjs-block i { color: #2563eb; }
+.cf-builder .gjs-block-label { margin-top: 6px; font-size: 12px; line-height: 1.2; }
+
+/* Category headers + section titles readable */
+.cf-builder .gjs-title, .cf-builder .gjs-block-category .gjs-title { font-weight: 600; font-size: 12px; }
+
+/* Top toolbar buttons a bit larger / clearer */
+.cf-builder .gjs-pn-btn { font-size: 15px; min-width: 30px; }
+.cf-builder .gjs-pn-btn.gjs-pn-active { color: #2563eb; }
+
+/* Right settings/style panels readable */
+.cf-builder .gjs-sm-sector-title,
+.cf-builder .gjs-trt-trait label,
+.cf-builder .gjs-label { font-size: 12px; color: #374151; }
+.cf-builder .gjs-field { font-size: 12px; }
