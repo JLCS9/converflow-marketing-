@@ -14,6 +14,12 @@ interface SmtpConn {
   secure: boolean;
 }
 
+/** Attachment by URL — nodemailer/Resend fetch it (we pass presigned R2 URLs). */
+export interface MailAttachment {
+  filename: string;
+  path: string;
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -23,7 +29,14 @@ export class EmailService {
   /** Send via the tenant's own SMTP mailbox. */
   async sendSmtp(
     conn: SmtpConn,
-    opts: { to: string; subject: string; text: string; html?: string; inReplyTo?: string },
+    opts: {
+      to: string;
+      subject: string;
+      text: string;
+      html?: string;
+      inReplyTo?: string;
+      attachments?: MailAttachment[];
+    },
   ): Promise<{ id?: string }> {
     const transporter = nodemailer.createTransport({
       host: conn.smtpHost,
@@ -39,6 +52,7 @@ export class EmailService {
       html: opts.html,
       inReplyTo: opts.inReplyTo,
       references: opts.inReplyTo,
+      attachments: opts.attachments,
     });
     return { id: info.messageId };
   }
@@ -51,6 +65,7 @@ export class EmailService {
     html?: string;
     replyTo?: string;
     inReplyTo?: string;
+    attachments?: MailAttachment[];
   }): Promise<{ id?: string }> {
     if (!env.RESEND_API_KEY) {
       throw new AppError('INTERNAL', 'Email no configurado (falta RESEND_API_KEY)', 503);
@@ -70,6 +85,7 @@ export class EmailService {
         text: opts.text,
         html: opts.html,
         reply_to: opts.replyTo,
+        attachments: opts.attachments?.map((a) => ({ filename: a.filename, path: a.path })),
         headers: Object.keys(headers).length ? headers : undefined,
       }),
     });
@@ -91,7 +107,7 @@ export class EmailService {
   async sendViaBot(
     tenantId: string,
     botId: string | null,
-    opts: { to: string; subject: string; text: string; html?: string },
+    opts: { to: string; subject: string; text: string; html?: string; attachments?: MailAttachment[] },
   ): Promise<{ id?: string }> {
     const conn = botId
       ? await this.prisma.withTenant(tenantId, (tx) =>
@@ -104,6 +120,7 @@ export class EmailService {
         subject: opts.subject,
         text: opts.text,
         html: opts.html,
+        attachments: opts.attachments,
       });
     }
     return this.sendResend({
@@ -111,6 +128,7 @@ export class EmailService {
       subject: opts.subject,
       text: opts.text,
       html: opts.html,
+      attachments: opts.attachments,
     });
   }
 
@@ -146,6 +164,7 @@ export class EmailService {
     conversationId: string,
     text: string,
     html?: string,
+    attachments?: MailAttachment[],
   ): Promise<{ id?: string }> {
     const conv = await this.prisma.withTenant(tenantId, (tx) =>
       tx.conversation.findUnique({
@@ -172,7 +191,7 @@ export class EmailService {
 
     const conn = conv.bot?.emailConnection;
     if (conn) {
-      return this.sendSmtp(conn, { to: conv.contactJid, subject, text, html, inReplyTo });
+      return this.sendSmtp(conn, { to: conv.contactJid, subject, text, html, inReplyTo, attachments });
     }
     return this.sendResend({
       to: conv.contactJid,
@@ -181,6 +200,7 @@ export class EmailService {
       html,
       replyTo: conv.bot?.phoneNumber ?? undefined,
       inReplyTo,
+      attachments,
     });
   }
 }

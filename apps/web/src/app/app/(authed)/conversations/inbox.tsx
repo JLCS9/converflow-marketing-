@@ -99,6 +99,7 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
   const [composeHtml, setComposeHtml] = useState('');
   const [composeInitialHtml, setComposeInitialHtml] = useState('');
   const [editorKey, setEditorKey] = useState(0);
+  const [emailAttachments, setEmailAttachments] = useState<{ id: string; name: string }[]>([]);
   const [showCompose, setShowCompose] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -178,13 +179,19 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
   async function sendEmail(html: string) {
     if (!thread) return;
     const h = html.trim();
-    if (!h || h === '<p></p>') return;
+    const hasText = !!h && h !== '<p></p>';
+    if (!hasText && emailAttachments.length === 0) return;
     setSending(true);
     setSendError(null);
     try {
-      await apiFetch(`/conversations/${thread.id}/send`, { method: 'POST', json: { html: h } });
+      await apiFetch(`/conversations/${thread.id}/send`, {
+        method: 'POST',
+        json: { html: h, documentIds: emailAttachments.map((a) => a.id) },
+      });
       setComposeHtml('');
       setComposeInitialHtml('');
+      setEmailAttachments([]);
+      setShowDocs(false);
       setEditorKey((k) => k + 1); // remount editor → clears it
       await Promise.all([loadList(status), loadThread(thread.id)]);
     } catch {
@@ -192,6 +199,11 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
     } finally {
       setSending(false);
     }
+  }
+
+  function addAttachment(d: { id: string; name: string }) {
+    setEmailAttachments((prev) => (prev.some((a) => a.id === d.id) ? prev : [...prev, d]));
+    setShowDocs(false);
   }
 
   async function sendDoc(documentId: string) {
@@ -416,7 +428,9 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
                       <button
                         key={d.id}
                         type="button"
-                        onClick={() => void sendDoc(d.id)}
+                        onClick={() =>
+                          thread.channel === 'EMAIL' ? addAttachment(d) : void sendDoc(d.id)
+                        }
                         className="block w-full truncate p-2 text-left text-sm hover:bg-ink-100"
                       >
                         📎 {d.name}
@@ -428,7 +442,15 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
 
               {thread.channel === 'EMAIL' ? (
                 <div className="space-y-2">
-                  <div className="flex justify-end">
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => void toggleDocs()}
+                      disabled={sending}
+                      className="rounded-md border border-ink-300 px-2 py-1 text-xs hover:bg-ink-100"
+                    >
+                      📎 Adjuntar
+                    </button>
                     <TemplatePicker
                       onPick={(t) => {
                         setComposeInitialHtml(t.bodyHtml);
@@ -442,10 +464,35 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
                     initialHtml={composeInitialHtml}
                     onChange={setComposeHtml}
                   />
+                  {emailAttachments.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {emailAttachments.map((a) => (
+                        <span
+                          key={a.id}
+                          className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2 py-0.5 text-xs text-ink-700"
+                        >
+                          📎 {a.name}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEmailAttachments((prev) => prev.filter((x) => x.id !== a.id))
+                            }
+                            className="text-ink-400 hover:text-red-600"
+                            aria-label="Quitar adjunto"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex justify-end">
                     <button
                       type="button"
-                      disabled={sending || !composeHtml.replace(/<[^>]*>/g, '').trim()}
+                      disabled={
+                        sending ||
+                        (!composeHtml.replace(/<[^>]*>/g, '').trim() && emailAttachments.length === 0)
+                      }
                       className={buttonClass('primary')}
                       onClick={() => void sendEmail(composeHtml)}
                     >

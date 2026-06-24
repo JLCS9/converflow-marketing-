@@ -3,7 +3,7 @@ import { AppError, BadRequestError, NotFoundError } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { BotRunnerService } from '../bots/bot-runner.service.js';
 import { DocumentsService } from '../documents/documents.service.js';
-import { EmailService } from '../email/email.service.js';
+import { EmailService, type MailAttachment } from '../email/email.service.js';
 import { sanitizeEmailHtml, htmlToText } from '../../common/utils/email-html.js';
 
 const STATUSES = ['PENDING', 'ANSWERED', 'CLOSED'] as const;
@@ -65,14 +65,24 @@ export class ConversationsService {
   }
 
   /** Send a text reply through the conversation's channel and record it. */
-  async sendText(tenantId: string, id: string, text: string, html?: string) {
+  async sendText(tenantId: string, id: string, text: string, html?: string, documentIds?: string[]) {
     const conv = await this.requireSendable(tenantId, id);
 
-    // EMAIL supports rich HTML; other channels are plain text only.
-    const isEmailHtml = conv.channel === 'EMAIL' && !!html?.trim();
+    // EMAIL supports rich HTML + attachments; other channels are plain text only.
+    const isEmail = conv.channel === 'EMAIL';
+    const isEmailHtml = isEmail && !!html?.trim();
     const safeHtml = isEmailHtml ? sanitizeEmailHtml(html!.trim()) : undefined;
-    const body = (isEmailHtml ? htmlToText(safeHtml!) : text).trim();
-    if (!body && !safeHtml) throw new BadRequestError('Mensaje vacío');
+    let body = (isEmailHtml ? htmlToText(safeHtml!) : text).trim();
+    const { attachments, names } = isEmail
+      ? await this.resolveAttachments(tenantId, documentIds)
+      : { attachments: [] as MailAttachment[], names: [] as string[] };
+    if (!body && !safeHtml && attachments.length === 0) throw new BadRequestError('Mensaje vacío');
+
+    let bodyHtml = safeHtml;
+    if (names.length) {
+      body = `${body}\n\n📎 ${names.join(', ')}`.trim();
+      if (bodyHtml) bodyHtml = `${bodyHtml}<p>📎 ${names.map((n) => n).join(', ')}</p>`;
+    }
 
     let sentId: string | undefined;
     if (conv.channel === 'WHATSAPP') {
@@ -84,7 +94,7 @@ export class ConversationsService {
       }
     } else if (conv.channel === 'EMAIL') {
       try {
-        const res = await this.email.replyToConversation(tenantId, id, body, safeHtml);
+        const res = await this.email.replyToConversation(tenantId, id, body, safeHtml, attachments);
         sentId = res.id;
       } catch {
         throw new AppError('INTERNAL', 'No se pudo enviar el email', 502);
@@ -94,10 +104,29 @@ export class ConversationsService {
 
     return this.recordOutbound(tenantId, id, {
       body,
-      bodyHtml: safeHtml,
+      bodyHtml,
       waMessageId: sentId,
       preview: body.slice(0, 140),
     });
+  }
+
+  /** Resolve stored-document ids into email attachments (presigned URLs). */
+  private async resolveAttachments(
+    tenantId: string,
+    documentIds?: string[],
+  ): Promise<{ attachments: MailAttachment[]; names: string[] }> {
+    const attachments: MailAttachment[] = [];
+    const names: string[] = [];
+    for (const docId of (documentIds ?? []).slice(0, 10)) {
+      try {
+        const d = await this.documents.downloadUrl(tenantId, docId);
+        attachments.push({ filename: d.name, path: d.url });
+        names.push(d.name);
+      } catch {
+        /* skip missing/forbidden doc */
+      }
+    }
+    return { attachments, names };
   }
 
   /**
@@ -108,13 +137,28 @@ export class ConversationsService {
    */
   async composeEmail(
     tenantId: string,
-    input: { botId?: string; to?: string; leadId?: string; clientId?: string; subject?: string; html?: string; text?: string },
+    input: {
+      botId?: string;
+      to?: string;
+      leadId?: string;
+      clientId?: string;
+      subject?: string;
+      html?: string;
+      text?: string;
+      documentIds?: string[];
+    },
   ) {
     const subject = (input.subject ?? '').trim();
     if (!subject) throw new BadRequestError('Falta el asunto');
     const safeHtml = input.html?.trim() ? sanitizeEmailHtml(input.html.trim()) : undefined;
-    const body = (safeHtml ? htmlToText(safeHtml) : (input.text ?? '')).trim();
-    if (!body && !safeHtml) throw new BadRequestError('El mensaje está vacío');
+    let body = (safeHtml ? htmlToText(safeHtml) : (input.text ?? '')).trim();
+    const { attachments, names } = await this.resolveAttachments(tenantId, input.documentIds);
+    if (!body && !safeHtml && attachments.length === 0) throw new BadRequestError('El mensaje está vacío');
+    let bodyHtml = safeHtml;
+    if (names.length) {
+      body = `${body}\n\n📎 ${names.join(', ')}`.trim();
+      if (bodyHtml) bodyHtml = `${bodyHtml}<p>📎 ${names.join(', ')}</p>`;
+    }
 
     const resolved = await this.prisma.withTenant(tenantId, async (tx) => {
       let toEmail = (input.to ?? '').trim().toLowerCase();
@@ -181,6 +225,7 @@ export class ConversationsService {
         subject: resolved.subject,
         text: body,
         html: safeHtml,
+        attachments,
       });
       sentId = res.id;
     } catch {
@@ -189,7 +234,7 @@ export class ConversationsService {
 
     await this.recordOutbound(tenantId, resolved.convId, {
       body,
-      bodyHtml: safeHtml,
+      bodyHtml,
       waMessageId: sentId,
       preview: body.slice(0, 140),
     });

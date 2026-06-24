@@ -49,6 +49,7 @@ export class ConversationsController {
       subject?: string;
       html?: string;
       text?: string;
+      documentIds?: string[];
     },
     @CurrentUser() user: AuthenticatedUser,
   ) {
@@ -58,10 +59,10 @@ export class ConversationsController {
   @Post(':id/send')
   send(
     @Param('id') id: string,
-    @Body() body: { text?: string; html?: string },
+    @Body() body: { text?: string; html?: string; documentIds?: string[] },
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.conversations.sendText(user.tenantId, id, body?.text ?? '', body?.html);
+    return this.conversations.sendText(user.tenantId, id, body?.text ?? '', body?.html, body?.documentIds);
   }
 
   @Post(':id/send-document')
