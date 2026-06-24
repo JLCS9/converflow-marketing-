@@ -42,6 +42,20 @@ export function sanitizeEmailHtml(dirty: string): string {
   });
 }
 
+/**
+ * Light sanitize for FULL-document HTML from the visual builder (MJML-compiled).
+ * The conservative sanitizer above would strip <head>/<style>/doctype and break
+ * the responsive email, so for trusted builder output we only remove things that
+ * can execute (scripts, inline event handlers, javascript: URLs).
+ */
+export function stripUnsafeHtml(html: string): string {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript:/gi, '');
+}
+
 /** Plain-text version of HTML — for previews, AI context and non-HTML clients. */
 export function htmlToText(html: string): string {
   return sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} })

@@ -36,6 +36,15 @@ export class EmailTemplatesController {
     return this.templates.update(user.tenantId, id, body as never);
   }
 
+  @Post(':id/test')
+  test(
+    @Param('id') id: string,
+    @Body() body: { to?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.templates.sendTest(user.tenantId, id, body?.to ?? '');
+  }
+
   @Delete(':id')
   async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     await this.templates.remove(user.tenantId, id);

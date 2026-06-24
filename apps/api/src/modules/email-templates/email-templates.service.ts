@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import {
   NotFoundError,
   createEmailTemplateSchema,
@@ -7,11 +7,15 @@ import {
   type UpdateEmailTemplateInput,
 } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
-import { sanitizeEmailHtml } from '../../common/utils/email-html.js';
+import { EmailService } from '../email/email.service.js';
+import { stripUnsafeHtml, htmlToText } from '../../common/utils/email-html.js';
 
 @Injectable()
 export class EmailTemplatesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly email: EmailService,
+  ) {}
 
   list(tenantId: string) {
     return this.prisma.withTenant(tenantId, (tx) =>
@@ -35,7 +39,8 @@ export class EmailTemplatesService {
           tenantId,
           name: data.name,
           subject: data.subject,
-          bodyHtml: sanitizeEmailHtml(data.bodyHtml),
+          bodyHtml: stripUnsafeHtml(data.bodyHtml),
+          mjml: data.mjml,
           createdByUserId: userId,
         },
       }),
@@ -51,7 +56,8 @@ export class EmailTemplatesService {
         data: {
           name: data.name,
           subject: data.subject,
-          bodyHtml: data.bodyHtml === undefined ? undefined : sanitizeEmailHtml(data.bodyHtml),
+          bodyHtml: data.bodyHtml === undefined ? undefined : stripUnsafeHtml(data.bodyHtml),
+          mjml: data.mjml === undefined ? undefined : data.mjml,
         },
       }),
     );
@@ -60,5 +66,37 @@ export class EmailTemplatesService {
   async remove(tenantId: string, id: string) {
     await this.get(tenantId, id);
     await this.prisma.withTenant(tenantId, (tx) => tx.emailTemplate.delete({ where: { id } }));
+  }
+
+  /** Send a one-off preview of the template to `to`, with sample variable values. */
+  async sendTest(tenantId: string, id: string, to: string) {
+    const dest = (to ?? '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(dest)) {
+      throw new BadRequestException('Email de destino inválido');
+    }
+    const tpl = await this.get(tenantId, id);
+    const bot = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.bot.findFirst({ where: { channel: 'EMAIL' }, orderBy: { createdAt: 'asc' } }),
+    );
+    if (!bot) throw new BadRequestException('No hay ningún bot de email configurado');
+
+    const sample: Record<string, string> = {
+      '{nombre}': 'Nombre Apellido',
+      '{first_name}': 'Nombre',
+      '{email}': dest,
+      '{telefono}': '+34 600 000 000',
+    };
+    const html = Object.entries(sample).reduce(
+      (acc, [k, v]) => acc.split(k).join(v),
+      tpl.bodyHtml,
+    );
+
+    await this.email.sendViaBot(tenantId, bot.id, {
+      to: dest,
+      subject: `[Prueba] ${tpl.subject || tpl.name}`,
+      text: htmlToText(html),
+      html,
+    });
+    return { ok: true };
   }
 }

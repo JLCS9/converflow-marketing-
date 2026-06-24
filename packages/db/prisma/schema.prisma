@@ -1132,7 +1132,8 @@ model EmailTemplate {
   tenant          Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name            String
   subject         String?
-  bodyHtml        String
+  bodyHtml        String  // compiled, responsive HTML (sent)
+  mjml            String? // MJML source from the visual builder (re-edit)
   createdByUserId String?
 
   createdAt DateTime @default(now())
