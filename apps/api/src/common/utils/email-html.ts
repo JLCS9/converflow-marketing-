@@ -22,13 +22,21 @@ export function sanitizeEmailHtml(dirty: string): string {
     transformTags: {
       a: sanitizeHtml.simpleTransform('a', { target: '_blank', rel: 'noopener noreferrer' }),
     },
-    // Only a conservative subset of inline styles.
+    // Conservative inline styles — incl. what email "buttons" need (background,
+    // padding, radius, display). No url()/expression() (color regexes block them).
     allowedStyles: {
       '*': {
         'color': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(/, /^[a-z-]+$/i],
+        'background-color': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(/, /^[a-z-]+$/i],
+        'background': [/^#(0x)?[0-9a-f]+$/i, /^rgb\(/, /^[a-z-]+$/i],
         'text-align': [/^left$/, /^right$/, /^center$/, /^justify$/],
-        'font-weight': [/^bold$/, /^\d+$/],
+        'font-weight': [/^bold$/, /^normal$/, /^\d+$/],
+        'font-size': [/^[\d.]+(px|em|rem|%)$/],
         'text-decoration': [/^underline$/, /^line-through$/, /^none$/],
+        'display': [/^inline-block$/, /^block$/, /^inline$/],
+        'padding': [/^[\d.]+(px|em|rem|%)?( [\d.]+(px|em|rem|%)?){0,3}$/],
+        'margin': [/^[\d.]+(px|em|rem|%)?( [\d.]+(px|em|rem|%)?){0,3}$/],
+        'border-radius': [/^[\d.]+(px|em|rem|%)?$/],
       },
     },
   });

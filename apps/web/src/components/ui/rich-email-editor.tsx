@@ -4,11 +4,39 @@ import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 
-/**
- * WYSIWYG email editor (Tiptap). Emits sanitized-on-the-server HTML via onChange.
- * Uncontrolled: pass `initialHtml` once on mount; to reset/prefill, change the
- * component `key` in the parent so it remounts.
- */
+function esc(s: string): string {
+  return s.replace(
+    /[&<>"]/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string,
+  );
+}
+
+// StarterKit v3 bundles Link — we disable its copy and use an extended Link that
+// keeps an inline `style` attribute, so "buttons" (styled <a>) survive round-trips.
+const StyledLink = Link.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      style: {
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute('style'),
+        renderHTML: (attrs: Record<string, unknown>) =>
+          attrs.style ? { style: attrs.style as string } : {},
+      },
+    };
+  },
+}).configure({ openOnClick: false, autolink: true });
+
+const VARIABLES = [
+  { value: '{nombre}', label: 'Nombre completo' },
+  { value: '{first_name}', label: 'Nombre de pila' },
+  { value: '{email}', label: 'Email' },
+  { value: '{telefono}', label: 'Teléfono' },
+];
+
+const BUTTON_STYLE =
+  'display:inline-block;background-color:#2563eb;color:#ffffff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600';
+
 export function RichEmailEditor({
   initialHtml,
   onChange,
@@ -18,19 +46,21 @@ export function RichEmailEditor({
 }) {
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-      Link.configure({ openOnClick: false, autolink: true }),
+      StarterKit.configure({ link: false, heading: { levels: [1, 2, 3] } }),
+      StyledLink,
     ],
     content: initialHtml ?? '',
-    immediatelyRender: false, // required for Next SSR (avoids hydration mismatch)
+    immediatelyRender: false, // required for Next SSR
     editorProps: {
       attributes: {
         class:
-          'min-h-[140px] max-h-[360px] overflow-y-auto px-3 py-2 text-sm focus:outline-none ' +
+          'min-h-[160px] max-h-[420px] overflow-y-auto px-3 py-2 text-sm focus:outline-none ' +
           '[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 ' +
           '[&_a]:text-primary-700 [&_a]:underline [&_h1]:text-lg [&_h1]:font-semibold ' +
           '[&_h2]:text-base [&_h2]:font-semibold [&_blockquote]:border-l-2 ' +
-          '[&_blockquote]:border-ink-200 [&_blockquote]:pl-3 [&_blockquote]:text-ink-600',
+          '[&_blockquote]:border-ink-200 [&_blockquote]:pl-3 [&_blockquote]:text-ink-600 ' +
+          // make styled-link "buttons" show their styling inside the editor too
+          '[&_a[style]]:no-underline',
       },
     },
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -54,6 +84,18 @@ function Toolbar({ editor }: { editor: Editor }) {
     if (url === null) return;
     if (url === '') editor.chain().focus().extendMarkRange('link').unsetLink().run();
     else editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  }
+
+  function addButton() {
+    const text = window.prompt('Texto del botón:', 'Reservar cita');
+    if (!text) return;
+    const url = window.prompt('Enlace del botón:', 'https://');
+    if (!url) return;
+    editor
+      .chain()
+      .focus()
+      .insertContent(`<a href="${esc(url)}" style="${BUTTON_STYLE}">${esc(text)}</a>&nbsp;`)
+      .run();
   }
 
   return (
@@ -84,6 +126,26 @@ function Toolbar({ editor }: { editor: Editor }) {
       <button type="button" className={btn(editor.isActive('link'))} onClick={addLink} title="Enlace">
         🔗
       </button>
+      <button type="button" className={btn(false)} onClick={addButton} title="Insertar botón">
+        🔲 Botón
+      </button>
+      <span className="mx-1 h-4 w-px bg-ink-200" />
+      <select
+        value=""
+        onChange={(e) => {
+          if (e.target.value) editor.chain().focus().insertContent(e.target.value).run();
+          e.currentTarget.value = '';
+        }}
+        className="rounded border border-ink-200 px-1.5 py-1 text-xs text-ink-700"
+        title="Insertar variable"
+      >
+        <option value="">+ Variable</option>
+        {VARIABLES.map((v) => (
+          <option key={v.value} value={v.value}>
+            {v.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
