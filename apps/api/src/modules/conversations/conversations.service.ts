@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { BotRunnerService } from '../bots/bot-runner.service.js';
 import { DocumentsService } from '../documents/documents.service.js';
 import { EmailService } from '../email/email.service.js';
+import { sanitizeEmailHtml, htmlToText } from '../../common/utils/email-html.js';
 
 const STATUSES = ['PENDING', 'ANSWERED', 'CLOSED'] as const;
 type Status = (typeof STATUSES)[number];
@@ -64,10 +65,14 @@ export class ConversationsService {
   }
 
   /** Send a text reply through the conversation's channel and record it. */
-  async sendText(tenantId: string, id: string, text: string) {
-    const body = text.trim();
-    if (!body) throw new BadRequestError('Mensaje vacío');
+  async sendText(tenantId: string, id: string, text: string, html?: string) {
     const conv = await this.requireSendable(tenantId, id);
+
+    // EMAIL supports rich HTML; other channels are plain text only.
+    const isEmailHtml = conv.channel === 'EMAIL' && !!html?.trim();
+    const safeHtml = isEmailHtml ? sanitizeEmailHtml(html!.trim()) : undefined;
+    const body = (isEmailHtml ? htmlToText(safeHtml!) : text).trim();
+    if (!body && !safeHtml) throw new BadRequestError('Mensaje vacío');
 
     let sentId: string | undefined;
     if (conv.channel === 'WHATSAPP') {
@@ -79,7 +84,7 @@ export class ConversationsService {
       }
     } else if (conv.channel === 'EMAIL') {
       try {
-        const res = await this.email.replyToConversation(tenantId, id, body);
+        const res = await this.email.replyToConversation(tenantId, id, body, safeHtml);
         sentId = res.id;
       } catch {
         throw new AppError('INTERNAL', 'No se pudo enviar el email', 502);
@@ -87,7 +92,108 @@ export class ConversationsService {
     }
     // WEBCHAT: no transport — the visitor's widget polls and picks up the OUT message.
 
-    return this.recordOutbound(tenantId, id, { body, waMessageId: sentId, preview: body.slice(0, 140) });
+    return this.recordOutbound(tenantId, id, {
+      body,
+      bodyHtml: safeHtml,
+      waMessageId: sentId,
+      preview: body.slice(0, 140),
+    });
+  }
+
+  /**
+   * Compose and send a brand-new email (not a reply). Resolves the recipient
+   * from a free address or a lead/client, finds/creates the EMAIL conversation,
+   * links/creates a lead, sends via the tenant's mailbox, and records the OUT
+   * message. Returns the conversation to open.
+   */
+  async composeEmail(
+    tenantId: string,
+    input: { botId?: string; to?: string; leadId?: string; clientId?: string; subject?: string; html?: string; text?: string },
+  ) {
+    const subject = (input.subject ?? '').trim();
+    if (!subject) throw new BadRequestError('Falta el asunto');
+    const safeHtml = input.html?.trim() ? sanitizeEmailHtml(input.html.trim()) : undefined;
+    const body = (safeHtml ? htmlToText(safeHtml) : (input.text ?? '')).trim();
+    if (!body && !safeHtml) throw new BadRequestError('El mensaje está vacío');
+
+    const resolved = await this.prisma.withTenant(tenantId, async (tx) => {
+      let toEmail = (input.to ?? '').trim().toLowerCase();
+      let leadId: string | undefined;
+      let name: string | undefined;
+
+      if (input.leadId) {
+        const lead = await tx.lead.findUnique({ where: { id: input.leadId } });
+        if (!lead?.email) throw new BadRequestError('El lead no tiene email');
+        toEmail = lead.email.toLowerCase();
+        leadId = lead.id;
+        name = lead.name;
+      } else if (input.clientId) {
+        const client = await tx.client.findUnique({ where: { id: input.clientId } });
+        if (!client?.email) throw new BadRequestError('El cliente no tiene email');
+        toEmail = client.email.toLowerCase();
+        name = client.name;
+      }
+      if (!toEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(toEmail)) {
+        throw new BadRequestError('Destinatario de email inválido');
+      }
+
+      const bot = input.botId
+        ? await tx.bot.findFirst({ where: { id: input.botId, channel: 'EMAIL' } })
+        : await tx.bot.findFirst({ where: { channel: 'EMAIL' }, orderBy: { createdAt: 'asc' } });
+      if (!bot) throw new BadRequestError('No hay ningún bot de email configurado');
+
+      // Link to an existing lead by email, or create one, when none was passed.
+      if (!leadId && !input.clientId) {
+        let lead = await tx.lead.findFirst({ where: { email: toEmail } });
+        if (!lead) {
+          lead = await tx.lead.create({
+            data: { tenantId, name: name ?? toEmail, email: toEmail, source: 'email', status: 'NEW' },
+          });
+        }
+        leadId = lead.id;
+        name = lead.name;
+      }
+
+      const existing = await tx.conversation.findUnique({
+        where: { tenantId_channel_contactJid: { tenantId, channel: 'EMAIL', contactJid: toEmail } },
+      });
+      const conv =
+        existing ??
+        (await tx.conversation.create({
+          data: {
+            tenantId,
+            botId: bot.id,
+            channel: 'EMAIL',
+            contactJid: toEmail,
+            contactName: name ?? toEmail,
+            emailSubject: subject,
+            leadId,
+            status: 'ANSWERED',
+          },
+        }));
+      return { convId: conv.id, botId: bot.id, toEmail, subject };
+    });
+
+    let sentId: string | undefined;
+    try {
+      const res = await this.email.sendViaBot(tenantId, resolved.botId, {
+        to: resolved.toEmail,
+        subject: resolved.subject,
+        text: body,
+        html: safeHtml,
+      });
+      sentId = res.id;
+    } catch {
+      throw new AppError('INTERNAL', 'No se pudo enviar el email', 502);
+    }
+
+    await this.recordOutbound(tenantId, resolved.convId, {
+      body,
+      bodyHtml: safeHtml,
+      waMessageId: sentId,
+      preview: body.slice(0, 140),
+    });
+    return { ok: true, conversationId: resolved.convId };
   }
 
   /** Send one of the tenant's stored documents via WhatsApp. */
@@ -127,7 +233,7 @@ export class ConversationsService {
   private async recordOutbound(
     tenantId: string,
     conversationId: string,
-    msg: { body: string; waMessageId?: string; mediaType?: string; preview: string },
+    msg: { body: string; bodyHtml?: string; waMessageId?: string; mediaType?: string; preview: string },
   ) {
     return this.prisma.withTenant(tenantId, async (tx) => {
       const now = new Date();
@@ -140,6 +246,7 @@ export class ConversationsService {
           direction: 'OUT',
           waMessageId: msg.waMessageId,
           body: msg.body,
+          bodyHtml: msg.bodyHtml ?? null,
           mediaType: msg.mediaType ?? null,
         },
       });

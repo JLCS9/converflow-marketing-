@@ -38,13 +38,30 @@ export class ConversationsController {
     return this.conversations.thread(user.tenantId, id);
   }
 
+  @Post('compose')
+  compose(
+    @Body()
+    body: {
+      botId?: string;
+      to?: string;
+      leadId?: string;
+      clientId?: string;
+      subject?: string;
+      html?: string;
+      text?: string;
+    },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.conversations.composeEmail(user.tenantId, body ?? {});
+  }
+
   @Post(':id/send')
   send(
     @Param('id') id: string,
-    @Body() body: { text?: string },
+    @Body() body: { text?: string; html?: string },
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.conversations.sendText(user.tenantId, id, body?.text ?? '');
+    return this.conversations.sendText(user.tenantId, id, body?.text ?? '', body?.html);
   }
 
   @Post(':id/send-document')

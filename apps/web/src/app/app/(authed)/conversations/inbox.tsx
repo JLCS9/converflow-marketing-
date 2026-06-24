@@ -7,6 +7,16 @@ import { Badge, buttonClass } from '@/components/ui/primitives';
 import { CopyButton } from '@/components/ui/copy-button';
 import { MeetingScheduler } from '@/components/meeting-scheduler';
 import { ChannelBadge } from '@/components/ui/channel-badge';
+import { RichEmailEditor } from '@/components/ui/rich-email-editor';
+import { ComposeEmailModal } from './compose-email-modal';
+
+function escapeHtml(s: string): string {
+  return s.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string,
+  );
+}
+const textToHtml = (s: string) => `<p>${escapeHtml(s).replace(/\n/g, '<br>')}</p>`;
 
 interface ConvRow {
   id: string;
@@ -25,6 +35,7 @@ interface ThreadMsg {
   id: string;
   direction: 'IN' | 'OUT';
   body: string | null;
+  bodyHtml: string | null;
   mediaType: string | null;
   aiCategory: string | null;
   aiSentiment: string | null;
@@ -84,6 +95,10 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
   const [thread, setThread] = useState<Thread | null>(null);
   const [busy, setBusy] = useState(false);
   const [composeText, setComposeText] = useState('');
+  const [composeHtml, setComposeHtml] = useState('');
+  const [composeInitialHtml, setComposeInitialHtml] = useState('');
+  const [editorKey, setEditorKey] = useState(0);
+  const [showCompose, setShowCompose] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [docs, setDocs] = useState<{ id: string; name: string }[] | null>(null);
@@ -159,6 +174,25 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
     }
   }
 
+  async function sendEmail(html: string) {
+    if (!thread) return;
+    const h = html.trim();
+    if (!h || h === '<p></p>') return;
+    setSending(true);
+    setSendError(null);
+    try {
+      await apiFetch(`/conversations/${thread.id}/send`, { method: 'POST', json: { html: h } });
+      setComposeHtml('');
+      setComposeInitialHtml('');
+      setEditorKey((k) => k + 1); // remount editor → clears it
+      await Promise.all([loadList(status), loadThread(thread.id)]);
+    } catch {
+      setSendError('No se pudo enviar el email.');
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function sendDoc(documentId: string) {
     if (!thread) return;
     setSending(true);
@@ -196,6 +230,16 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
     <div className="flex h-[calc(100vh-11rem)] gap-4">
       {/* Left: conversation list */}
       <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg border border-ink-100 bg-white">
+        <div className="flex items-center justify-between border-b border-ink-100 p-2">
+          <span className="text-xs font-medium text-ink-500">Bandeja</span>
+          <button
+            type="button"
+            onClick={() => setShowCompose(true)}
+            className={buttonClass('primary', 'px-2 py-1 text-xs')}
+          >
+            ✉️ Nuevo correo
+          </button>
+        </div>
         <div className="flex gap-1 border-b border-ink-100 p-2 text-xs">
           {TABS.map((t) => (
             <button
@@ -337,7 +381,15 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
                     }`}
                   >
                     {m.mediaType && <div className="mb-1 text-xs italic text-ink-500">[{m.mediaType}]</div>}
-                    {m.body && <p className="whitespace-pre-wrap">{m.body}</p>}
+                    {m.bodyHtml ? (
+                      <div
+                        className="text-sm [&_a]:text-primary-700 [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-2 [&_blockquote]:border-ink-200 [&_blockquote]:pl-3 [&_p]:my-1 [&_img]:max-w-full"
+                        // Server-sanitized (sanitize-html) before storage.
+                        dangerouslySetInnerHTML={{ __html: m.bodyHtml }}
+                      />
+                    ) : (
+                      m.body && <p className="whitespace-pre-wrap">{m.body}</p>
+                    )}
                     <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-400">
                       <span>{timeLabel(m.createdAt)}</span>
                       {m.aiCategory && (
@@ -373,38 +425,58 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
                 </div>
               )}
 
-              <div className="flex items-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => void toggleDocs()}
-                  disabled={sending}
-                  title="Adjuntar un documento"
-                  className="shrink-0 rounded-md border border-ink-300 px-2 py-2 text-sm hover:bg-ink-100"
-                >
-                  📎
-                </button>
-                <textarea
-                  value={composeText}
-                  onChange={(e) => setComposeText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      void sendMessage(composeText);
-                    }
-                  }}
-                  rows={1}
-                  placeholder="Escribe un mensaje… (emojis 🙂, Enter para enviar)"
-                  className="flex-1 resize-none rounded-md border-ink-300 text-sm focus:border-primary-500 focus:ring-primary-500"
-                />
-                <button
-                  type="button"
-                  disabled={sending || !composeText.trim()}
-                  className={buttonClass('primary')}
-                  onClick={() => void sendMessage(composeText)}
-                >
-                  {sending ? '…' : 'Enviar'}
-                </button>
-              </div>
+              {thread.channel === 'EMAIL' ? (
+                <div className="space-y-2">
+                  <RichEmailEditor
+                    key={editorKey}
+                    initialHtml={composeInitialHtml}
+                    onChange={setComposeHtml}
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={sending || !composeHtml.replace(/<[^>]*>/g, '').trim()}
+                      className={buttonClass('primary')}
+                      onClick={() => void sendEmail(composeHtml)}
+                    >
+                      {sending ? 'Enviando…' : 'Enviar correo'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void toggleDocs()}
+                    disabled={sending}
+                    title="Adjuntar un documento"
+                    className="shrink-0 rounded-md border border-ink-300 px-2 py-2 text-sm hover:bg-ink-100"
+                  >
+                    📎
+                  </button>
+                  <textarea
+                    value={composeText}
+                    onChange={(e) => setComposeText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        void sendMessage(composeText);
+                      }
+                    }}
+                    rows={1}
+                    placeholder="Escribe un mensaje… (emojis 🙂, Enter para enviar)"
+                    className="flex-1 resize-none rounded-md border-ink-300 text-sm focus:border-primary-500 focus:ring-primary-500"
+                  />
+                  <button
+                    type="button"
+                    disabled={sending || !composeText.trim()}
+                    className={buttonClass('primary')}
+                    onClick={() => void sendMessage(composeText)}
+                  >
+                    {sending ? '…' : 'Enviar'}
+                  </button>
+                </div>
+              )}
               {sendError && <p className="text-xs text-red-600">{sendError}</p>}
 
               {lastSuggestion?.aiSuggestedReply && (
@@ -420,14 +492,26 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
                       type="button"
                       disabled={sending}
                       className={buttonClass('primary')}
-                      onClick={() => void sendMessage(lastSuggestion.aiSuggestedReply ?? '')}
+                      onClick={() => {
+                        const s = lastSuggestion.aiSuggestedReply ?? '';
+                        if (thread.channel === 'EMAIL') void sendEmail(textToHtml(s));
+                        else void sendMessage(s);
+                      }}
                     >
                       Enviar
                     </button>
                     <button
                       type="button"
                       className={buttonClass('ghost')}
-                      onClick={() => setComposeText(lastSuggestion.aiSuggestedReply ?? '')}
+                      onClick={() => {
+                        const s = lastSuggestion.aiSuggestedReply ?? '';
+                        if (thread.channel === 'EMAIL') {
+                          setComposeInitialHtml(textToHtml(s));
+                          setEditorKey((k) => k + 1);
+                        } else {
+                          setComposeText(s);
+                        }
+                      }}
                     >
                       Editar
                     </button>
@@ -439,6 +523,17 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
           </>
         )}
       </div>
+
+      {showCompose && (
+        <ComposeEmailModal
+          onClose={() => setShowCompose(false)}
+          onSent={(id) => {
+            setShowCompose(false);
+            void loadList(status);
+            selectConversation(id);
+          }}
+        />
+      )}
     </div>
   );
 }

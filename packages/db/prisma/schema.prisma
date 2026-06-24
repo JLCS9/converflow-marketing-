@@ -960,7 +960,8 @@ model Message {
 
   direction   MessageDirection
   waMessageId String?
-  body        String?
+  body        String? // plain-text version (previews, AI, non-email channels)
+  bodyHtml    String? // rich HTML body for EMAIL (sanitized); rendered when present
   mediaType   String? // null = text; 'image'|'video'|'document'|… otherwise
 
   // AI classification (inbound only)

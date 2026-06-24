@@ -145,6 +145,7 @@ export class EmailService {
     tenantId: string,
     conversationId: string,
     text: string,
+    html?: string,
   ): Promise<{ id?: string }> {
     const conv = await this.prisma.withTenant(tenantId, (tx) =>
       tx.conversation.findUnique({
@@ -171,12 +172,13 @@ export class EmailService {
 
     const conn = conv.bot?.emailConnection;
     if (conn) {
-      return this.sendSmtp(conn, { to: conv.contactJid, subject, text, inReplyTo });
+      return this.sendSmtp(conn, { to: conv.contactJid, subject, text, html, inReplyTo });
     }
     return this.sendResend({
       to: conv.contactJid,
       subject,
       text,
+      html,
       replyTo: conv.bot?.phoneNumber ?? undefined,
       inReplyTo,
     });
