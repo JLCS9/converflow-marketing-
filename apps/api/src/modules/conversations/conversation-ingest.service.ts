@@ -4,6 +4,7 @@ import { type PrismaClient } from '@converflow/db';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { AiService } from '../../common/ai/ai.service.js';
 import { AgentRuntimeService } from '../agents/agent-runtime.service.js';
+import { sanitizeEmailHtml, htmlToText } from '../../common/utils/email-html.js';
 
 type PrismaTx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
@@ -342,6 +343,7 @@ export class ConversationIngestService {
     fromName?: string;
     subject?: string;
     text?: string;
+    html?: string;
     messageId?: string;
   }) {
     const to = (input.to ?? '').trim().toLowerCase();
@@ -369,7 +371,10 @@ export class ConversationIngestService {
 
     const tenantId = bot.tenantId;
     const subject = (input.subject ?? '').slice(0, 300);
-    const body = (input.text ?? '').trim();
+    // Capture rich HTML (sanitized) for display; derive a plain-text body for
+    // previews + AI when the email only has an HTML part.
+    const safeHtml = input.html?.trim() ? sanitizeEmailHtml(input.html.trim()) : undefined;
+    const body = (input.text?.trim() || (safeHtml ? htmlToText(safeHtml) : '')).trim();
     const now = new Date();
     const preview = (body || subject).slice(0, 140);
 
@@ -443,6 +448,7 @@ export class ConversationIngestService {
           direction: 'IN',
           waMessageId: input.messageId,
           body: body || subject || null,
+          bodyHtml: safeHtml ?? null,
         },
       });
       return { conv, message, dupe: false, lead };

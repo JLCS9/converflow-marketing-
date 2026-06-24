@@ -39,6 +39,7 @@ async function forwardInbound(payload: {
   fromName?: string;
   subject?: string;
   text?: string;
+  html?: string;
   messageId?: string;
 }): Promise<void> {
   const res = await fetch(`${API_INTERNAL_URL}/internal/email/inbound`, {
@@ -126,6 +127,7 @@ async function pollConnection(conn: Conn): Promise<void> {
             fromName: sender?.name || undefined,
             subject: parsed.subject ?? '',
             text: parsed.text ?? '',
+            html: typeof parsed.html === 'string' ? parsed.html : undefined,
             messageId: parsed.messageId ?? undefined,
           });
         } catch (err) {

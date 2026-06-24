@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { RichEmailEditor } from '@/components/ui/rich-email-editor';
 import { TemplatePicker } from '@/components/ui/template-picker';
@@ -18,8 +18,20 @@ export function ComposeEmailModal({
   const [html, setHtml] = useState('');
   const [initialHtml, setInitialHtml] = useState('');
   const [editorKey, setEditorKey] = useState(0);
+  const [docs, setDocs] = useState<{ id: string; name: string }[]>([]);
+  const [attachments, setAttachments] = useState<{ id: string; name: string }[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<{ id: string; name: string }[]>('/documents')
+      .then((d) => active && setDocs(Array.isArray(d) ? d : []))
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function send() {
     setError(null);
@@ -27,7 +39,12 @@ export function ComposeEmailModal({
     try {
       const res = await apiFetch<{ conversationId: string }>('/conversations/compose', {
         method: 'POST',
-        json: { to: to.trim(), subject: subject.trim(), html },
+        json: {
+          to: to.trim(),
+          subject: subject.trim(),
+          html,
+          documentIds: attachments.map((a) => a.id),
+        },
       });
       onSent(res.conversationId);
     } catch (err) {
@@ -77,6 +94,48 @@ export function ComposeEmailModal({
             </div>
             <RichEmailEditor key={editorKey} initialHtml={initialHtml} onChange={setHtml} />
           </Field>
+
+          {docs.length > 0 && (
+            <div className="space-y-2">
+              <select
+                value=""
+                onChange={(e) => {
+                  const d = docs.find((x) => x.id === e.target.value);
+                  if (d) setAttachments((p) => (p.some((a) => a.id === d.id) ? p : [...p, d]));
+                  e.currentTarget.value = '';
+                }}
+                className="rounded-md border border-ink-300 px-2 py-1 text-xs text-ink-700"
+              >
+                <option value="">📎 Adjuntar documento…</option>
+                {docs.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {attachments.map((a) => (
+                    <span
+                      key={a.id}
+                      className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2 py-0.5 text-xs text-ink-700"
+                    >
+                      📎 {a.name}
+                      <button
+                        type="button"
+                        onClick={() => setAttachments((p) => p.filter((x) => x.id !== a.id))}
+                        className="text-ink-400 hover:text-red-600"
+                        aria-label="Quitar adjunto"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">
               {error}

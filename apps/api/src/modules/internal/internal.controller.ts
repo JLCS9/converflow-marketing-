@@ -17,9 +17,20 @@ export class InternalController {
   }
 
   // Inbound email — point your provider's webhook here with the documented
-  // JSON shape { to, from, fromName?, subject?, text?, messageId? }.
+  // JSON shape { to, from, fromName?, subject?, text?, html?, messageId? }.
   @Post('email/inbound')
-  handleEmailInbound(@Body() body: { to?: string; from?: string; fromName?: string; subject?: string; text?: string; messageId?: string }) {
+  handleEmailInbound(
+    @Body()
+    body: {
+      to?: string;
+      from?: string;
+      fromName?: string;
+      subject?: string;
+      text?: string;
+      html?: string;
+      messageId?: string;
+    },
+  ) {
     return this.ingest.ingestEmail(body);
   }
 }
