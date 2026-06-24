@@ -35,7 +35,7 @@ export const createCampaignSchema = z
     botId: z.string().cuid().optional(),
     agentId: z.string().cuid().optional(),
     subject: z.string().trim().max(200).optional(),
-    body: z.string().trim().min(1).max(8000),
+    body: z.string().trim().min(1).max(20000),
     audience: audienceSchema.optional(),
     // ISO 8601; null/undefined = send immediately on launch.
     scheduledAt: z.string().datetime().optional(),
@@ -51,7 +51,7 @@ export const updateCampaignSchema = z.object({
   botId: z.string().cuid().nullable().optional(),
   agentId: z.string().cuid().nullable().optional(),
   subject: z.string().trim().max(200).nullable().optional(),
-  body: z.string().trim().min(1).max(8000).optional(),
+  body: z.string().trim().min(1).max(20000).optional(),
   audience: audienceSchema.optional(),
   scheduledAt: z.string().datetime().nullable().optional(),
 });

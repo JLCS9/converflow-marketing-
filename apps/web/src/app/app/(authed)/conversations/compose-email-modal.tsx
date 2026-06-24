@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { RichEmailEditor } from '@/components/ui/rich-email-editor';
+import { TemplatePicker } from '@/components/ui/template-picker';
 import { Field, Input, buttonClass } from '@/components/ui/primitives';
 
 export function ComposeEmailModal({
@@ -15,6 +16,8 @@ export function ComposeEmailModal({
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('');
   const [html, setHtml] = useState('');
+  const [initialHtml, setInitialHtml] = useState('');
+  const [editorKey, setEditorKey] = useState(0);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,7 +65,17 @@ export function ComposeEmailModal({
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={200} />
           </Field>
           <Field label="Mensaje" required>
-            <RichEmailEditor onChange={setHtml} />
+            <div className="mb-2 flex justify-end">
+              <TemplatePicker
+                onPick={(t) => {
+                  if (t.subject) setSubject(t.subject);
+                  setInitialHtml(t.bodyHtml);
+                  setHtml(t.bodyHtml);
+                  setEditorKey((k) => k + 1);
+                }}
+              />
+            </div>
+            <RichEmailEditor key={editorKey} initialHtml={initialHtml} onChange={setHtml} />
           </Field>
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">

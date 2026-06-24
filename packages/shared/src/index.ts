@@ -9,5 +9,6 @@ export * from './schemas/pipelines';
 export * from './schemas/permissions';
 export * from './schemas/api-keys';
 export * from './schemas/campaign';
+export * from './schemas/email-template';
 export * from './utils';
 export * as constants from './constants';

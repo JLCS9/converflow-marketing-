@@ -46,6 +46,13 @@ export const NAV_SECTIONS: NavSection[] = [
     routes: ['/app/campaigns'],
     requires: ['campaigns'],
   },
+  {
+    key: 'templates',
+    label: 'Plantillas',
+    defaultHref: '/app/templates',
+    routes: ['/app/templates'],
+    requires: ['conversations'],
+  },
 ];
 
 /**

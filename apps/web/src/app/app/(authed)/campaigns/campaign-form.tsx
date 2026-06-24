@@ -3,7 +3,9 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
-import { Card, Field, Input, Select, Textarea, buttonClass } from '@/components/ui/primitives';
+import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
+import { RichEmailEditor } from '@/components/ui/rich-email-editor';
+import { TemplatePicker } from '@/components/ui/template-picker';
 
 interface Bot {
   id: string;
@@ -75,6 +77,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
   const [agentId, setAgentId] = useState(campaign?.agentId ?? '');
   const [subject, setSubject] = useState(campaign?.subject ?? '');
   const [body, setBody] = useState(campaign?.body ?? '');
+  const [bodyKey, setBodyKey] = useState(0); // remount editor to load a template
 
   const [entity, setEntity] = useState(a.entity ?? 'BOTH');
   const [statuses, setStatuses] = useState((a.statuses ?? []).join(', '));
@@ -258,14 +261,18 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
         <Field
           label="Mensaje"
           required
-          help="Variables disponibles: {nombre}, {first_name}, {email}, {telefono}. En email se añade un pie de baja automático."
+          help="Variables: {nombre}, {first_name}, {email}, {telefono}. En email se añade un pie de baja automático; en WhatsApp se envía como texto."
         >
-          <Textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={channel === 'EMAIL' ? 8 : 5}
-            placeholder={'Hola {first_name},\n\n…'}
-          />
+          <div className="mb-2 flex justify-end">
+            <TemplatePicker
+              onPick={(t) => {
+                if (t.subject) setSubject(t.subject);
+                setBody(t.bodyHtml);
+                setBodyKey((k) => k + 1);
+              }}
+            />
+          </div>
+          <RichEmailEditor key={bodyKey} initialHtml={body} onChange={setBody} />
         </Field>
 
         <Field

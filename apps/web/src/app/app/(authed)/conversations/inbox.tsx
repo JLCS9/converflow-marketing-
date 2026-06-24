@@ -8,6 +8,7 @@ import { CopyButton } from '@/components/ui/copy-button';
 import { MeetingScheduler } from '@/components/meeting-scheduler';
 import { ChannelBadge } from '@/components/ui/channel-badge';
 import { RichEmailEditor } from '@/components/ui/rich-email-editor';
+import { TemplatePicker } from '@/components/ui/template-picker';
 import { ComposeEmailModal } from './compose-email-modal';
 
 function escapeHtml(s: string): string {
@@ -427,6 +428,15 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
 
               {thread.channel === 'EMAIL' ? (
                 <div className="space-y-2">
+                  <div className="flex justify-end">
+                    <TemplatePicker
+                      onPick={(t) => {
+                        setComposeInitialHtml(t.bodyHtml);
+                        setComposeHtml(t.bodyHtml);
+                        setEditorKey((k) => k + 1);
+                      }}
+                    />
+                  </div>
                   <RichEmailEditor
                     key={editorKey}
                     initialHtml={composeInitialHtml}

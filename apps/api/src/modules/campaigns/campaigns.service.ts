@@ -14,19 +14,13 @@ import { type PrismaClient } from '@converflow/db';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
 import { BotRunnerService } from '../bots/bot-runner.service.js';
+import { sanitizeEmailHtml, htmlToText } from '../../common/utils/email-html.js';
 import { env } from '../../config/env.js';
 
 // Prisma transaction client type, matching withTenant's callback param.
 type PrismaTx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string,
-  );
-}
 
 // Per-channel pacing between sends (ms). WhatsApp is deliberately slow — Baileys
 // is an unofficial client and bulk sending risks a ban (see ADR #7 / Cloud API).
@@ -147,7 +141,7 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
           botId: data.botId,
           agentId: data.agentId,
           subject: data.subject,
-          body: data.body,
+          body: sanitizeEmailHtml(data.body),
           audience: (data.audience ?? {}) as never,
           scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
           createdByUserId: userId,
@@ -174,7 +168,7 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
           botId: data.botId === undefined ? undefined : data.botId,
           agentId: data.agentId === undefined ? undefined : data.agentId,
           subject: data.subject === undefined ? undefined : data.subject,
-          body: data.body,
+          body: data.body === undefined ? undefined : sanitizeEmailHtml(data.body),
           audience: data.audience === undefined ? undefined : (data.audience as never),
           scheduledAt:
             data.scheduledAt === undefined
@@ -352,12 +346,13 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
         );
         if (fresh?.status === 'CANCELLED') break;
 
-        const body = this.render(campaign.body, r);
+        // campaign.body is sanitized HTML with {variables}; render fills them in.
+        const renderedBody = this.render(campaign.body, r);
         try {
           let messageId: string | undefined;
           if (campaign.channel === 'EMAIL') {
-            const text = body + this.unsubscribeFooter(tenantId, r.address);
-            const html = this.buildHtml(tenantId, r.id, body, r.address);
+            const text = htmlToText(renderedBody) + this.unsubscribeFooter(tenantId, r.address);
+            const html = this.buildHtml(tenantId, r.id, renderedBody, r.address);
             // SMTP only (tenant's own mailbox) — never Resend for campaigns.
             const res = await this.email.sendSmtp(emailConn!, {
               to: r.address,
@@ -368,7 +363,12 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
             messageId = res.id;
           } else if (campaign.channel === 'WHATSAPP') {
             if (!campaign.botId) throw new Error('La campaña no tiene bot de WhatsApp');
-            const res = await this.botRunner.sendText(campaign.botId, r.address, body);
+            // WhatsApp is plain text — flatten the HTML body.
+            const res = await this.botRunner.sendText(
+              campaign.botId,
+              r.address,
+              htmlToText(renderedBody),
+            );
             messageId = res.id;
           }
           await this.prisma.withTenant(tenantId, (tx) =>
@@ -534,9 +534,9 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
   }
 
   // ---- HTML body + open tracking ------------------------------------------
-  private buildHtml(tenantId: string, recipientId: string, body: string, address: string): string {
+  private buildHtml(tenantId: string, recipientId: string, bodyHtml: string, address: string): string {
     const base = env.API_PUBLIC_URL.replace(/\/$/, '');
-    const bodyHtml = escapeHtml(body).replace(/\n/g, '<br>');
+    // bodyHtml is already sanitized HTML (templates/editor) with variables filled.
     const unsubUrl = `${base}/unsubscribe?token=${this.tokenFor(tenantId, 'EMAIL', address)}`;
     const pixel = `${base}/c/o/${this.trackToken(recipientId)}`;
     return `<!doctype html><html><body style="font-family:system-ui,Arial,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5">
