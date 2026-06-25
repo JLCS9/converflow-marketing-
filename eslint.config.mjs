@@ -14,6 +14,7 @@ export default tseslint.config(
       '**/build/**',
       '**/src/generated/**',
       '**/*.config.{js,mjs,cjs}',
+      '**/*.config.ts',
     ],
   },
   eslint.configs.recommended,
