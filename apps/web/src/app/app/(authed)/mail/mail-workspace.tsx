@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { buttonClass } from '@/components/ui/primitives';
-import { RichEmailEditor } from '@/components/ui/rich-email-editor';
+import { MailComposer, type ComposerInitial, type ComposerMode } from './mail-composer';
 
 export interface MailboxOption {
   id: string;
@@ -22,8 +22,12 @@ interface ThreadRow {
 interface Msg {
   id: string;
   direction: 'IN' | 'OUT';
+  isDraft: boolean;
   fromAddress: string | null;
   fromName: string | null;
+  toAddresses: string[] | null;
+  ccAddresses: string[] | null;
+  bccAddresses: string[] | null;
   subject: string | null;
   html: string | null;
   text: string | null;
@@ -32,7 +36,7 @@ interface Msg {
   attachments: { id: string; filename: string }[];
 }
 interface Detail {
-  thread: { id: string; subject: string | null; folder: string };
+  thread: { id: string; subject: string | null; folder: string; participants: string[] | null };
   messages: Msg[];
 }
 
@@ -67,6 +71,8 @@ function fmt(iso: string | null): string {
   return new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+const list = (v: string[] | null | undefined): string => (Array.isArray(v) ? v.join(', ') : '');
+
 export function MailWorkspace({ connections }: { connections: MailboxOption[] }) {
   const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '');
   const [folder, setFolder] = useState('INBOX');
@@ -75,26 +81,27 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [busy, setBusy] = useState(false);
-  const [replyHtml, setReplyHtml] = useState('');
+  const [replyInit, setReplyInit] = useState<ComposerInitial>({});
   const [replyKey, setReplyKey] = useState(0);
-  const [replyError, setReplyError] = useState<string | null>(null);
+  const [modal, setModal] = useState<
+    { mode: ComposerMode; initial?: ComposerInitial; forwardMessageId?: string } | null
+  >(null);
 
-  const loadThreads = useCallback(
-    async (conn: string, f: string) => {
-      if (!conn) return;
-      try {
-        const [t, c] = await Promise.all([
-          apiFetch<ThreadRow[]>(`/mail/connections/${conn}/threads?folder=${f}`),
-          apiFetch<Record<string, number>>(`/mail/connections/${conn}/folder-counts`).catch(() => ({})),
-        ]);
-        setThreads(t);
-        setCounts(c);
-      } catch {
-        /* keep last */
-      }
-    },
-    [],
-  );
+  const selfAddress = (connections.find((c) => c.id === connectionId)?.fromAddress ?? '').toLowerCase();
+
+  const loadThreads = useCallback(async (conn: string, f: string) => {
+    if (!conn) return;
+    try {
+      const [t, c] = await Promise.all([
+        apiFetch<ThreadRow[]>(`/mail/connections/${conn}/threads?folder=${f}`),
+        apiFetch<Record<string, number>>(`/mail/connections/${conn}/folder-counts`).catch(() => ({})),
+      ]);
+      setThreads(t);
+      setCounts(c);
+    } catch {
+      /* keep last */
+    }
+  }, []);
 
   useEffect(() => {
     void loadThreads(connectionId, folder);
@@ -102,49 +109,75 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
     return () => clearInterval(t);
   }, [connectionId, folder, loadThreads]);
 
-  function resetReply() {
-    setReplyHtml('');
-    setReplyError(null);
-    setReplyKey((k) => k + 1);
-  }
-
   function switchMailbox(id: string) {
     setConnectionId(id);
     setFolder('INBOX');
     setSelectedId(null);
     setDetail(null);
-    resetReply();
   }
 
-  async function sendReply() {
-    if (!selectedId || !replyHtml.replace(/<[^>]*>/g, '').trim()) return;
-    setBusy(true);
-    setReplyError(null);
-    try {
-      await apiFetch(`/mail/threads/${selectedId}/reply`, { method: 'POST', json: { html: replyHtml } });
-      resetReply();
-      const d = await apiFetch<Detail>(`/mail/threads/${selectedId}`);
-      setDetail(d);
-      void loadThreads(connectionId, folder);
-    } catch (e) {
-      setReplyError(e instanceof Error ? e.message : 'No se pudo enviar');
-    } finally {
-      setBusy(false);
-    }
+  function computeDefaultTo(d: Detail): string {
+    const lastIn = [...d.messages].reverse().find((m) => m.direction === 'IN' && !m.isDraft);
+    if (lastIn?.fromAddress) return lastIn.fromAddress;
+    const parts = d.thread.participants ?? [];
+    return parts.find((p) => p.toLowerCase() !== selfAddress) ?? parts[0] ?? '';
   }
 
   async function openThread(id: string) {
     setSelectedId(id);
     setDetail(null);
-    resetReply();
+    setReplyInit({});
     try {
       const d = await apiFetch<Detail>(`/mail/threads/${id}`);
+      const draft = d.messages.find((m) => m.isDraft);
+      if (draft) {
+        const init: ComposerInitial = {
+          draftId: draft.id,
+          to: list(draft.toAddresses),
+          cc: list(draft.ccAddresses),
+          bcc: list(draft.bccAddresses),
+          subject: draft.subject ?? '',
+          html: draft.html ?? '',
+        };
+        if (d.thread.folder === 'DRAFTS') {
+          // Brand-new email draft → reopen it in the modal composer.
+          setSelectedId(null);
+          setModal({ mode: 'new', initial: init });
+          return;
+        }
+        // Reply draft → prefill the inline composer.
+        setReplyInit(init);
+      } else {
+        setReplyInit({ to: computeDefaultTo(d) });
+      }
+      setReplyKey((k) => k + 1);
       setDetail(d);
       await apiFetch(`/mail/threads/${id}/read`, { method: 'POST' }).catch(() => {});
       void loadThreads(connectionId, folder);
     } catch {
       /* ignore */
     }
+  }
+
+  async function refreshThread() {
+    if (!selectedId) return;
+    try {
+      const d = await apiFetch<Detail>(`/mail/threads/${selectedId}`);
+      setDetail(d);
+      setReplyInit({ to: computeDefaultTo(d) });
+      setReplyKey((k) => k + 1);
+    } catch {
+      /* ignore */
+    }
+    void loadThreads(connectionId, folder);
+  }
+
+  function replyAll() {
+    const parts = (detail?.thread.participants ?? []).map((p) => p.toLowerCase());
+    const to = (replyInit.to ?? '').toLowerCase();
+    const others = parts.filter((p) => p !== selfAddress && p !== to);
+    setReplyInit((prev) => ({ ...prev, cc: others.join(', ') }));
+    setReplyKey((k) => k + 1);
   }
 
   async function move(toFolder: string) {
@@ -167,6 +200,9 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
     setDetail(null);
     void loadThreads(connectionId, folder);
   }
+
+  const visibleMessages = detail ? detail.messages.filter((m) => !m.isDraft) : [];
+  const lastMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]!.id : null;
 
   return (
     <div className="flex h-[calc(100vh-9rem)] gap-3">
@@ -206,11 +242,18 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
 
       {/* Thread list */}
       <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg border border-ink-100 bg-white">
+        <div className="border-b border-ink-100 p-2">
+          <button
+            type="button"
+            onClick={() => setModal({ mode: 'new', initial: {} })}
+            className={buttonClass('primary', 'w-full text-xs')}
+          >
+            ✉️ Nuevo correo
+          </button>
+        </div>
         <div className="flex-1 overflow-y-auto">
           {threads.length === 0 ? (
-            <p className="p-4 text-sm text-ink-500">
-              {folder === 'SENT' || folder === 'DRAFTS' ? 'Disponible al activar redacción (2.3).' : 'Sin mensajes en esta carpeta.'}
-            </p>
+            <p className="p-4 text-sm text-ink-500">Sin mensajes en esta carpeta.</p>
           ) : (
             threads.map((t) => (
               <button
@@ -248,11 +291,21 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
               </div>
             </div>
             <div className="flex-1 space-y-3 overflow-y-auto bg-ink-100/20 p-4">
-              {detail.messages.map((m) => (
+              {visibleMessages.map((m) => (
                 <div key={m.id} className="rounded-lg border border-ink-100 bg-white p-3">
-                  <div className="mb-2 flex items-baseline justify-between text-xs text-ink-500">
-                    <span className="font-medium text-ink-700">{m.fromName || m.fromAddress || (m.direction === 'OUT' ? 'Tú' : 'Contacto')}</span>
-                    <span>{fmt(m.receivedAt || m.createdAt)}</span>
+                  <div className="mb-2 flex items-baseline justify-between gap-2 text-xs text-ink-500">
+                    <span className="truncate font-medium text-ink-700">{m.fromName || m.fromAddress || (m.direction === 'OUT' ? 'Tú' : 'Contacto')}</span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span>{fmt(m.receivedAt || m.createdAt)}</span>
+                      <button
+                        type="button"
+                        onClick={() => setModal({ mode: 'forward', forwardMessageId: m.id, initial: {} })}
+                        className="text-primary-700 hover:underline"
+                        title="Reenviar este mensaje"
+                      >
+                        Reenviar
+                      </button>
+                    </span>
                   </div>
                   {m.html ? (
                     <div
@@ -274,22 +327,54 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
             </div>
 
             <div className="space-y-2 border-t border-ink-100 bg-white p-3">
-              <RichEmailEditor key={replyKey} onChange={setReplyHtml} />
-              {replyError && <p className="text-xs text-red-600">{replyError}</p>}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  disabled={busy || !replyHtml.replace(/<[^>]*>/g, '').trim()}
-                  onClick={() => void sendReply()}
-                  className={buttonClass('primary')}
-                >
-                  {busy ? 'Enviando…' : 'Responder'}
-                </button>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="font-medium text-ink-600">Responder</span>
+                <button type="button" onClick={replyAll} className="text-primary-700 hover:underline">Responder a todos</button>
+                {lastMessageId && (
+                  <button
+                    type="button"
+                    onClick={() => setModal({ mode: 'forward', forwardMessageId: lastMessageId, initial: {} })}
+                    className="text-primary-700 hover:underline"
+                  >
+                    Reenviar
+                  </button>
+                )}
               </div>
+              <MailComposer
+                key={replyKey}
+                mode="reply"
+                connectionId={connectionId}
+                threadId={detail.thread.id}
+                initial={replyInit}
+                onSent={() => void refreshThread()}
+              />
             </div>
           </>
         )}
       </div>
+
+      {/* New / Forward modal */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-900/40 p-4 sm:p-8" onClick={() => setModal(null)}>
+          <div className="w-full max-w-2xl rounded-lg border border-ink-100 bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3">
+              <h3 className="text-sm font-semibold">{modal.mode === 'forward' ? 'Reenviar correo' : 'Nuevo correo'}</h3>
+              <button type="button" onClick={() => setModal(null)} className="text-ink-400 hover:text-ink-700" aria-label="Cerrar">✕</button>
+            </div>
+            <div className="p-4">
+              <MailComposer
+                key={`${modal.mode}-${modal.forwardMessageId ?? modal.initial?.draftId ?? 'new'}`}
+                mode={modal.mode}
+                connectionId={connectionId}
+                forwardMessageId={modal.forwardMessageId}
+                initial={modal.initial}
+                onSent={() => { setModal(null); void loadThreads(connectionId, folder); }}
+                onClose={() => setModal(null)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
