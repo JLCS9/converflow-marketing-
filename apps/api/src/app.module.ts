@@ -30,6 +30,7 @@ import { LeadScoringModule } from './modules/lead-scoring/lead-scoring.module.js
 import { ApiKeysModule } from './modules/api-keys/api-keys.module.js';
 import { CampaignsModule } from './modules/campaigns/campaigns.module.js';
 import { EmailTemplatesModule } from './modules/email-templates/email-templates.module.js';
+import { MailModule } from './modules/mail/mail.module.js';
 import { AiModule } from './common/ai/ai.module.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
 import { GuardsModule } from './common/guards/guards.module.js';
@@ -70,6 +71,7 @@ import { GuardsModule } from './common/guards/guards.module.js';
     ApiKeysModule,
     CampaignsModule,
     EmailTemplatesModule,
+    MailModule,
   ],
 })
 export class AppModule {}
