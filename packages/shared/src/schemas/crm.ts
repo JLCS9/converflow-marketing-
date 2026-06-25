@@ -123,6 +123,7 @@ export const taskTypeSchema = z.enum([
   'EMAIL',
   'MEETING',
   'FOLLOW_UP',
+  'SUPPORT',
   'OTHER',
 ]);
 
@@ -168,11 +169,11 @@ export const createTaskSchema = z.object({
   type: taskTypeSchema,
   priority: prioritySchema.optional(),
   status: taskStatusSchema.optional(),
-  ownerId: z.string().cuid().optional(),
-  dueAt: z.coerce.date().optional(),
-  clientId: z.string().cuid().optional(),
-  leadId: z.string().cuid().optional(),
-  opportunityId: z.string().cuid().optional(),
+  ownerId: z.string().cuid().nullable().optional(),
+  dueAt: z.coerce.date().nullable().optional(),
+  clientId: z.string().cuid().nullable().optional(),
+  leadId: z.string().cuid().nullable().optional(),
+  opportunityId: z.string().cuid().nullable().optional(),
 });
 
 export const updateTaskSchema = createTaskSchema.partial();

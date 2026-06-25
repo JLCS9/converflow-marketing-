@@ -74,6 +74,13 @@ export class TasksService {
     });
   }
 
+  /** Active users for the assignee picker (gated by 'crm' like the rest of tasks). */
+  assignees(tenantId: string) {
+    return this.prisma.withTenant(tenantId, (tx) =>
+      tx.user.findMany({ where: { status: 'ACTIVE' }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+    );
+  }
+
   // Quick stats for the tenant dashboard
   stats(tenantId: string) {
     return this.prisma.withTenant(tenantId, async (tx) => {

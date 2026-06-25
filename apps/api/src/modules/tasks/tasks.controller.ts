@@ -43,6 +43,11 @@ export class TasksController {
     return this.tasks.stats(user.tenantId);
   }
 
+  @Get('assignees')
+  assignees(@CurrentUser() user: AuthenticatedUser) {
+    return this.tasks.assignees(user.tenantId);
+  }
+
   @Post()
   create(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
     return this.tasks.create(user.tenantId, body as never);
