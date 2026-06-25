@@ -234,8 +234,11 @@ export function SidebarNav({
         </Link>
         {showConversations && (
           <Link
-            href="/app/conversations"
-            className={itemCls(pathname.startsWith('/app/conversations'), collapsed)}
+            href="/app/mail"
+            className={itemCls(
+              pathname.startsWith('/app/conversations') || pathname.startsWith('/app/mail'),
+              collapsed,
+            )}
             aria-label={collapsed ? 'Conversaciones' : undefined}
           >
             <MessageCircle size={18} strokeWidth={1.75} aria-hidden />

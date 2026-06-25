@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Zap } from 'lucide-react';
+import { ArrowLeft, Zap, Settings } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { Badge, buttonClass } from '@/components/ui/primitives';
 import { CopyButton } from '@/components/ui/copy-button';
@@ -130,6 +130,7 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
   const [docs, setDocs] = useState<{ id: string; name: string }[] | null>(null);
   const [showDocs, setShowDocs] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const msgScrollRef = useRef<HTMLDivElement>(null);
 
   const loadList = useCallback(async (st: string) => {
@@ -163,6 +164,15 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
     const t = setInterval(() => void loadList(status), 10000);
     return () => clearInterval(t);
   }, [status, loadList]);
+
+  // Pending count for the filter badge.
+  useEffect(() => {
+    const poll = () =>
+      apiFetch<{ pending: number }>('/conversations/count').then((r) => setPendingCount(r.pending)).catch(() => {});
+    void poll();
+    const t = setInterval(poll, 10000);
+    return () => clearInterval(t);
+  }, []);
 
   // Poll the open thread.
   useEffect(() => {
@@ -272,18 +282,34 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
 
   // ---- column: filters (status) ----
   const filtersNode = (
-    <nav className="space-y-0.5 p-2">
-      {TABS.map((t) => (
-        <button
-          key={t.key || 'all'}
-          type="button"
-          onClick={() => { setStatus(t.key); setSelectedId(null); }}
-          className={`flex w-full items-center rounded-md px-2 py-1.5 text-sm ${status === t.key ? 'bg-ink-900 text-white' : 'text-ink-700 hover:bg-ink-100'}`}
-        >
-          {t.label}
-        </button>
-      ))}
-    </nav>
+    <div className="flex h-full flex-col">
+      <nav className="flex-1 space-y-0.5 p-2">
+        {TABS.map((t) => {
+          const active = status === t.key;
+          return (
+            <button
+              key={t.key || 'all'}
+              type="button"
+              onClick={() => { setStatus(t.key); setSelectedId(null); }}
+              className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm ${active ? 'bg-ink-900 text-white' : 'text-ink-700 hover:bg-ink-100'}`}
+            >
+              <span>{t.label}</span>
+              {t.key === 'PENDING' && pendingCount > 0 && (
+                <span className={`rounded-full px-1.5 text-[10px] font-semibold ${active ? 'bg-white/20 text-white' : 'bg-primary-600 text-white'}`}>
+                  {pendingCount > 99 ? '99+' : pendingCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+      <Link
+        href="/app/bots"
+        className="mt-auto flex items-center gap-2 border-t border-ink-100 px-3 py-2 text-xs text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+      >
+        <Settings size={14} /> Canales conectados
+      </Link>
+    </div>
   );
 
   // ---- column: conversation list ----

@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
+import Link from 'next/link';
 import {
   Inbox,
   Send,
@@ -16,6 +17,7 @@ import {
   Paperclip,
   AlertTriangle,
   Loader2,
+  Settings,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { useFeedback } from '@/components/ui/feedback';
@@ -508,6 +510,12 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
           );
         })}
       </nav>
+      <Link
+        href="/app/mail/ajustes"
+        className="mt-auto flex items-center gap-2 border-t border-ink-100 px-3 py-2 text-xs text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+      >
+        <Settings size={14} /> Ajustes (buzones, plantillas)
+      </Link>
     </div>
   );
 

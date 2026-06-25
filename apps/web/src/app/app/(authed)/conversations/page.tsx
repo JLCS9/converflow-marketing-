@@ -1,14 +1,6 @@
-import Link from 'next/link';
-import { Settings } from 'lucide-react';
 import { serverApiFetch } from '@/lib/server-api';
-import { buttonClass } from '@/components/ui/primitives';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Inbox } from './inbox';
-
-const MAIL_TABS = [
-  { href: '/app/mail', label: 'Correo' },
-  { href: '/app/conversations', label: 'Mensajería' },
-];
 
 interface ConvRow {
   id: string;
@@ -25,22 +17,21 @@ interface ConvRow {
 
 export const metadata = { title: 'Conversaciones' };
 
-const settingsAction = (
-  <Link
-    href="/app/bots"
-    className={buttonClass('ghost', 'gap-1.5 px-2 py-1 text-xs')}
-    title="Canales conectados (WhatsApp, Web Chat)"
-  >
-    <Settings size={14} strokeWidth={1.75} aria-hidden /> Canales
-  </Link>
-);
-
 export default async function ConversationsPage() {
-  const initial = await serverApiFetch<ConvRow[]>('/conversations?status=PENDING');
+  const [initial, convCount, mail] = await Promise.all([
+    serverApiFetch<ConvRow[]>('/conversations?status=PENDING'),
+    serverApiFetch<{ pending: number }>('/conversations/count').catch(() => ({ pending: 0 })),
+    serverApiFetch<{ unread: number }>('/mail/unread-count').catch(() => ({ unread: 0 })),
+  ]);
+
+  const tabs = [
+    { href: '/app/mail', label: 'Correo', badge: mail.unread },
+    { href: '/app/conversations', label: 'Mensajería', badge: convCount.pending },
+  ];
 
   return (
     <div className="space-y-3">
-      <TabBar items={MAIL_TABS} action={settingsAction} />
+      <TabBar items={tabs} />
       <Inbox initial={initial} />
     </div>
   );
