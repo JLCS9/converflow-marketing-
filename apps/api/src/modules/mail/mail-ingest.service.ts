@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { sanitizeEmailHtml } from '../../common/utils/email-html.js';
 import type { ParsedEmail } from './drivers/index.js';
 
 export function normalizeSubject(subject?: string): string {
@@ -89,7 +90,8 @@ export class MailIngestService {
           toAddresses: email.to,
           ccAddresses: email.cc,
           subject: email.subject,
-          html: email.html,
+          // Inbound HTML is untrusted — sanitize before storing so it renders safely.
+          html: email.html ? sanitizeEmailHtml(email.html) : null,
           text: email.text,
           snippet: email.snippet,
           receivedAt: when,

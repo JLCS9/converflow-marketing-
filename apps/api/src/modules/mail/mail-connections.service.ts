@@ -165,6 +165,14 @@ export class MailConnectionsService {
     }
   }
 
+  /**
+   * Public access guard reused by the inbox: throws 404 if the actor can't see
+   * the connection (PRIVATE owner-only). Returns the row.
+   */
+  assertAccess(tenantId: string, id: string, actor: Actor) {
+    return this.fetchAccessible(tenantId, id, actor);
+  }
+
   // ---- internals ----------------------------------------------------------
 
   /** Load a connection enforcing visibility: PRIVATE is owner-only. */
