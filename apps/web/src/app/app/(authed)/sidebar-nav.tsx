@@ -127,7 +127,8 @@ export function SidebarNav({
       }
     };
     void poll();
-    const t = setInterval(poll, 5000);
+    // 20s is plenty for an unread badge; 5s × every open tab was needless DB load.
+    const t = setInterval(poll, 20000);
     return () => {
       active = false;
       clearInterval(t);

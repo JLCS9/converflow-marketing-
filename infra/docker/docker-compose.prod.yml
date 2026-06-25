@@ -25,6 +25,14 @@
 
 name: converflow-ai
 
+# Cap container log growth (json-file is unbounded by default — a known disk
+# sink on long-running VPS deploys). 10MB × 3 files per container.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 networks:
   converflow_ai_net:
     name: converflow_ai_net
@@ -40,6 +48,7 @@ services:
     image: pgvector/pgvector:pg16
     container_name: cfai-postgres
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -61,6 +70,7 @@ services:
     image: redis:7-alpine
     container_name: cfai-redis
     restart: unless-stopped
+    logging: *default-logging
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
     volumes:
       - cfai_redis_data:/data
@@ -78,6 +88,7 @@ services:
     image: cfai-api:latest
     container_name: cfai-api
     restart: unless-stopped
+    logging: *default-logging
     env_file: ./.env.prod
     depends_on:
       postgres: { condition: service_healthy }
@@ -101,6 +112,7 @@ services:
     image: cfai-web:latest
     container_name: cfai-web
     restart: unless-stopped
+    logging: *default-logging
     env_file: ./.env.prod
     networks: [converflow_ai_net]
     ports:
@@ -113,6 +125,7 @@ services:
     image: cfai-workers:latest
     container_name: cfai-workers
     restart: unless-stopped
+    logging: *default-logging
     env_file: ./.env.prod
     depends_on:
       redis:    { condition: service_healthy }
@@ -126,6 +139,7 @@ services:
     image: cfai-bot-runner:latest
     container_name: cfai-bot-runner
     restart: unless-stopped
+    logging: *default-logging
     env_file: ./.env.prod
     depends_on:
       redis:    { condition: service_healthy }

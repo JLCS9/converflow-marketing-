@@ -67,7 +67,7 @@ export function WebchatWidget({ botId }: { botId: string }) {
       }
     };
     void poll();
-    const t = setInterval(poll, 3000);
+    const t = setInterval(poll, 5000);
     return () => {
       active = false;
       clearInterval(t);

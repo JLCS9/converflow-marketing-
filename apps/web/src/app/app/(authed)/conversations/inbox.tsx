@@ -135,7 +135,7 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
   // Refetch list on filter change + poll.
   useEffect(() => {
     void loadList(status);
-    const t = setInterval(() => void loadList(status), 4000);
+    const t = setInterval(() => void loadList(status), 10000);
     return () => clearInterval(t);
   }, [status, loadList]);
 
@@ -145,7 +145,7 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
       setThread(null);
       return;
     }
-    const t = setInterval(() => void loadThread(selectedId), 4000);
+    const t = setInterval(() => void loadThread(selectedId), 8000);
     return () => clearInterval(t);
   }, [selectedId, loadThread]);
 

@@ -215,6 +215,38 @@ Write a `.cjs` to `/repo/apps/api/`, `require('@converflow/db')` + `require('arg
 ### Stuck build
 `docker compose ... build --no-cache <svc>`; if needed `docker rmi -f cfai-<svc>:latest` first.
 
+### Maintenance — disk & CPU (run periodically / after deploys)
+**Disk creeps up every deploy** because each `build` re-tags `cfai-*:latest` and the
+old image becomes a dangling layer; build cache also accumulates. This is the #1
+disk sink (not malware). Reclaim:
+```bash
+docker system df                       # see what's using space
+docker image prune -f                  # remove dangling (old) images
+docker builder prune -f                # remove build cache  (can free many GB)
+docker container prune -f              # remove stopped one-off containers (db push runs)
+# nuclear (safe — keeps running stacks, volumes untouched):
+docker system prune -af
+docker logs --tail 0 ...               # container logs are now capped (see below)
+```
+Make pruning part of the deploy: after `up -d --force-recreate`, run `docker image prune -f`.
+- **Log rotation**: `docker-compose.prod.yml` now caps every container's logs to
+  10MB × 3 (json-file). Old unbounded logs already on disk: `docker system prune` /
+  truncate `/var/lib/docker/containers/*/*-json.log` won't be needed going forward.
+- **Postgres "many sessions" / CPU**: cap the Prisma pool per service by appending to
+  `DATABASE_URL` in `.env.prod`: `?connection_limit=5&pool_timeout=20`. api + workers +
+  bot-runner each open a pool; without a limit each defaults to ~(cores×2)+1. Check live
+  sessions: `docker exec cfai-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT count(*) FROM pg_stat_activity"'`.
+- **Polling reduced** (less steady CPU/DB): nav unread badge 5s→20s, inbox 4s→10s/8s,
+  widget 3s→5s, email poller stays 60s. Postgres data growth (messages/ai_usage) is
+  real data — archive/prune old rows later if needed, not part of this cleanup.
+
+### ⚠️ NOT our stack: Clerk / `converflow-backend` errors
+Hostinger flagged "Clerk errors", "Server Actions errors" and a `converflow-backend`
+container as unhealthy. **converflow.ai uses our own argon2 auth — NO Clerk** (verified:
+`grep -ri clerk` is empty). Those belong to a DIFFERENT project sharing the VPS (the
+older converflow.tech / front-converflow stack). Identify with `docker ps -a` — our
+containers are the `cfai-*` ones. Fix Clerk/keys in that other project, not here.
+
 ### Secrets in .env.prod (on VPS only)
 DATABASE/REDIS, AUTH_SECRET, **ENCRYPTION_KEY** (64 hex — used everywhere creds/tokens are at rest: `common/utils/crypto.ts` for Calendar + EmailConnection password, `bot-runner/crypto.ts` for Baileys auth state, `workers/crypto.ts` for decrypting EmailConnection password in the poller), S3_* (R2), ANTHROPIC_API_KEY, ANTHROPIC_DEFAULT_MODEL (claude-sonnet-4-6), ANTHROPIC_FAST_MODEL (claude-haiku-4-5), GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_OAUTH_REDIRECT_URI (`https://api.converflow.ai/integrations/google/callback`), **RESEND_API_KEY + EMAIL_FROM** (system mail + Converflow email-channel fallback). **BOT_RUNNER_INTERNAL_TOKEN** (≥16 chars, fail-closed) — shared internal secret used by api↔bot-runner AND workers→api (email inbound webhook). Optional: BOT_RUNNER_URL (default `http://bot-runner:4100`), API_INTERNAL_URL (workers/bot-runner → api, default `http://api:4000`), EMAIL_POLL_INTERVAL_MS (workers IMAP poller, default 60000). Per-tenant SMTP/IMAP credentials are stored encrypted in `email_connections` (NOT env). **WEB_PUBLIC_URL** must point to `https://app.converflow.ai` in prod — it's used to build the deep links in the support-ticket assignment emails (defaults to localhost otherwise).
 
