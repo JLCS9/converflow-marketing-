@@ -149,6 +149,9 @@ model Tenant {
   suppressions           Suppression[]
   emailTemplates         EmailTemplate[]
   mailConnections        MailConnection[]
+  emailThreads           EmailThread[]
+  emailMessages          EmailMessage[]
+  emailAttachments       EmailAttachment[]
 
   @@map("tenants")
 }
@@ -1182,6 +1185,8 @@ model MailConnection {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  threads EmailThread[]
+
   @@unique([tenantId, fromAddress])
   @@index([tenantId])
   @@index([tenantId, visibility])
@@ -1204,4 +1209,117 @@ enum MailConnStatus {
   PENDING
   CONNECTED
   ERROR
+}
+
+// ============================================
+// MAIL MODULE · Fase 2.1 — inbox model (threads/messages/attachments)
+// Email lives in its OWN models (decoupled from IM Conversation/Message).
+// Threading: dedupe by rfcMessageId; link by In-Reply-To/References → fallback
+// to normalized subject + participants within the same connection.
+// ============================================
+model EmailThread {
+  id           String          @id @default(cuid())
+  tenantId     String
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connectionId String
+  connection   MailConnection  @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  subject       String?
+  participants  Json?           // string[] of addresses seen in the thread
+  folder        MailFolder      @default(INBOX) // thread bucket: INBOX|ARCHIVE|SPAM|TRASH
+  status        MailThreadStatus @default(OPEN) // for shared mailboxes
+  assigneeUserId String?
+  labels        Json?           // string[] custom labels
+  unreadCount   Int             @default(0)
+  lastMessageAt DateTime?
+  snippet       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages EmailMessage[]
+
+  @@index([tenantId, connectionId, folder, lastMessageAt])
+  @@index([tenantId, assigneeUserId])
+  @@map("email_threads")
+}
+
+model EmailMessage {
+  id           String         @id @default(cuid())
+  tenantId     String
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  threadId     String
+  thread       EmailThread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  connectionId String
+
+  rfcMessageId String?        // RFC Message-ID (dedupe key per connection)
+  inReplyTo    String?
+  references   String?        // space-separated RFC references
+
+  direction    MailDirection
+  isDraft      Boolean        @default(false)
+  folder       MailFolder     @default(INBOX)
+
+  fromAddress  String?
+  fromName     String?
+  toAddresses  Json?          // string[]
+  ccAddresses  Json?
+  bccAddresses Json?
+  subject      String?
+  html         String?
+  text         String?
+  snippet      String?
+  spamScore    Float?
+  readAt       DateTime?
+  sentAt       DateTime?
+  receivedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  attachments EmailAttachment[]
+
+  @@unique([connectionId, rfcMessageId])
+  @@index([threadId, createdAt])
+  @@index([tenantId, connectionId, folder])
+  @@map("email_messages")
+}
+
+model EmailAttachment {
+  id         String       @id @default(cuid())
+  tenantId   String
+  tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messageId  String
+  message    EmailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  filename   String
+  mimeType   String
+  sizeBytes  Int
+  storageKey String       // R2 object key
+  inline     Boolean      @default(false)
+  contentId  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
+  @@map("email_attachments")
+}
+
+enum MailFolder {
+  INBOX
+  SENT
+  DRAFTS
+  SPAM
+  ARCHIVE
+  TRASH
+}
+
+enum MailThreadStatus {
+  OPEN
+  PENDING
+  CLOSED
+}
+
+enum MailDirection {
+  IN
+  OUT
 }

@@ -283,3 +283,30 @@ CREATE POLICY tenant_isolation ON mail_connections
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- ---------------------------------------------------------------------
+-- email_threads / email_messages / email_attachments (Mail · Fase 2.1)
+-- ---------------------------------------------------------------------
+ALTER TABLE email_threads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_threads FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON email_threads;
+CREATE POLICY tenant_isolation ON email_threads
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE email_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_messages FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON email_messages;
+CREATE POLICY tenant_isolation ON email_messages
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE email_attachments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_attachments FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON email_attachments;
+CREATE POLICY tenant_isolation ON email_attachments
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
