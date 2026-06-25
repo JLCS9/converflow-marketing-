@@ -53,6 +53,13 @@ export const NAV_SECTIONS: NavSection[] = [
     routes: ['/app/templates'],
     requires: ['conversations'],
   },
+  {
+    key: 'mail',
+    label: 'Correo',
+    defaultHref: '/app/mail',
+    routes: ['/app/mail'],
+    requires: ['mail'],
+  },
 ];
 
 /**
