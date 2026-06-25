@@ -17,7 +17,7 @@ export default async function EditMailConnectionPage({
       <PageHeader
         title="Editar buzón"
         description="Deja la contraseña vacía para no cambiarla. Al guardar se vuelve a verificar la conexión."
-        back={{ href: '/app/mail', label: 'Correo' }}
+        back={{ href: '/app/mail/ajustes', label: 'Buzones' }}
       />
       <MailConnectionForm connection={conn} />
     </div>

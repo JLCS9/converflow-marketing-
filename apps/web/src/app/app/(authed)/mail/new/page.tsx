@@ -9,7 +9,7 @@ export default function NewMailConnectionPage() {
       <PageHeader
         title="Conectar buzón"
         description="Conecta un buzón IMAP/SMTP. Converflow verificará la conexión al guardar."
-        back={{ href: '/app/mail', label: 'Correo' }}
+        back={{ href: '/app/mail/ajustes', label: 'Buzones' }}
       />
       <MailConnectionForm />
     </div>

@@ -9,7 +9,7 @@ export default function NewTemplatePage() {
       <PageHeader
         title="Nueva plantilla"
         description="Diseña el correo con el editor; la vista previa de la derecha muestra cómo se verá."
-        back={{ href: '/app/templates', label: 'Plantillas' }}
+        back={{ href: '/app/mail/ajustes/plantillas', label: 'Plantillas' }}
       />
       <TemplateForm />
     </div>

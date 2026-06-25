@@ -56,7 +56,7 @@ export function TemplateForm({ template }: { template?: TemplateData }) {
         } else {
           await apiFetch('/email-templates', { method: 'POST', json: payload });
         }
-        router.push('/app/templates');
+        router.push('/app/mail/ajustes/plantillas');
         router.refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Error inesperado');
@@ -120,7 +120,7 @@ export function TemplateForm({ template }: { template?: TemplateData }) {
       <div className="flex justify-end gap-2">
         <button
           type="button"
-          onClick={() => router.push('/app/templates')}
+          onClick={() => router.push('/app/mail/ajustes/plantillas')}
           className={buttonClass('secondary')}
           disabled={pending}
         >

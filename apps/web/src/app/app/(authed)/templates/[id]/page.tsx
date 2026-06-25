@@ -17,7 +17,7 @@ export default async function EditTemplatePage({
       <PageHeader
         title="Editar plantilla"
         description="Los cambios se reflejan en la vista previa de la derecha."
-        back={{ href: '/app/templates', label: 'Plantillas' }}
+        back={{ href: '/app/mail/ajustes/plantillas', label: 'Plantillas' }}
       />
       <TemplateForm template={template} />
     </div>

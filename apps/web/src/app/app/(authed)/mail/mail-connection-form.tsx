@@ -78,7 +78,7 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
         } else {
           await apiFetch('/mail/connections', { method: 'POST', json: payload });
         }
-        router.push('/app/mail');
+        router.push('/app/mail/ajustes');
         router.refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Error inesperado');
@@ -144,7 +144,7 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
         {error && <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => router.push('/app/mail')} className={buttonClass('secondary')} disabled={pending}>
+          <button type="button" onClick={() => router.push('/app/mail/ajustes')} className={buttonClass('secondary')} disabled={pending}>
             Cancelar
           </button>
           <button
