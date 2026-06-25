@@ -1,9 +1,37 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ComponentType } from 'react';
+import {
+  Inbox,
+  Send,
+  FileText,
+  Ban,
+  Archive,
+  Trash2,
+  Mail,
+  Search,
+  X,
+  ArrowLeft,
+  StickyNote,
+  Forward,
+  Paperclip,
+  AlertTriangle,
+  Loader2,
+} from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
+import { useFeedback } from '@/components/ui/feedback';
 import { buttonClass } from '@/components/ui/primitives';
 import { MailComposer, type ComposerInitial, type ComposerMode } from './mail-composer';
+
+type IconType = ComponentType<{ size?: number; className?: string }>;
+const FOLDER_ICON: Record<string, IconType> = {
+  INBOX: Inbox,
+  SENT: Send,
+  DRAFTS: FileText,
+  SPAM: Ban,
+  ARCHIVE: Archive,
+  TRASH: Trash2,
+};
 
 interface AttachmentRow {
   id: string;
@@ -130,6 +158,8 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   const [lock, setLock] = useState<LockState | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [loadingList, setLoadingList] = useState(true);
+  const fb = useFeedback();
   const [modal, setModal] = useState<
     { mode: ComposerMode; initial?: ComposerInitial; forwardMessageId?: string } | null
   >(null);
@@ -151,6 +181,8 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
       setCounts(c);
     } catch {
       /* keep last */
+    } finally {
+      setLoadingList(false);
     }
   }, []);
 
@@ -297,6 +329,8 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
       setSelectedId(null);
       setDetail(null);
       await loadThreads(connectionId, folder);
+    } catch {
+      fb.toast.error('No se pudo mover el hilo');
     } finally {
       setBusy(false);
     }
@@ -305,15 +339,23 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   async function assign(assigneeUserId: string) {
     if (!detail) return;
     const value = assigneeUserId || null;
-    await apiFetch(`/mail/threads/${detail.thread.id}/assign`, { method: 'POST', json: { assigneeUserId: value } }).catch(() => {});
-    setDetail((d) => (d ? { ...d, thread: { ...d.thread, assigneeUserId: value } } : d));
+    try {
+      await apiFetch(`/mail/threads/${detail.thread.id}/assign`, { method: 'POST', json: { assigneeUserId: value } });
+      setDetail((d) => (d ? { ...d, thread: { ...d.thread, assigneeUserId: value } } : d));
+    } catch {
+      fb.toast.error('No se pudo cambiar la asignación');
+    }
   }
 
   async function setStatus(status: string) {
     if (!detail) return;
-    await apiFetch(`/mail/threads/${detail.thread.id}/status`, { method: 'POST', json: { status } }).catch(() => {});
-    setDetail((d) => (d ? { ...d, thread: { ...d.thread, status } } : d));
-    void loadThreads(connectionId, folder);
+    try {
+      await apiFetch(`/mail/threads/${detail.thread.id}/status`, { method: 'POST', json: { status } });
+      setDetail((d) => (d ? { ...d, thread: { ...d.thread, status } } : d));
+      void loadThreads(connectionId, folder);
+    } catch {
+      fb.toast.error('No se pudo cambiar el estado');
+    }
   }
 
   async function addNote() {
@@ -323,13 +365,17 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
       setNotes((prev) => [...prev, n]);
       setNoteDraft('');
     } catch {
-      /* ignore */
+      fb.toast.error('No se pudo añadir la nota');
     }
   }
 
   async function deleteNote(id: string) {
-    await apiFetch(`/mail/notes/${id}`, { method: 'DELETE' }).catch(() => {});
-    setNotes((prev) => prev.filter((n) => n.id !== id));
+    try {
+      await apiFetch(`/mail/notes/${id}`, { method: 'DELETE' });
+      setNotes((prev) => prev.filter((n) => n.id !== id));
+    } catch {
+      fb.toast.error('No se pudo borrar la nota');
+    }
   }
 
   async function downloadAttachment(id: string) {
@@ -337,7 +383,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
       const r = await apiFetch<{ url: string }>(`/mail/attachments/${id}/download`);
       window.open(r.url, '_blank', 'noopener');
     } catch {
-      /* ignore */
+      fb.toast.error('No se pudo descargar el adjunto');
     }
   }
 
@@ -353,57 +399,65 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   const lastMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]!.id : null;
 
   return (
-    <div className="flex h-[calc(100vh-9rem)] gap-3">
-      {/* Folders + mailbox selector */}
-      <div className="flex w-44 shrink-0 flex-col gap-1 overflow-y-auto rounded-lg border border-ink-100 bg-white p-2">
-        {connections.length > 1 ? (
-          <select
-            value={connectionId}
-            onChange={(e) => switchMailbox(e.target.value)}
-            className="mb-1 w-full rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-700"
-            aria-label="Buzón"
-          >
-            {connections.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.fromAddress}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <div className="mb-1 truncate px-1 text-[11px] text-ink-500" title={connections[0]?.fromAddress}>
-            {connections[0]?.fromAddress}
-          </div>
-        )}
-        {FOLDERS.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => { setFolder(f.key); setSelectedId(null); setDetail(null); setQuery(''); }}
-            className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm ${folder === f.key ? 'bg-ink-900 text-white' : 'text-ink-700 hover:bg-ink-100'}`}
-          >
-            <span>{f.label}</span>
-            {counts[f.key] ? (
-              <span className="rounded-full bg-primary-600 px-1.5 text-[10px] font-semibold text-white">{counts[f.key]}</span>
-            ) : null}
-          </button>
-        ))}
+    <div className="flex h-[calc(100dvh-8.5rem)] gap-2 sm:gap-3">
+      {/* Folder rail (icon-only) */}
+      <div className="flex w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto rounded-lg border border-ink-100 bg-white py-2">
+        {FOLDERS.map((f) => {
+          const Icon = FOLDER_ICON[f.key] ?? Inbox;
+          const active = folder === f.key;
+          const n = counts[f.key] ?? 0;
+          return (
+            <button
+              key={f.key}
+              onClick={() => { setFolder(f.key); setSelectedId(null); setDetail(null); setQuery(''); }}
+              title={f.label}
+              aria-label={f.label}
+              className={`relative flex h-10 w-10 items-center justify-center rounded-lg ${active ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'}`}
+            >
+              <Icon size={18} />
+              {n > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-[16px] items-center justify-center rounded-full bg-primary-600 px-1 text-[9px] font-semibold text-white ring-2 ring-white">
+                  {n > 99 ? '99+' : n}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Thread list */}
-      <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg border border-ink-100 bg-white">
+      {/* Thread list — full width on mobile, hidden when a thread is open */}
+      <div className={`${selectedId ? 'hidden md:flex' : 'flex'} w-full flex-col overflow-hidden rounded-lg border border-ink-100 bg-white md:w-80 md:shrink-0`}>
         <div className="space-y-2 border-b border-ink-100 p-2">
+          {connections.length > 1 ? (
+            <select
+              value={connectionId}
+              onChange={(e) => switchMailbox(e.target.value)}
+              className="w-full rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-700"
+              aria-label="Buzón"
+            >
+              {connections.map((c) => (
+                <option key={c.id} value={c.id}>{c.fromAddress}</option>
+              ))}
+            </select>
+          ) : (
+            <div className="truncate px-1 text-[11px] text-ink-500" title={connections[0]?.fromAddress}>
+              {connections[0]?.fromAddress}
+            </div>
+          )}
           <button
             type="button"
             onClick={() => setModal({ mode: 'new', initial: {} })}
-            className={buttonClass('primary', 'w-full text-xs')}
+            className={buttonClass('primary', 'flex w-full items-center justify-center gap-1.5 text-xs')}
           >
-            ✉️ Nuevo correo
+            <Mail size={14} /> Nuevo correo
           </button>
           <div className="relative">
+            <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-400" />
             <input
               value={query}
               onChange={(e) => { setQuery(e.target.value); setSelectedId(null); setDetail(null); }}
               placeholder="Buscar en el correo…"
-              className="w-full rounded border border-ink-200 bg-white px-2 py-1 pr-6 text-xs focus:border-ink-700 focus:outline-none"
+              className="w-full rounded border border-ink-200 bg-white px-2 py-1 pl-7 pr-6 text-xs focus:border-ink-700 focus:outline-none"
             />
             {query && (
               <button
@@ -412,16 +466,26 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700"
                 aria-label="Limpiar búsqueda"
               >
-                ✕
+                <X size={13} />
               </button>
             )}
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {threads.length === 0 ? (
-            <p className="p-4 text-sm text-ink-500">
+          {loadingList && threads.length === 0 ? (
+            <div className="space-y-3 p-3">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse space-y-1.5">
+                  <div className="h-3 w-2/3 rounded bg-ink-100" />
+                  <div className="h-2.5 w-1/2 rounded bg-ink-100" />
+                </div>
+              ))}
+            </div>
+          ) : threads.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-ink-500">
+              <Inbox size={28} className="text-ink-300" />
               {searching ? 'Sin resultados.' : 'Sin mensajes en esta carpeta.'}
-            </p>
+            </div>
           ) : (
             threads.map((t) => (
               <button
@@ -460,13 +524,23 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
         </div>
       </div>
 
-      {/* Thread detail */}
-      <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-ink-100 bg-white">
+      {/* Thread detail — hidden on mobile until a thread is selected */}
+      <div className={`${selectedId ? 'flex' : 'hidden md:flex'} min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-ink-100 bg-white`}>
         {!detail ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-ink-500">Selecciona un hilo.</div>
+          <div className="flex flex-1 items-center justify-center text-sm text-ink-500">
+            {selectedId ? <Loader2 size={22} className="animate-spin text-ink-300" /> : 'Selecciona un hilo.'}
+          </div>
         ) : (
           <>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-ink-100 px-4 py-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-ink-100 px-3 py-2 md:px-4">
+              <button
+                type="button"
+                onClick={() => { setSelectedId(null); setDetail(null); }}
+                className="-ml-1 shrink-0 rounded p-1 text-ink-500 hover:bg-ink-100 md:hidden"
+                aria-label="Volver"
+              >
+                <ArrowLeft size={18} />
+              </button>
               <h2 className="min-w-0 flex-1 truncate text-base font-semibold">{detail.thread.subject || '(sin asunto)'}</h2>
               <select
                 value={detail.thread.assigneeUserId ?? ''}
@@ -496,8 +570,8 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
             </div>
 
             {lock && !lock.byMe && (
-              <div className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-800">
-                ⚠️ {lock.byName} está respondiendo a este hilo ahora mismo.
+              <div className="flex items-center gap-1.5 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-800">
+                <AlertTriangle size={13} /> {lock.byName} está respondiendo a este hilo ahora mismo.
               </div>
             )}
             <div className="flex-1 space-y-3 overflow-y-auto bg-ink-100/20 p-4">
@@ -510,10 +584,10 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
                       <button
                         type="button"
                         onClick={() => setModal({ mode: 'forward', forwardMessageId: m.id, initial: {} })}
-                        className="text-primary-700 hover:underline"
+                        className="inline-flex items-center gap-1 text-primary-700 hover:underline"
                         title="Reenviar este mensaje"
                       >
-                        Reenviar
+                        <Forward size={11} /> Reenviar
                       </button>
                     </span>
                   </div>
@@ -532,10 +606,10 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
                           key={a.id}
                           type="button"
                           onClick={() => void downloadAttachment(a.id)}
-                          className="rounded bg-ink-100 px-2 py-0.5 hover:bg-ink-200 hover:text-ink-800"
+                          className="inline-flex items-center gap-1 rounded bg-ink-100 px-2 py-0.5 hover:bg-ink-200 hover:text-ink-800"
                           title="Descargar"
                         >
-                          📎 {a.filename}
+                          <Paperclip size={11} /> {a.filename}
                         </button>
                       ))}
                     </div>
@@ -607,17 +681,17 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
                     <button
                       type="button"
                       onClick={() => setModal({ mode: 'forward', forwardMessageId: lastMessageId, initial: {} })}
-                      className={buttonClass('ghost', 'text-sm')}
+                      className={buttonClass('ghost', 'flex items-center gap-1.5 text-sm')}
                     >
-                      Reenviar
+                      <Forward size={14} /> Reenviar
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={() => setNotesOpen((o) => !o)}
-                    className={buttonClass('ghost', 'ml-auto text-sm')}
+                    className={buttonClass(notesOpen ? 'secondary' : 'ghost', 'ml-auto flex items-center gap-1.5 text-sm')}
                   >
-                    📝 Notas{notes.length ? ` (${notes.length})` : ''}
+                    <StickyNote size={14} /> Notas{notes.length ? ` (${notes.length})` : ''}
                   </button>
                 </div>
               )}
@@ -632,7 +706,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
           <div className="w-full max-w-2xl rounded-lg border border-ink-100 bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3">
               <h3 className="text-sm font-semibold">{modal.mode === 'forward' ? 'Reenviar correo' : 'Nuevo correo'}</h3>
-              <button type="button" onClick={() => setModal(null)} className="text-ink-400 hover:text-ink-700" aria-label="Cerrar">✕</button>
+              <button type="button" onClick={() => setModal(null)} className="text-ink-400 hover:text-ink-700" aria-label="Cerrar"><X size={16} /></button>
             </div>
             <div className="p-4">
               <MailComposer
