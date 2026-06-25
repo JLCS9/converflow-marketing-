@@ -20,7 +20,8 @@ function makeService(tx: Record<string, unknown>) {
     withTenant: (_t: string, fn: (tx: unknown) => unknown) => fn(tx),
   } as never;
   const attachments = { storeInbound: vi.fn().mockResolvedValue(undefined) } as never;
-  return new MailIngestService(prisma, attachments);
+  const contacts = { ensureLead: vi.fn().mockResolvedValue(null) } as never;
+  return new MailIngestService(prisma, attachments, contacts);
 }
 
 describe('normalizeSubject', () => {

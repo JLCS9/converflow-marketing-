@@ -217,6 +217,11 @@ export class MailInboxController {
     return this.shared.setStatus(user.tenantId, id, this.actor(user), body?.status ?? '');
   }
 
+  @Post('threads/:id/save-lead')
+  saveLead(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.inbox.saveLead(user.tenantId, id, this.actor(user));
+  }
+
   @Get('threads/:id/notes')
   notes(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.shared.listNotes(user.tenantId, id, this.actor(user));

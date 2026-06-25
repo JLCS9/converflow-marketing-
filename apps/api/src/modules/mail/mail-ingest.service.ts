@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { sanitizeEmailHtml } from '../../common/utils/email-html.js';
 import type { ParsedEmail } from './drivers/index.js';
 import { MailAttachmentsService } from './mail-attachments.service.js';
+import { MailContactsService } from './mail-contacts.service.js';
 
 export function normalizeSubject(subject?: string): string {
   return (subject ?? '').replace(/^((re|rv|fwd|fw)\s*:\s*)+/i, '').trim();
@@ -24,6 +25,7 @@ export class MailIngestService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly attachments: MailAttachmentsService,
+    private readonly contacts: MailContactsService,
   ) {}
 
   async ingest(tenantId: string, connectionId: string, email: ParsedEmail) {
@@ -123,6 +125,24 @@ export class MailIngestService {
         await this.attachments.storeInbound(tenantId, result.messageId, email.attachments);
       } catch {
         /* attachments are best-effort; the message is already saved */
+      }
+    }
+
+    // Shared inbox → auto-save the sender as a lead if it doesn't exist yet.
+    if (result.created && email.fromAddress) {
+      try {
+        const conn = await this.prisma.withTenant(tenantId, (tx) =>
+          tx.mailConnection.findUnique({ where: { id: connectionId }, select: { visibility: true } }),
+        );
+        if (conn?.visibility === 'SHARED') {
+          await this.contacts.ensureLead(tenantId, {
+            email: email.fromAddress,
+            name: email.fromName,
+            source: 'Correo entrante',
+          });
+        }
+      } catch {
+        /* best-effort; never block ingestion */
       }
     }
     return result;

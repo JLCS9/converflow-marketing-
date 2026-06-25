@@ -95,6 +95,11 @@ interface Msg {
   createdAt: string;
   attachments: AttachmentRow[];
 }
+interface ContactInfo {
+  type: 'lead' | 'client';
+  id: string;
+  name: string;
+}
 interface Detail {
   thread: {
     id: string;
@@ -105,6 +110,7 @@ interface Detail {
     assigneeUserId: string | null;
   };
   messages: Msg[];
+  contact: ContactInfo | null;
 }
 interface TeamMember {
   id: string;
@@ -451,6 +457,17 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
       setNotes((prev) => prev.filter((n) => n.id !== id));
     } catch {
       fb.toast.error('No se pudo borrar la nota');
+    }
+  }
+
+  async function saveLead() {
+    if (!detail) return;
+    try {
+      const r = await apiFetch<{ contact: ContactInfo }>(`/mail/threads/${detail.thread.id}/save-lead`, { method: 'POST' });
+      setDetail((d) => (d ? { ...d, contact: r.contact } : d));
+      fb.toast.success('Contacto guardado como lead');
+    } catch {
+      fb.toast.error('No se pudo guardar el contacto');
     }
   }
 
@@ -810,7 +827,24 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
             </span>
           ),
         },
-        { label: 'Asignado a', value: detail.thread.assigneeUserId ? nameOf(detail.thread.assigneeUserId) : 'Sin asignar' },
+        {
+          label: 'CRM',
+          value: detail.contact ? (
+            <Link
+              href={`/app/${detail.contact.type === 'client' ? 'clients' : 'leads'}/${detail.contact.id}`}
+              className="text-primary-700 hover:underline"
+            >
+              Ver perfil ({detail.contact.type === 'client' ? 'cliente' : 'lead'}) →
+            </Link>
+          ) : (
+            <button type="button" onClick={() => void saveLead()} className={buttonClass('secondary', 'text-xs')}>
+              Guardar como lead
+            </button>
+          ),
+        },
+        ...(isPrivate
+          ? []
+          : [{ label: 'Asignado a', value: detail.thread.assigneeUserId ? nameOf(detail.thread.assigneeUserId) : 'Sin asignar' }]),
         { label: 'Participantes', value: (detail.thread.participants ?? []).join(', ') || '—' },
         { label: 'Notas internas', value: notes.length ? `${notes.length}` : 'Ninguna' },
       ]}

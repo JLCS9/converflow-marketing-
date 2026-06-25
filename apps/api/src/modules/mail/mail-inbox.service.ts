@@ -2,10 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { NotFoundError, BadRequestError } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { MailConnectionsService } from './mail-connections.service.js';
+import { MailContactsService } from './mail-contacts.service.js';
 
 interface Actor {
   userId: string;
   role: string;
+}
+
+function firstParticipant(participants: unknown): string | null {
+  return Array.isArray(participants) && typeof participants[0] === 'string' ? participants[0] : null;
 }
 
 const FOLDERS = ['INBOX', 'SENT', 'DRAFTS', 'SPAM', 'ARCHIVE', 'TRASH'] as const;
@@ -20,6 +25,7 @@ export class MailInboxService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly connections: MailConnectionsService,
+    private readonly contacts: MailContactsService,
   ) {}
 
   /** Threads in a folder of an accessible connection (bucket folders for now). */
@@ -161,7 +167,22 @@ export class MailInboxService {
         },
       }),
     );
-    return { thread, messages };
+    const contact = await this.contacts.findByEmail(tenantId, firstParticipant(thread.participants));
+    return { thread, messages, contact };
+  }
+
+  /** Save the thread's contact as a CRM lead (or return the existing lead/client). */
+  async saveLead(tenantId: string, threadId: string, actor: Actor) {
+    const thread = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.emailThread.findUnique({ where: { id: threadId }, select: { connectionId: true, participants: true } }),
+    );
+    if (!thread) throw new NotFoundError('Hilo no encontrado');
+    await this.connections.assertAccess(tenantId, thread.connectionId, actor);
+    const email = firstParticipant(thread.participants);
+    if (!email) throw new BadRequestError('No hay email de contacto en este hilo');
+    const contact = await this.contacts.ensureLead(tenantId, { email, source: 'Correo' });
+    if (!contact) throw new BadRequestError('No se pudo guardar el contacto');
+    return { contact };
   }
 
   async setRead(tenantId: string, threadId: string, actor: Actor, read: boolean) {
