@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { buttonClass } from '@/components/ui/primitives';
+import { RichEmailEditor } from '@/components/ui/rich-email-editor';
 
 interface ThreadRow {
   id: string;
@@ -68,6 +69,9 @@ export function MailInbox({ connectionId, fromAddress }: { connectionId: string;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [busy, setBusy] = useState(false);
+  const [replyHtml, setReplyHtml] = useState('');
+  const [replyKey, setReplyKey] = useState(0);
+  const [replyError, setReplyError] = useState<string | null>(null);
 
   const loadThreads = useCallback(
     async (f: string) => {
@@ -91,9 +95,33 @@ export function MailInbox({ connectionId, fromAddress }: { connectionId: string;
     return () => clearInterval(t);
   }, [folder, loadThreads]);
 
+  function resetReply() {
+    setReplyHtml('');
+    setReplyError(null);
+    setReplyKey((k) => k + 1);
+  }
+
+  async function sendReply() {
+    if (!selectedId || !replyHtml.replace(/<[^>]*>/g, '').trim()) return;
+    setBusy(true);
+    setReplyError(null);
+    try {
+      await apiFetch(`/mail/threads/${selectedId}/reply`, { method: 'POST', json: { html: replyHtml } });
+      resetReply();
+      const d = await apiFetch<Detail>(`/mail/threads/${selectedId}`);
+      setDetail(d);
+      void loadThreads(folder);
+    } catch (e) {
+      setReplyError(e instanceof Error ? e.message : 'No se pudo enviar');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function openThread(id: string) {
     setSelectedId(id);
     setDetail(null);
+    resetReply();
     try {
       const d = await apiFetch<Detail>(`/mail/threads/${id}`);
       setDetail(d);
@@ -212,6 +240,21 @@ export function MailInbox({ connectionId, fromAddress }: { connectionId: string;
                   )}
                 </div>
               ))}
+            </div>
+
+            <div className="space-y-2 border-t border-ink-100 bg-white p-3">
+              <RichEmailEditor key={replyKey} onChange={setReplyHtml} />
+              {replyError && <p className="text-xs text-red-600">{replyError}</p>}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  disabled={busy || !replyHtml.replace(/<[^>]*>/g, '').trim()}
+                  onClick={() => void sendReply()}
+                  className={buttonClass('primary')}
+                >
+                  {busy ? 'Enviando…' : 'Responder'}
+                </button>
+              </div>
             </div>
           </>
         )}

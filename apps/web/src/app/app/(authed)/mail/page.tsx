@@ -2,8 +2,14 @@ import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
+import { TabBar } from '@/components/ui/tab-bar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { MailConnectionActions } from './mail-connection-actions';
+
+const MAIL_TABS = [
+  { href: '/app/conversations', label: 'Mensajería' },
+  { href: '/app/mail', label: 'Correo' },
+];
 
 interface ConnRow {
   id: string;
@@ -29,6 +35,7 @@ export default async function MailConnectionsPage() {
 
   return (
     <div className="space-y-6">
+      <TabBar items={MAIL_TABS} />
       <PageHeader
         title="Correo · Buzones"
         description="Conecta los buzones del equipo (compartidos) o tu buzón privado. Módulo independiente — no depende de los bots."
