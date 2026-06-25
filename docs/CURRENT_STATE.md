@@ -119,6 +119,36 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 | Logs acceso en BD | ✅ (admin-only) |
 | Capacitación 20h + diploma | ❌ (Sprint 6) |
 
+## MAIL MODULE — rebuild (greenfield, independiente de Bots)
+
+> Reescritura completa del email como **módulo `mail` independiente** (el intento
+> previo — EmailConnection por-bot + email dentro de Conversation/Message + campaigns
+> SMTP directo — se considera deuda y se sustituye). Plan por fases aprobado.
+
+**Decisiones cerradas**: BYO-mailbox por tenant (nunca desde el dominio de Converflow);
+bandeja + 1:1 + transaccional vía la conexión del tenant; **campañas** vía ESP (Resend)
+con **dominio propio del tenant verificado** (DNS guiado), no nuestro dominio. Drivers:
+`smtp_imap` (ahora) → `oauth_google`/`oauth_microsoft`/`provider_api` (después). Email
+separado de IM con modelos propios (`EmailThread`/`EmailMessage`) — Fase 2.
+
+**Fase 1 — Conexiones de buzón (LIVE en `main`, sin desplegar aún)**:
+- Modelo `MailConnection` (driver, creds/tokens AES-256-GCM en `secretEnc`, fromAddress,
+  displayName, signature, **visibility SHARED|PRIVATE**, ownerUserId, status, sync) + RLS
+  (`rls-policies.sql`). Permiso nuevo `mail` (default OWNER/ADMIN).
+- Driver: interfaz `MailDriver` (verify/send/fetchRecent) + `SmtpImapDriver` (nodemailer+imapflow+mailparser).
+  Factory `createMailDriver` (otros drivers lanzan "no disponible aún").
+- `MailConnectionsService`: CRUD + **permisos server-side** (PRIVATE solo accesible por
+  `ownerUserId` → 404 para otros; SHARED por permiso). Nunca devuelve `secretEnc`.
+  `test-send` + `test-sync` (verify + 5 mensajes recientes). Verifica conexión al crear/editar.
+- API `mail/connections` (RequirePerm `mail`). Web: sección propia **Correo · Buzones**
+  (`/app/mail`, CRUD + presets Gmail/Outlook/IONOS + test-send/test-sync). Nav "Correo".
+- **Tests** (primeros del repo): harness vitest (`apps/api/vitest.config.ts`, resolver `.js`→`.ts`) +
+  7 tests verdes (permisos shared/private, no-leak de secreto, filtro de list, factory de driver).
+- **Aditivo**: NO borra el intento previo todavía (pendiente del conteo de datos en prod
+  + migración de `Suppression` legal). Coexisten `mail_connections` (nuevo) y `email_connections` (viejo).
+- **Siguiente**: Fase 2 (bandeja potente: carpetas, threading RFC, borradores, búsqueda,
+  adjuntos, asignación en compartido + separación IM/email en Conversaciones).
+
 ## CRITICAL lessons (don't repeat these bugs)
 
 0. **The API must connect as a NON-superuser role (`converflow_app`).** The
