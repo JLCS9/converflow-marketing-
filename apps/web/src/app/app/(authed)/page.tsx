@@ -37,7 +37,7 @@ export default async function TodayHome() {
       serverApiFetch<{ id: string }[]>('/bots').catch(() => [] as { id: string }[]),
       serverApiFetch<{ id: string }[]>('/agents').catch(() => [] as { id: string }[]),
       serverApiFetch<{ connected: boolean }>('/integrations/google/status').catch(() => ({ connected: false })),
-      serverApiFetch<{ widgets: string[] | null }>('/me/dashboard').catch(() => ({ widgets: null })),
+      serverApiFetch<{ widgets: { id: string; size?: string }[] | null }>('/me/dashboard').catch(() => ({ widgets: null })),
     ]);
 
   const steps: OnboardingStep[] = [
