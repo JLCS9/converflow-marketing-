@@ -106,6 +106,11 @@ const STATUS_BADGE: Record<string, string> = {
   PENDING: 'bg-amber-100 text-amber-700',
   CLOSED: 'bg-ink-200 text-ink-600',
 };
+const STATUS_DOT: Record<string, string> = {
+  OPEN: 'bg-green-400',
+  PENDING: 'bg-amber-400',
+  CLOSED: 'bg-ink-300',
+};
 
 const FOLDERS = [
   { key: 'INBOX', label: 'Recibidos' },
@@ -399,9 +404,21 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   const lastMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]!.id : null;
 
   return (
-    <div className="flex h-[calc(100dvh-8.5rem)] gap-2 sm:gap-3">
-      {/* Folder rail (icon-only) */}
-      <div className="flex w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto rounded-lg border border-ink-100 bg-white py-2">
+    <div className="flex h-[calc(100dvh-8.5rem)] flex-col gap-2">
+      {/* Folder bar — horizontal, with labels (avoids clashing with the navbar rail) */}
+      <div className="flex shrink-0 items-center gap-1 overflow-x-auto rounded-lg border border-ink-100 bg-white p-1">
+        {connections.length > 1 && (
+          <select
+            value={connectionId}
+            onChange={(e) => switchMailbox(e.target.value)}
+            className="mr-1 shrink-0 rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-700"
+            aria-label="Buzón"
+          >
+            {connections.map((c) => (
+              <option key={c.id} value={c.id}>{c.fromAddress}</option>
+            ))}
+          </select>
+        )}
         {FOLDERS.map((f) => {
           const Icon = FOLDER_ICON[f.key] ?? Inbox;
           const active = folder === f.key;
@@ -410,40 +427,25 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
             <button
               key={f.key}
               onClick={() => { setFolder(f.key); setSelectedId(null); setDetail(null); setQuery(''); }}
-              title={f.label}
-              aria-label={f.label}
-              className={`relative flex h-10 w-10 items-center justify-center rounded-lg ${active ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'}`}
+              className={`flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm ${active ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'}`}
             >
-              <Icon size={18} />
-              {n > 0 ? (
-                <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-[16px] items-center justify-center rounded-full bg-primary-600 px-1 text-[9px] font-semibold text-white ring-2 ring-white">
+              <Icon size={15} />
+              <span>{f.label}</span>
+              {n > 0 && (
+                <span className={`rounded-full px-1.5 text-[10px] font-semibold ${active ? 'bg-white/20 text-white' : 'bg-primary-600 text-white'}`}>
                   {n > 99 ? '99+' : n}
                 </span>
-              ) : null}
+              )}
             </button>
           );
         })}
       </div>
 
+      {/* List + detail */}
+      <div className="flex min-h-0 flex-1 gap-2 sm:gap-3">
       {/* Thread list — full width on mobile, hidden when a thread is open */}
       <div className={`${selectedId ? 'hidden md:flex' : 'flex'} w-full flex-col overflow-hidden rounded-lg border border-ink-100 bg-white md:w-80 md:shrink-0`}>
         <div className="space-y-2 border-b border-ink-100 p-2">
-          {connections.length > 1 ? (
-            <select
-              value={connectionId}
-              onChange={(e) => switchMailbox(e.target.value)}
-              className="w-full rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-700"
-              aria-label="Buzón"
-            >
-              {connections.map((c) => (
-                <option key={c.id} value={c.id}>{c.fromAddress}</option>
-              ))}
-            </select>
-          ) : (
-            <div className="truncate px-1 text-[11px] text-ink-500" title={connections[0]?.fromAddress}>
-              {connections[0]?.fromAddress}
-            </div>
-          )}
           <button
             type="button"
             onClick={() => setModal({ mode: 'new', initial: {} })}
@@ -494,29 +496,33 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
                 className={`block w-full border-b border-ink-100 p-3 text-left hover:bg-ink-100/40 ${selectedId === t.id ? 'bg-ink-100/60' : ''}`}
               >
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className={`truncate text-sm ${t.unreadCount > 0 ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>
-                    {(t.participants && t.participants[0]) || 'Contacto'}
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[t.status] ?? 'bg-ink-300'}`}
+                      title={`Estado: ${STATUS_LABEL[t.status] ?? t.status}`}
+                    />
+                    <span className={`truncate text-sm ${t.unreadCount > 0 ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>
+                      {(t.participants && t.participants[0]) || 'Contacto'}
+                    </span>
                   </span>
                   <span className="shrink-0 text-[10px] text-ink-400">{fmt(t.lastMessageAt)}</span>
                 </div>
-                <div className={`truncate text-xs ${t.unreadCount > 0 ? 'font-medium text-ink-800' : 'text-ink-500'}`}>{t.subject || '(sin asunto)'}</div>
-                <div className="flex items-center justify-between gap-2">
+                <div className={`truncate pl-3.5 text-xs ${t.unreadCount > 0 ? 'font-medium text-ink-800' : 'text-ink-500'}`}>{t.subject || '(sin asunto)'}</div>
+                <div className="flex items-center justify-between gap-2 pl-3.5">
                   <span className="truncate text-xs text-ink-400">{t.snippet}</span>
-                  <span className="flex shrink-0 items-center gap-1">
-                    {t.assigneeUserId && (
-                      <span
-                        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary-100 text-[8px] font-semibold text-primary-700"
-                        title={nameOf(t.assigneeUserId)}
-                      >
-                        {initials(nameOf(t.assigneeUserId))}
-                      </span>
-                    )}
-                    {t.status !== 'OPEN' && (
-                      <span className={`rounded px-1 text-[9px] font-medium ${STATUS_BADGE[t.status] ?? ''}`}>
-                        {STATUS_LABEL[t.status] ?? t.status}
-                      </span>
-                    )}
-                  </span>
+                  {t.assigneeUserId ? (
+                    <span
+                      className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-100 text-[8px] font-semibold text-primary-700"
+                      title={`Asignado a ${nameOf(t.assigneeUserId)}`}
+                    >
+                      {initials(nameOf(t.assigneeUserId))}
+                    </span>
+                  ) : (
+                    <span
+                      className="h-4 w-4 shrink-0 rounded-full border border-dashed border-ink-300"
+                      title="Sin asignar"
+                    />
+                  )}
                 </div>
               </button>
             ))
@@ -575,47 +581,54 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
               </div>
             )}
             <div className="flex-1 space-y-3 overflow-y-auto bg-ink-100/20 p-4">
-              {visibleMessages.map((m) => (
-                <div key={m.id} className="rounded-lg border border-ink-100 bg-white p-3">
-                  <div className="mb-2 flex items-baseline justify-between gap-2 text-xs text-ink-500">
-                    <span className="truncate font-medium text-ink-700">{m.fromName || m.fromAddress || (m.direction === 'OUT' ? 'Tú' : 'Contacto')}</span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <span>{fmt(m.receivedAt || m.createdAt)}</span>
-                      <button
-                        type="button"
-                        onClick={() => setModal({ mode: 'forward', forwardMessageId: m.id, initial: {} })}
-                        className="inline-flex items-center gap-1 text-primary-700 hover:underline"
-                        title="Reenviar este mensaje"
-                      >
-                        <Forward size={11} /> Reenviar
-                      </button>
-                    </span>
-                  </div>
-                  {m.html ? (
-                    <div
-                      className="text-sm [&_a]:text-primary-700 [&_a]:underline [&_img]:max-w-full [&_ul]:list-disc [&_ul]:pl-5 [&_p]:my-1"
-                      dangerouslySetInnerHTML={{ __html: m.html }}
-                    />
-                  ) : (
-                    <p className="whitespace-pre-wrap text-sm text-ink-800">{m.text}</p>
-                  )}
-                  {m.attachments.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1 border-t border-ink-100 pt-2 text-xs text-ink-500">
-                      {m.attachments.map((a) => (
-                        <button
-                          key={a.id}
-                          type="button"
-                          onClick={() => void downloadAttachment(a.id)}
-                          className="inline-flex items-center gap-1 rounded bg-ink-100 px-2 py-0.5 hover:bg-ink-200 hover:text-ink-800"
-                          title="Descargar"
-                        >
-                          <Paperclip size={11} /> {a.filename}
-                        </button>
-                      ))}
+              {visibleMessages.map((m) => {
+                const out = m.direction === 'OUT';
+                return (
+                  <div key={m.id} className={`flex ${out ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[88%] rounded-lg border p-3 ${out ? 'border-primary-100 bg-primary-50' : 'border-ink-100 bg-white'}`}>
+                      <div className="mb-2 flex items-baseline justify-between gap-2 text-xs text-ink-500">
+                        <span className={`truncate font-medium ${out ? 'text-primary-800' : 'text-ink-700'}`}>
+                          {out ? 'Tú' : m.fromName || m.fromAddress || 'Contacto'}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <span>{fmt(m.receivedAt || m.createdAt)}</span>
+                          <button
+                            type="button"
+                            onClick={() => setModal({ mode: 'forward', forwardMessageId: m.id, initial: {} })}
+                            className="inline-flex items-center gap-1 text-primary-700 hover:underline"
+                            title="Reenviar este mensaje"
+                          >
+                            <Forward size={11} /> Reenviar
+                          </button>
+                        </span>
+                      </div>
+                      {m.html ? (
+                        <div
+                          className="text-sm [&_a]:text-primary-700 [&_a]:underline [&_img]:max-w-full [&_ul]:list-disc [&_ul]:pl-5 [&_p]:my-1"
+                          dangerouslySetInnerHTML={{ __html: m.html }}
+                        />
+                      ) : (
+                        <p className="whitespace-pre-wrap text-sm text-ink-800">{m.text}</p>
+                      )}
+                      {m.attachments.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1 border-t border-ink-100 pt-2 text-xs text-ink-500">
+                          {m.attachments.map((a) => (
+                            <button
+                              key={a.id}
+                              type="button"
+                              onClick={() => void downloadAttachment(a.id)}
+                              className="inline-flex items-center gap-1 rounded bg-ink-100 px-2 py-0.5 hover:bg-ink-200 hover:text-ink-800"
+                              title="Descargar"
+                            >
+                              <Paperclip size={11} /> {a.filename}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Internal notes — collapsed by default so they don't steal reading space */}
@@ -698,6 +711,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
             </div>
           </>
         )}
+      </div>
       </div>
 
       {/* New / Forward modal */}
