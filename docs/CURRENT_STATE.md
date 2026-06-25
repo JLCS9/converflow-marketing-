@@ -2,7 +2,7 @@
 
 > Single source of truth. Update after every sprint. If reading this in a new session, you can skip 100% of conversation history and rely on this file + the repo.
 
-**Last sync:** post-multichannel + agents. **LIVE in prod**: Sprint 7 (WhatsApp Baileys 7), Sprint 8 (Conversaciones inbox with channel-aware reply: text/emoji/documents + one-click AI suggestion send), **Agents v1a/b/d** (self-service builder + playground + tool execution + AUTO mode with AI disclosure + rate limit), **Design v2** (fixed shell, icon sidebar with expandable groups, "Hoy" home), **Web chat** (embeddable widget + agent auto-reply), **Email channel** (Resend system path + tenant **self-service IMAP/SMTP** with encrypted creds + workers IMAP poller), **Lead→Cliente** auto-conversion. (Kit Digital product side complete since Sprint 5: 17/18, #18 user-owned.) **Pending**: Agents v1c RAG (needs embeddings key from user), historical metrics for Hoy home (sparklines/IA-semana), WhatsApp Cloud API upgrade.
+**Last sync:** **MAIL MODULE rebuild en curso** (Fases 1, 2.1, 2.2 + 2.3-parcial en `main` — ver sección "MAIL MODULE — rebuild" para el estado y el siguiente paso). Antes de eso se hizo: feature de **Soporte/tickets**, **Campañas v1** (email/WhatsApp), **email pro** (compositor Tiptap, plantillas GrapesJS/MJML, adjuntos) — ese email es el "intento previo" que se está sustituyendo. **Incidente operativo resuelto**: disco del VPS por caché de build (limpiado + `daemon.json` con GC 10GB + rotación de logs); proyecto viejo `converflow` (Clerk) eliminado del VPS; saldo Anthropic agotado (recargado). **LIVE in prod**: Sprint 7 (WhatsApp Baileys 7), Sprint 8 (Conversaciones inbox with channel-aware reply: text/emoji/documents + one-click AI suggestion send), **Agents v1a/b/d** (self-service builder + playground + tool execution + AUTO mode with AI disclosure + rate limit), **Design v2** (fixed shell, icon sidebar with expandable groups, "Hoy" home), **Web chat** (embeddable widget + agent auto-reply), **Email channel** (Resend system path + tenant **self-service IMAP/SMTP** with encrypted creds + workers IMAP poller), **Lead→Cliente** auto-conversion. (Kit Digital product side complete since Sprint 5: 17/18, #18 user-owned.) **Pending**: Agents v1c RAG (needs embeddings key from user), historical metrics for Hoy home (sparklines/IA-semana), WhatsApp Cloud API upgrade.
 
 > **Cross-tenant isolation:** ✅ FIXED & VERIFIED. API now connects as non-superuser
 > `converflow_app` so RLS is enforced. A new tenant sees ONLY its own data. This was
@@ -124,6 +124,21 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 > Reescritura completa del email como **módulo `mail` independiente** (el intento
 > previo — EmailConnection por-bot + email dentro de Conversation/Message + campaigns
 > SMTP directo — se considera deuda y se sustituye). Plan por fases aprobado.
+
+> ### ⏯️ DÓNDE ESTAMOS / SIGUIENTE PASO (resumen para sesión nueva)
+> **Hecho y en `main`** (probado en prod recibiendo/respondiendo): Fase 1 (conexiones de buzón,
+> `smtp_imap`, shared/private), Fase 2.1 (modelo `EmailThread/EmailMessage/EmailAttachment` +
+> recepción/threading + scheduler ~90s), Fase 2.2 (bandeja UI 3-paneles en `/app/mail/[id]/inbox`),
+> Fase 2.3 parcial (responder en hilo + tabs Mensajería|Correo). Conversaciones quedó **solo IM**.
+> **SIGUIENTE**: cerrar **Fase 2.3** (borradores autosave, responder-a-todos/reenviar, To/Cc/Bcc UI,
+> "Nuevo correo" desde la bandeja) → **2.4** (búsqueda + adjuntos R2) → **2.5** (buzón compartido:
+> asignación/estado/notas/anti-colisión) → **Fase 3** (transaccional) → **Fase 4** (campañas con ESP).
+> **PENDIENTE TRANSVERSAL**: borrar el intento previo (modelos/módulos viejos `EmailConnection` por-bot,
+> `campaigns`, `email-templates`, email en `conversations`) **tras** contar datos en prod y **migrar
+> `Suppression` (legal)**. Conteo aún no hecho. Todo lo nuevo coexiste con lo viejo (aditivo).
+> **Cómo desplegar el correo nuevo**: `git pull` → `db push` (crea mail_connections, email_threads/
+> messages/attachments + RLS vía apply:rls) → build `api web` → up. El sync corre en la API (no workers).
+> **Tests**: `pnpm --filter @converflow/api test` (11 verdes; harness vitest nuevo en el repo).
 
 **Decisiones cerradas**: BYO-mailbox por tenant (nunca desde el dominio de Converflow);
 bandeja + 1:1 + transaccional vía la conexión del tenant; **campañas** vía ESP (Resend)
