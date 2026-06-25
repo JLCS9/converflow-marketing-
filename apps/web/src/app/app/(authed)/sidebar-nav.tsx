@@ -151,8 +151,12 @@ export function SidebarNav({
     let active = true;
     const poll = async () => {
       try {
-        const r = await apiFetch<{ pending: number }>('/conversations/count');
-        if (active) setPending(r.pending);
+        // Conversaciones badge = IM pendientes + correo sin leer.
+        const [c, m] = await Promise.all([
+          apiFetch<{ pending: number }>('/conversations/count'),
+          apiFetch<{ unread: number }>('/mail/unread-count').catch(() => ({ unread: 0 })),
+        ]);
+        if (active) setPending(c.pending + m.unread);
       } catch {
         /* keep last */
       }

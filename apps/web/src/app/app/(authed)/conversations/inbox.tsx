@@ -243,16 +243,6 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
     <div className="flex h-[calc(100vh-11rem)] gap-4">
       {/* Left: conversation list */}
       <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg border border-ink-100 bg-white">
-        <div className="flex items-center justify-between border-b border-ink-100 p-2">
-          <span className="text-xs font-medium text-ink-500">Bandeja</span>
-          <button
-            type="button"
-            onClick={() => setShowCompose(true)}
-            className={buttonClass('primary', 'px-2 py-1 text-xs')}
-          >
-            ✉️ Nuevo correo
-          </button>
-        </div>
         <div className="flex gap-1 border-b border-ink-100 p-2 text-xs">
           {TABS.map((t) => (
             <button

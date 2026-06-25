@@ -53,6 +53,19 @@ export class MailInboxService {
     );
   }
 
+  /** Total unread INBOX threads across all mailboxes the actor can access (for the navbar badge). */
+  async unreadCount(tenantId: string, actor: Actor): Promise<{ unread: number }> {
+    const conns = await this.connections.list(tenantId, actor);
+    const ids = conns.map((c) => c.id);
+    if (!ids.length) return { unread: 0 };
+    const unread = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.emailThread.count({
+        where: { connectionId: { in: ids }, folder: 'INBOX', unreadCount: { gt: 0 } },
+      }),
+    );
+    return { unread };
+  }
+
   /** Full-text-ish search across all folders of a connection (subject/snippet/body/sender). */
   async search(tenantId: string, connectionId: string, actor: Actor, q: string) {
     await this.connections.assertAccess(tenantId, connectionId, actor);

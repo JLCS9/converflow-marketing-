@@ -45,6 +45,11 @@ export class MailInboxController {
     return this.inbox.listThreads(user.tenantId, id, this.actor(user), folder);
   }
 
+  @Get('unread-count')
+  unreadCount(@CurrentUser() user: AuthenticatedUser) {
+    return this.inbox.unreadCount(user.tenantId, this.actor(user));
+  }
+
   @Get('connections/:id/folder-counts')
   folderCounts(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.inbox.folderCounts(user.tenantId, id, this.actor(user));
