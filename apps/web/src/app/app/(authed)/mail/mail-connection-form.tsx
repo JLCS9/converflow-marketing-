@@ -38,6 +38,7 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
   const [secret, setSecret] = useState('');
   const [secure, setSecure] = useState(c?.secure ?? true);
   const [visibility, setVisibility] = useState(c?.visibility ?? 'SHARED');
+  const [signature, setSignature] = useState(c?.signature ?? '');
   const [presetNote, setPresetNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -71,6 +72,7 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
           username: (username.trim() || fromAddress.trim()),
           secure,
           visibility,
+          signature: signature.trim(),
           ...(secret ? { secret } : {}),
         };
         if (c) {
@@ -139,6 +141,15 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
             <option value="SHARED">Compartido (equipo)</option>
             <option value="PRIVATE">Privado (solo yo)</option>
           </Select>
+        </Field>
+
+        <Field label="Firma" help="Se añade automáticamente al redactar o responder desde este buzón.">
+          <Textarea
+            value={signature}
+            onChange={(e) => setSignature(e.target.value)}
+            rows={4}
+            placeholder={'Nombre Apellido\nCargo · Tu Empresa\n+34 600 000 000'}
+          />
         </Field>
 
         {error && <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
