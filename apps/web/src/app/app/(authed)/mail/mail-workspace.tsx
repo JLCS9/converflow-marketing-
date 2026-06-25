@@ -26,6 +26,8 @@ interface ThreadRow {
   participants: string[] | null;
   unreadCount: number;
   lastMessageAt: string | null;
+  status: string;
+  assigneeUserId: string | null;
 }
 interface Msg {
   id: string;
@@ -44,9 +46,38 @@ interface Msg {
   attachments: AttachmentRow[];
 }
 interface Detail {
-  thread: { id: string; subject: string | null; folder: string; participants: string[] | null };
+  thread: {
+    id: string;
+    subject: string | null;
+    folder: string;
+    participants: string[] | null;
+    status: string;
+    assigneeUserId: string | null;
+  };
   messages: Msg[];
 }
+interface TeamMember {
+  id: string;
+  name: string;
+}
+interface NoteRow {
+  id: string;
+  body: string;
+  authorName: string;
+  authorUserId: string;
+  createdAt: string;
+}
+interface LockState {
+  byMe: boolean;
+  byName: string | null;
+}
+
+const STATUS_LABEL: Record<string, string> = { OPEN: 'Abierto', PENDING: 'Pendiente', CLOSED: 'Cerrado' };
+const STATUS_BADGE: Record<string, string> = {
+  OPEN: 'bg-green-100 text-green-700',
+  PENDING: 'bg-amber-100 text-amber-700',
+  CLOSED: 'bg-ink-200 text-ink-600',
+};
 
 const FOLDERS = [
   { key: 'INBOX', label: 'Recibidos' },
@@ -93,11 +124,19 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   const [replyKey, setReplyKey] = useState(0);
   const [query, setQuery] = useState('');
   const searching = query.trim().length >= 2;
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [notes, setNotes] = useState<NoteRow[]>([]);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [lock, setLock] = useState<LockState | null>(null);
   const [modal, setModal] = useState<
     { mode: ComposerMode; initial?: ComposerInitial; forwardMessageId?: string } | null
   >(null);
 
   const selfAddress = (connections.find((c) => c.id === connectionId)?.fromAddress ?? '').toLowerCase();
+  const nameOf = (userId: string | null): string =>
+    userId ? team.find((m) => m.id === userId)?.name ?? 'Asignado' : '';
+  const initials = (name: string): string =>
+    name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
   const loadThreads = useCallback(async (conn: string, f: string) => {
     if (!conn) return;
@@ -119,6 +158,27 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
     const t = setInterval(() => void loadThreads(connectionId, folder), 15000);
     return () => clearInterval(t);
   }, [connectionId, folder, loadThreads, searching]);
+
+  // Team list (assignee picker + name resolution), loaded once.
+  useEffect(() => {
+    apiFetch<TeamMember[]>('/mail/team').then(setTeam).catch(() => {});
+  }, []);
+
+  // Reply-lock heartbeat while a thread is open (anti-collision).
+  useEffect(() => {
+    if (!selectedId) return;
+    const id = selectedId;
+    const beat = () =>
+      apiFetch<LockState>(`/mail/threads/${id}/claim`, { method: 'POST' })
+        .then(setLock)
+        .catch(() => {});
+    void beat();
+    const t = setInterval(beat, 30000);
+    return () => {
+      clearInterval(t);
+      apiFetch(`/mail/threads/${id}/release`, { method: 'POST' }).catch(() => {});
+    };
+  }, [selectedId]);
 
   // Debounced search across all folders of the mailbox.
   useEffect(() => {
@@ -155,6 +215,10 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
     setSelectedId(id);
     setDetail(null);
     setReplyInit({});
+    setNotes([]);
+    setNoteDraft('');
+    setLock(null);
+    apiFetch<NoteRow[]>(`/mail/threads/${id}/notes`).then(setNotes).catch(() => {});
     try {
       const d = await apiFetch<Detail>(`/mail/threads/${id}`);
       const draft = d.messages.find((m) => m.isDraft);
@@ -225,6 +289,36 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
     } finally {
       setBusy(false);
     }
+  }
+
+  async function assign(assigneeUserId: string) {
+    if (!detail) return;
+    const value = assigneeUserId || null;
+    await apiFetch(`/mail/threads/${detail.thread.id}/assign`, { method: 'POST', json: { assigneeUserId: value } }).catch(() => {});
+    setDetail((d) => (d ? { ...d, thread: { ...d.thread, assigneeUserId: value } } : d));
+  }
+
+  async function setStatus(status: string) {
+    if (!detail) return;
+    await apiFetch(`/mail/threads/${detail.thread.id}/status`, { method: 'POST', json: { status } }).catch(() => {});
+    setDetail((d) => (d ? { ...d, thread: { ...d.thread, status } } : d));
+    void loadThreads(connectionId, folder);
+  }
+
+  async function addNote() {
+    if (!detail || !noteDraft.trim()) return;
+    try {
+      const n = await apiFetch<NoteRow>(`/mail/threads/${detail.thread.id}/notes`, { method: 'POST', json: { body: noteDraft.trim() } });
+      setNotes((prev) => [...prev, n]);
+      setNoteDraft('');
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function deleteNote(id: string) {
+    await apiFetch(`/mail/notes/${id}`, { method: 'DELETE' }).catch(() => {});
+    setNotes((prev) => prev.filter((n) => n.id !== id));
   }
 
   async function downloadAttachment(id: string) {
@@ -331,7 +425,24 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
                   <span className="shrink-0 text-[10px] text-ink-400">{fmt(t.lastMessageAt)}</span>
                 </div>
                 <div className={`truncate text-xs ${t.unreadCount > 0 ? 'font-medium text-ink-800' : 'text-ink-500'}`}>{t.subject || '(sin asunto)'}</div>
-                <div className="truncate text-xs text-ink-400">{t.snippet}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-xs text-ink-400">{t.snippet}</span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    {t.assigneeUserId && (
+                      <span
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary-100 text-[8px] font-semibold text-primary-700"
+                        title={nameOf(t.assigneeUserId)}
+                      >
+                        {initials(nameOf(t.assigneeUserId))}
+                      </span>
+                    )}
+                    {t.status !== 'OPEN' && (
+                      <span className={`rounded px-1 text-[9px] font-medium ${STATUS_BADGE[t.status] ?? ''}`}>
+                        {STATUS_LABEL[t.status] ?? t.status}
+                      </span>
+                    )}
+                  </span>
+                </div>
               </button>
             ))
           )}
@@ -353,6 +464,41 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
                 <button onClick={() => void markUnread()} className={buttonClass('ghost', 'px-2 py-1 text-xs')}>No leído</button>
               </div>
             </div>
+
+            {/* Shared-mailbox controls */}
+            <div className="flex flex-wrap items-center gap-3 border-b border-ink-100 px-4 py-2 text-xs">
+              <label className="flex items-center gap-1 text-ink-500">
+                Asignado:
+                <select
+                  value={detail.thread.assigneeUserId ?? ''}
+                  onChange={(e) => void assign(e.target.value)}
+                  className="rounded border border-ink-200 bg-white px-1.5 py-0.5 text-xs text-ink-700"
+                >
+                  <option value="">Sin asignar</option>
+                  {team.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-1 text-ink-500">
+                Estado:
+                <select
+                  value={detail.thread.status}
+                  onChange={(e) => void setStatus(e.target.value)}
+                  className={`rounded border border-ink-200 px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[detail.thread.status] ?? 'text-ink-700'}`}
+                >
+                  {Object.keys(STATUS_LABEL).map((s) => (
+                    <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {lock && !lock.byMe && (
+              <div className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-800">
+                ⚠️ {lock.byName} está respondiendo a este hilo ahora mismo.
+              </div>
+            )}
             <div className="flex-1 space-y-3 overflow-y-auto bg-ink-100/20 p-4">
               {visibleMessages.map((m) => (
                 <div key={m.id} className="rounded-lg border border-ink-100 bg-white p-3">
@@ -395,6 +541,45 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
                   )}
                 </div>
               ))}
+            </div>
+
+            {/* Internal notes (team-only, never sent) */}
+            <div className="border-t border-ink-100 bg-amber-50/40 px-3 py-2">
+              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                Notas internas {notes.length > 0 && `(${notes.length})`}
+              </div>
+              {notes.length > 0 && (
+                <ul className="mb-2 max-h-28 space-y-1 overflow-y-auto">
+                  {notes.map((n) => (
+                    <li key={n.id} className="group flex items-start justify-between gap-2 rounded bg-white/70 px-2 py-1 text-xs">
+                      <span className="min-w-0">
+                        <span className="font-medium text-ink-700">{n.authorName}: </span>
+                        <span className="text-ink-700">{n.body}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void deleteNote(n.id)}
+                        className="shrink-0 text-ink-300 opacity-0 hover:text-red-600 group-hover:opacity-100"
+                        aria-label="Borrar nota"
+                      >
+                        ✕
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="flex gap-2">
+                <input
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addNote(); } }}
+                  placeholder="Añadir nota interna para el equipo…"
+                  className="flex-1 rounded border border-amber-200 bg-white px-2 py-1 text-xs focus:border-amber-400 focus:outline-none"
+                />
+                <button type="button" onClick={() => void addNote()} disabled={!noteDraft.trim()} className={buttonClass('secondary', 'px-2 py-1 text-xs')}>
+                  Añadir
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2 border-t border-ink-100 bg-white p-3">
