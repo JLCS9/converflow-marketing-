@@ -46,6 +46,8 @@ export const PERMISSION_MODULES = [
   'users',
   /** Create and send bulk outbound campaigns (email/WhatsApp). */
   'campaigns',
+  /** Configure mailbox connections (Mail module — Buzones/Correo). */
+  'mail',
 ] as const;
 export type PermissionModule = (typeof PERMISSION_MODULES)[number];
 
@@ -61,6 +63,7 @@ const ADMIN_DEFAULTS: ReadonlyArray<PermissionModule> = [
   'settings',
   'users',
   'campaigns',
+  'mail',
 ];
 
 const BUILDER_DEFAULTS: ReadonlyArray<PermissionModule> = [

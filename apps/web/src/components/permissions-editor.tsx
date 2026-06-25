@@ -17,6 +17,7 @@ export const PERMISSION_LABELS: Record<PermissionModule, string> = {
   settings: 'Configuración',
   users: 'Gestionar usuarios',
   campaigns: 'Campañas',
+  mail: 'Correo / Buzones',
 };
 
 export const PERMISSION_DESCRIPTIONS: Record<PermissionModule, string> = {
@@ -30,6 +31,7 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionModule, string> = {
   settings: 'Campos personalizados, tableros (pipelines).',
   users: 'Invitar, editar y eliminar otros usuarios del tenant.',
   campaigns: 'Crear y enviar campañas masivas (email/WhatsApp).',
+  mail: 'Conectar y configurar buzones de correo (módulo Correo).',
 };
 
 /**

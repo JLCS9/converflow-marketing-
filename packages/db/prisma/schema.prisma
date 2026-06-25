@@ -148,6 +148,7 @@ model Tenant {
   campaignRecipients     CampaignRecipient[]
   suppressions           Suppression[]
   emailTemplates         EmailTemplate[]
+  mailConnections        MailConnection[]
 
   @@map("tenants")
 }
@@ -1141,4 +1142,66 @@ model EmailTemplate {
 
   @@index([tenantId])
   @@map("email_templates")
+}
+
+// ============================================
+// MAIL MODULE (new — independent of Bots) · Fase 1: connections
+// A tenant connects their OWN mailbox (BYO). Drivers abstract the transport:
+// smtp_imap now; oauth_google/microsoft + provider_api later. Credentials/tokens
+// are AES-256-GCM encrypted (secretEnc). Visibility: shared (team) or private
+// (only ownerUserId). Tenant isolation via RLS (see rls-policies.sql).
+// ============================================
+model MailConnection {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  driver      MailDriver @default(SMTP_IMAP)
+  fromAddress String     // the email address this mailbox sends/receives as
+  displayName String?
+  signature   String?    // HTML signature (used from Fase 2)
+
+  // smtp_imap fields (OAuth drivers reuse secretEnc for the refresh token)
+  imapHost  String?
+  imapPort  Int?    @default(993)
+  smtpHost  String?
+  smtpPort  Int?    @default(465)
+  username  String?
+  secretEnc String? // encrypted: SMTP/IMAP password OR OAuth refresh token
+  secure    Boolean @default(true)
+
+  visibility  MailVisibility @default(SHARED)
+  ownerUserId String?        // required when visibility = PRIVATE
+
+  status       MailConnStatus @default(PENDING)
+  lastError    String?
+  lastSyncedAt DateTime?
+  syncCursor   Int? // IMAP UID cursor (Fase 2)
+
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, fromAddress])
+  @@index([tenantId])
+  @@index([tenantId, visibility])
+  @@map("mail_connections")
+}
+
+enum MailDriver {
+  SMTP_IMAP
+  OAUTH_GOOGLE
+  OAUTH_MICROSOFT
+  PROVIDER_API
+}
+
+enum MailVisibility {
+  SHARED
+  PRIVATE
+}
+
+enum MailConnStatus {
+  PENDING
+  CONNECTED
+  ERROR
 }
