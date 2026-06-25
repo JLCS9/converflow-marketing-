@@ -86,9 +86,18 @@ function Count({ n, color, collapsed }: { n: number; color: 'blue' | 'red'; coll
 }
 
 const itemCls = (active: boolean, collapsed?: boolean) =>
-  `relative flex w-full items-center rounded-md py-2 transition-colors ${
+  `group relative flex w-full items-center rounded-md py-2 transition-colors ${
     collapsed ? 'justify-center px-0' : 'gap-2.5 px-3'
   } ${active ? 'bg-ink-100 font-medium text-ink-900' : 'text-ink-700 hover:bg-ink-100'}`;
+
+/** Clean hover label for the collapsed icon rail. */
+function Tip({ label }: { label: string }) {
+  return (
+    <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-ink-900 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-md transition-opacity duration-100 group-hover:opacity-100">
+      {label}
+    </span>
+  );
+}
 
 function SectionLink({
   section,
@@ -105,11 +114,11 @@ function SectionLink({
     <Link
       href={section.defaultHref}
       className={itemCls(active, collapsed)}
-      title={collapsed ? section.label : undefined}
       aria-label={collapsed ? section.label : undefined}
     >
       {Icon && <Icon size={18} strokeWidth={1.75} aria-hidden />}
       {!collapsed && <span>{section.label}</span>}
+      {collapsed && <Tip label={section.label} />}
     </Link>
   );
 }
@@ -167,13 +176,12 @@ export function SidebarNav({
             aria-haspopup="menu"
             aria-expanded={menu}
             aria-label="Atajos de creación"
-            title="Atajos de creación"
-            className={`flex w-full items-center justify-center rounded-md bg-ink-900 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-700 ${
+            className={`group relative flex w-full items-center justify-center rounded-md bg-ink-900 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-700 ${
               collapsed ? 'px-0' : 'gap-2 px-3'
             }`}
           >
             <Plus size={16} strokeWidth={1.75} aria-hidden />
-            {!collapsed && (
+            {!collapsed ? (
               <>
                 Crear
                 <ChevronRight
@@ -183,11 +191,15 @@ export function SidebarNav({
                   className={`transition-transform ${menu ? 'rotate-90' : ''}`}
                 />
               </>
+            ) : (
+              <Tip label="Crear" />
             )}
           </button>
           {menu && (
             <div
-              className="absolute left-3 right-3 z-20 mt-1 rounded-md border border-ink-100 bg-white p-1 shadow-[0_4px_12px_-2px_rgb(10_10_10/.10)]"
+              className={`z-30 rounded-md border border-ink-100 bg-white p-1 shadow-[0_4px_12px_-2px_rgb(10_10_10/.10)] ${
+                collapsed ? 'absolute left-full top-3 ml-1 w-48' : 'absolute left-3 right-3 mt-1'
+              }`}
               onMouseLeave={() => setMenu(false)}
             >
               {visibleCreate.map((c) => (
@@ -206,37 +218,37 @@ export function SidebarNav({
         </div>
       )}
 
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-4 pt-2 text-sm">
+      <nav className="flex-1 space-y-0.5 overflow-visible px-3 pb-4 pt-2 text-sm">
         <Link
           href="/app"
           className={itemCls(pathname === '/app', collapsed)}
-          title={collapsed ? 'Inicio' : undefined}
           aria-label={collapsed ? 'Inicio' : undefined}
         >
           <Home size={18} strokeWidth={1.75} aria-hidden />
           {!collapsed && <span>Inicio</span>}
+          {collapsed && <Tip label="Inicio" />}
         </Link>
         {showConversations && (
           <Link
             href="/app/conversations"
             className={itemCls(pathname.startsWith('/app/conversations'), collapsed)}
-            title={collapsed ? 'Conversaciones' : undefined}
             aria-label={collapsed ? 'Conversaciones' : undefined}
           >
             <MessageCircle size={18} strokeWidth={1.75} aria-hidden />
             {!collapsed && <span>Conversaciones</span>}
             <Count n={pending} color="blue" collapsed={collapsed} />
+            {collapsed && <Tip label="Conversaciones" />}
           </Link>
         )}
         <Link
           href="/app/alerts"
           className={itemCls(pathname.startsWith('/app/alerts'), collapsed)}
-          title={collapsed ? 'Alertas' : undefined}
           aria-label={collapsed ? 'Alertas' : undefined}
         >
           <Bell size={18} strokeWidth={1.75} aria-hidden />
           {!collapsed && <span>Alertas</span>}
           <Count n={alertCount} color="red" collapsed={collapsed} />
+          {collapsed && <Tip label="Alertas" />}
         </Link>
 
         {visibleSections.length > 0 && (
@@ -253,11 +265,11 @@ export function SidebarNav({
         <Link
           href="/app/ayuda"
           className={itemCls(pathname.startsWith('/app/ayuda'), collapsed)}
-          title={collapsed ? 'Ayuda' : undefined}
           aria-label={collapsed ? 'Ayuda' : undefined}
         >
           <HelpCircle size={18} strokeWidth={1.75} aria-hidden />
           {!collapsed && <span>Ayuda</span>}
+          {collapsed && <Tip label="Ayuda" />}
         </Link>
         {showSettings && (
           <SectionLink section={SETTINGS_SECTION} pathname={pathname} collapsed={collapsed} />

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { LogoutButton } from './logout-button';
 import { SidebarNav } from './sidebar-nav';
 import { PoliciesBanner } from './policies-banner';
@@ -20,10 +20,8 @@ interface Props {
 
 /**
  * Authed shell. Below md: top bar with hamburger; sidebar slides in as a
- * drawer with backdrop. From md: classic side-by-side layout.
- *
- * The drawer auto-closes on route change so the user lands directly on the
- * new page after picking a sidebar item.
+ * drawer with backdrop. From md: a permanent icon rail (labels on hover) plus
+ * a thin top header that keeps brand/account/role/help always visible.
  */
 export function AppShell({
   tenantName,
@@ -36,20 +34,6 @@ export function AppShell({
 }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-
-  // Restore collapsed preference (desktop rail). Read once on mount.
-  useEffect(() => {
-    setCollapsed(localStorage.getItem('cf-sidebar-collapsed') === '1');
-  }, []);
-
-  function toggleCollapsed() {
-    setCollapsed((c) => {
-      const next = !c;
-      localStorage.setItem('cf-sidebar-collapsed', next ? '1' : '0');
-      return next;
-    });
-  }
 
   // Close drawer when navigating
   useEffect(() => {
@@ -66,82 +50,11 @@ export function AppShell({
     };
   }, [open]);
 
-  const desktopSidebar = (
-    <>
-      <div
-        className={`flex shrink-0 items-center border-b border-ink-100 py-[14px] ${
-          collapsed ? 'justify-center px-2' : 'justify-between px-4'
-        }`}
-      >
-        {collapsed ? (
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            aria-label="Expandir menú"
-            title="Expandir menú"
-            className="rounded p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900"
-          >
-            <PanelLeftOpen size={18} strokeWidth={1.75} />
-          </button>
-        ) : (
-          <>
-            <div className="min-w-0">
-              <div className="font-semibold tracking-tight">
-                converflow<span className="text-primary-600">.ai</span>
-              </div>
-              <div className="mt-0.5 truncate text-xs text-ink-500">{tenantName}</div>
-            </div>
-            <button
-              type="button"
-              onClick={toggleCollapsed}
-              aria-label="Contraer menú"
-              title="Contraer menú"
-              className="shrink-0 rounded p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900"
-            >
-              <PanelLeftClose size={18} strokeWidth={1.75} />
-            </button>
-          </>
-        )}
-      </div>
-      <SidebarNav convPending={convPending} alertCount={alertCount} collapsed={collapsed} />
-      {collapsed && (
-        <div className="flex shrink-0 justify-center border-t border-ink-100 py-2">
-          <LogoutButton compact />
-        </div>
-      )}
-      {!collapsed && (
-        <div className="shrink-0 border-t border-ink-100 px-4 py-3 text-xs">
-          <div className="text-ink-500">Conectado como</div>
-          <div className="truncate font-medium text-ink-900">{userEmail}</div>
-          <div className="text-[10px] font-mono uppercase tracking-wider text-ink-500">
-            {userRole}
-          </div>
-          <LogoutButton />
-          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-ink-400">
-            <Link href="/app/ayuda" className="hover:text-ink-700">
-              Ayuda
-            </Link>
-            <Link href="/ai-disclosure" target="_blank" className="hover:text-ink-700">
-              Aviso IA
-            </Link>
-            <Link href="/privacy" target="_blank" className="hover:text-ink-700">
-              Privacidad
-            </Link>
-          </div>
-        </div>
-      )}
-    </>
-  );
-
   return (
     <div className="flex h-screen overflow-hidden bg-ink-100/30">
-      {/* Desktop sidebar */}
-      <aside
-        className={`hidden shrink-0 flex-col border-r border-ink-100 bg-white transition-[width] duration-200 md:flex ${
-          collapsed ? 'w-16' : 'w-60'
-        }`}
-      >
-        {desktopSidebar}
+      {/* Desktop icon rail (labels appear on hover) */}
+      <aside className="hidden w-16 shrink-0 flex-col border-r border-ink-100 bg-white md:flex">
+        <SidebarNav convPending={convPending} alertCount={alertCount} collapsed />
       </aside>
 
       {/* Mobile drawer */}
@@ -210,6 +123,27 @@ export function AppShell({
             converflow<span className="text-primary-600">.ai</span>
           </span>
           <span className="ml-auto truncate text-xs text-ink-500">{tenantName}</span>
+        </div>
+
+        {/* Desktop thin header — keeps brand/account/role/help always visible */}
+        <div className="hidden shrink-0 items-center gap-3 border-b border-ink-100 bg-white px-4 py-1.5 text-xs md:flex">
+          <Link href="/app" className="font-semibold tracking-tight">
+            converflow<span className="text-primary-600">.ai</span>
+          </Link>
+          <span className="text-ink-300">·</span>
+          <span className="truncate text-ink-600">{tenantName}</span>
+          <div className="ml-auto flex items-center gap-3 text-ink-500">
+            <span className="hidden lg:inline">
+              Conectado como <span className="font-medium text-ink-700">{userEmail}</span>
+            </span>
+            <span className="rounded bg-ink-100 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-ink-600">
+              {userRole}
+            </span>
+            <Link href="/app/ayuda" className="hover:text-ink-900">Ayuda</Link>
+            <Link href="/ai-disclosure" target="_blank" className="hover:text-ink-900">Aviso IA</Link>
+            <Link href="/privacy" target="_blank" className="hover:text-ink-900">Privacidad</Link>
+            <LogoutButton compact />
+          </div>
         </div>
 
         {mustChangePassword && (
