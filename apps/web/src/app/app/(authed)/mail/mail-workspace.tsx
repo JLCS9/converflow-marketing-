@@ -45,6 +45,19 @@ export interface MailboxOption {
   id: string;
   fromAddress: string;
   displayName: string | null;
+  signature: string | null;
+}
+
+/** Build the signature block appended to a fresh composer (plain text → safe html). */
+function signatureHtml(sig: string | null | undefined): string {
+  const s = (sig ?? '').trim();
+  if (!s) return '';
+  const esc = s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br>');
+  return `<p></p><p>—<br>${esc}</p>`;
 }
 
 interface ThreadRow {
@@ -169,7 +182,9 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
     { mode: ComposerMode; initial?: ComposerInitial; forwardMessageId?: string } | null
   >(null);
 
-  const selfAddress = (connections.find((c) => c.id === connectionId)?.fromAddress ?? '').toLowerCase();
+  const currentConn = connections.find((c) => c.id === connectionId);
+  const selfAddress = (currentConn?.fromAddress ?? '').toLowerCase();
+  const sigHtml = signatureHtml(currentConn?.signature);
   const nameOf = (userId: string | null): string =>
     userId ? team.find((m) => m.id === userId)?.name ?? 'Asignado' : '';
   const initials = (name: string): string =>
@@ -288,7 +303,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
         setReplyInit(init);
         setComposerOpen(true);
       } else {
-        setReplyInit({ to: computeDefaultTo(d) });
+        setReplyInit({ to: computeDefaultTo(d), html: sigHtml });
       }
       setReplyKey((k) => k + 1);
       setDetail(d);
@@ -448,7 +463,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
         <div className="space-y-2 border-b border-ink-100 p-2">
           <button
             type="button"
-            onClick={() => setModal({ mode: 'new', initial: {} })}
+            onClick={() => setModal({ mode: 'new', initial: { html: sigHtml } })}
             className={buttonClass('primary', 'flex w-full items-center justify-center gap-1.5 text-xs')}
           >
             <Mail size={14} /> Nuevo correo
@@ -594,7 +609,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
                           <span>{fmt(m.receivedAt || m.createdAt)}</span>
                           <button
                             type="button"
-                            onClick={() => setModal({ mode: 'forward', forwardMessageId: m.id, initial: {} })}
+                            onClick={() => setModal({ mode: 'forward', forwardMessageId: m.id, initial: { html: sigHtml } })}
                             className="inline-flex items-center gap-1 text-primary-700 hover:underline"
                             title="Reenviar este mensaje"
                           >
@@ -693,7 +708,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
                   {lastMessageId && (
                     <button
                       type="button"
-                      onClick={() => setModal({ mode: 'forward', forwardMessageId: lastMessageId, initial: {} })}
+                      onClick={() => setModal({ mode: 'forward', forwardMessageId: lastMessageId, initial: { html: sigHtml } })}
                       className={buttonClass('ghost', 'flex items-center gap-1.5 text-sm')}
                     >
                       <Forward size={14} /> Reenviar
