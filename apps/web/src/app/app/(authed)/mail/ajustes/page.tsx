@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Lock, Users } from 'lucide-react';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
@@ -78,7 +79,10 @@ export default async function MailConnectionsSettingsPage() {
                       {c.displayName && <div className="text-xs text-ink-500">{c.displayName}</div>}
                     </td>
                     <td className="px-4 py-3 text-xs">
-                      {c.visibility === 'PRIVATE' ? '🔒 Privado' : '👥 Compartido'}
+                      <span className="inline-flex items-center gap-1 text-ink-600">
+                        {c.visibility === 'PRIVATE' ? <Lock size={12} /> : <Users size={12} />}
+                        {c.visibility === 'PRIVATE' ? 'Privado' : 'Compartido'}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <Badge color={st.color}>{st.label}</Badge>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Paperclip, X } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { buttonClass } from '@/components/ui/primitives';
 import { RichEmailEditor } from '@/components/ui/rich-email-editor';
@@ -223,8 +224,8 @@ export function MailComposer({
         <div className="flex flex-wrap gap-1.5">
           {attached.map((a) => (
             <span key={a.storageKey} className="inline-flex items-center gap-1 rounded bg-ink-100 px-2 py-0.5 text-xs text-ink-700">
-              📎 {a.filename} <span className="text-ink-400">({humanSize(a.sizeBytes)})</span>
-              <button type="button" onClick={() => removeAttachment(a.storageKey)} className="text-ink-400 hover:text-red-600" aria-label="Quitar adjunto">✕</button>
+              <Paperclip size={11} /> {a.filename} <span className="text-ink-400">({humanSize(a.sizeBytes)})</span>
+              <button type="button" onClick={() => removeAttachment(a.storageKey)} className="text-ink-400 hover:text-red-600" aria-label="Quitar adjunto"><X size={11} /></button>
             </span>
           ))}
         </div>
@@ -233,8 +234,8 @@ export function MailComposer({
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3">
-          <label className={buttonClass('ghost', 'cursor-pointer text-xs')}>
-            {uploading ? 'Subiendo…' : '📎 Adjuntar'}
+          <label className={buttonClass('ghost', 'inline-flex cursor-pointer items-center gap-1.5 text-xs')}>
+            <Paperclip size={13} /> {uploading ? 'Subiendo…' : 'Adjuntar'}
             <input
               type="file"
               multiple

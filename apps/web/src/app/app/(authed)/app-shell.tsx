@@ -104,6 +104,11 @@ export function AppShell({
         )}
       </div>
       <SidebarNav convPending={convPending} alertCount={alertCount} collapsed={collapsed} />
+      {collapsed && (
+        <div className="flex shrink-0 justify-center border-t border-ink-100 py-2">
+          <LogoutButton compact />
+        </div>
+      )}
       {!collapsed && (
         <div className="shrink-0 border-t border-ink-100 px-4 py-3 text-xs">
           <div className="text-ink-500">Conectado como</div>
