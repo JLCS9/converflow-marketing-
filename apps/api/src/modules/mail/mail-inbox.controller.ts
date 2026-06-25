@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
@@ -65,18 +65,65 @@ export class MailInboxController {
   @Post('threads/:id/reply')
   reply(
     @Param('id') id: string,
-    @Body() body: { html?: string },
+    @Body()
+    body: { html?: string; to?: string | string[]; cc?: string | string[]; bcc?: string | string[] },
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.compose.reply(user.tenantId, id, this.actor(user), body?.html ?? '');
+    return this.compose.reply(user.tenantId, id, this.actor(user), body ?? {});
+  }
+
+  @Post('messages/:id/forward')
+  forward(
+    @Param('id') id: string,
+    @Body()
+    body: { to?: string | string[]; cc?: string | string[]; bcc?: string | string[]; html?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.compose.forward(user.tenantId, id, this.actor(user), body ?? {});
   }
 
   @Post('connections/:id/compose')
   composeNew(
     @Param('id') id: string,
-    @Body() body: { to?: string; subject?: string; html?: string },
+    @Body()
+    body: {
+      to?: string | string[];
+      cc?: string | string[];
+      bcc?: string | string[];
+      subject?: string;
+      html?: string;
+    },
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.compose.compose(user.tenantId, id, this.actor(user), body ?? {});
+  }
+
+  // ---- drafts ----
+  @Post('drafts')
+  saveDraft(
+    @Body()
+    body: {
+      draftId?: string;
+      threadId?: string;
+      connectionId?: string;
+      to?: string | string[];
+      cc?: string | string[];
+      bcc?: string | string[];
+      subject?: string;
+      html?: string;
+    },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.compose.saveDraft(user.tenantId, this.actor(user), body ?? {});
+  }
+
+  @Post('drafts/:id/send')
+  sendDraft(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.compose.sendDraft(user.tenantId, id, this.actor(user));
+  }
+
+  @Delete('drafts/:id')
+  deleteDraft(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.compose.deleteDraft(user.tenantId, id, this.actor(user));
   }
 }

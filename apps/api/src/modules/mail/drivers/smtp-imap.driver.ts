@@ -57,6 +57,8 @@ export class SmtpImapDriver implements MailDriver {
         ? { name: this.cfg.displayName, address: this.cfg.fromAddress }
         : this.cfg.fromAddress,
       to: input.to,
+      cc: input.cc,
+      bcc: input.bcc,
       subject: input.subject,
       text: input.text,
       html: input.html,
