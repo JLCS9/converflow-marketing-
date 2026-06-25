@@ -166,9 +166,18 @@ separado de IM con modelos propios (`EmailThread`/`EmailMessage`) — Fase 2.
   leído/no-leído, archivar/spam/papelera/restaurar). Enlace "Bandeja" en cada conexión.
 - **Seguridad**: el HTML entrante se **sanea en el ingest** (`sanitizeEmailHtml`) antes de
   guardarse → render seguro. (Enviados/Borradores se poblarán en 2.3.)
-- **Sub-pasos restantes de Fase 2**: 2.3 redacción (borradores/responder/reenviar/cita/To-Cc-Bcc),
-  2.4 búsqueda+adjuntos, 2.5 compartido (asignación/estado/notas/anti-colisión) + separación
-  IM/email en Conversaciones.
+**Fase 2.3 (parcial) — responder + redactar (LIVE en `main`)**:
+- `MailComposeService`: `reply(threadId, html)` (destinatario = último inbound, asunto `Re:`,
+  threading `In-Reply-To`/`References`, envía por el SMTP del buzón, guarda OUT folder SENT,
+  bump del hilo) + `compose(connectionId, {to,subject,html})` (abre hilo nuevo). HTML saneado.
+  Rutas `POST /mail/threads/:id/reply`, `POST /mail/connections/:id/compose`.
+- `listThreads` ya puebla **Enviados** (mensajes OUT) y **Borradores** (isDraft) a nivel de mensaje.
+- Web: **recuadro de respuesta** (editor Tiptap) en la vista de hilo → "Responder".
+- **Separación IM/email en navbar**: la página Conversaciones (solo IM) y la sección Correo
+  comparten un `TabBar` **Mensajería | Correo** → se navega entre ambos mundos.
+- **Pendiente 2.3**: borradores con autosave, responder-a-todos/reenviar, To/Cc/Bcc en la UI,
+  "Nuevo correo" desde la bandeja. **2.4**: búsqueda + adjuntos (subida/descarga R2).
+  **2.5**: compartido (asignación/estado/notas/anti-colisión).
 
 ## CRITICAL lessons (don't repeat these bugs)
 
