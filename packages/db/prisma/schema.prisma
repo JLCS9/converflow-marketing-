@@ -178,6 +178,9 @@ model User {
   // explicit list of allowed PermissionModule values. OWNER ignores this
   // field at runtime — they always have full access.
   permissions        Json?
+  // Per-user home dashboard layout: { widgets: string[] } — the ordered list of
+  // enabled widget ids. Null = use the default layout from the client registry.
+  dashboardConfig    Json?
   emailVerifiedAt    DateTime?
   lastLoginAt        DateTime?
   mustChangePassword Boolean    @default(false)

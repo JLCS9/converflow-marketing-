@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 import {
@@ -25,6 +25,32 @@ export class MeController {
       });
       return tenant;
     });
+  }
+
+  @Get('dashboard')
+  async dashboard(@CurrentUser() user: AuthenticatedUser) {
+    const u = await this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.user.findUnique({ where: { id: user.userId }, select: { dashboardConfig: true } }),
+    );
+    const cfg = (u?.dashboardConfig ?? null) as { widgets?: unknown } | null;
+    const widgets = Array.isArray(cfg?.widgets)
+      ? cfg!.widgets.filter((w): w is string => typeof w === 'string')
+      : null;
+    return { widgets };
+  }
+
+  @Patch('dashboard')
+  async saveDashboard(
+    @Body() body: { widgets?: unknown },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const widgets = Array.isArray(body?.widgets)
+      ? body.widgets.filter((w): w is string => typeof w === 'string').slice(0, 50)
+      : [];
+    await this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.user.update({ where: { id: user.userId }, data: { dashboardConfig: { widgets } } }),
+    );
+    return { ok: true, widgets };
   }
 
   @Get('stats')
