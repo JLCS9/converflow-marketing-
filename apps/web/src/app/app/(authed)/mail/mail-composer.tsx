@@ -5,7 +5,16 @@ import { apiFetch } from '@/lib/api-client';
 import { buttonClass } from '@/components/ui/primitives';
 import { RichEmailEditor } from '@/components/ui/rich-email-editor';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
+
 export type ComposerMode = 'reply' | 'new' | 'forward';
+
+export interface StagedAttachment {
+  storageKey: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+}
 
 export interface ComposerInitial {
   draftId?: string;
@@ -14,6 +23,13 @@ export interface ComposerInitial {
   bcc?: string;
   subject?: string;
   html?: string;
+  attachments?: StagedAttachment[];
+}
+
+function humanSize(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const inputCls =
@@ -51,6 +67,8 @@ export function MailComposer({
   const [subject, setSubject] = useState(initial?.subject ?? '');
   const [html, setHtml] = useState(initial?.html ?? '');
   const [showCc, setShowCc] = useState(!!(initial?.cc || initial?.bcc));
+  const [attached, setAttached] = useState<StagedAttachment[]>(initial?.attachments ?? []);
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -60,11 +78,19 @@ export function MailComposer({
   const showSubject = mode !== 'reply';
   const canAutosave = mode === 'reply' || mode === 'new';
   const plain = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
-  const hasContent = !!(to.trim() || subject.trim() || plain);
+  const hasContent = !!(to.trim() || subject.trim() || plain || attached.length);
 
   const saveDraft = useCallback(async (): Promise<string | undefined> => {
     if (!canAutosave) return undefined;
-    const body: Record<string, unknown> = { draftId: draftIdRef.current, to, cc, bcc, subject, html };
+    const body: Record<string, unknown> = {
+      draftId: draftIdRef.current,
+      to,
+      cc,
+      bcc,
+      subject,
+      html,
+      attachments: attached,
+    };
     if (mode === 'reply') body.threadId = threadId;
     else body.connectionId = connectionId;
     const r = await apiFetch<{ draftId: string; threadId: string }>('/mail/drafts', {
@@ -73,7 +99,7 @@ export function MailComposer({
     });
     draftIdRef.current = r.draftId;
     return r.draftId;
-  }, [canAutosave, to, cc, bcc, subject, html, mode, threadId, connectionId]);
+  }, [canAutosave, to, cc, bcc, subject, html, attached, mode, threadId, connectionId]);
 
   // Debounced autosave once the user has actually edited something.
   useEffect(() => {
@@ -86,11 +112,42 @@ export function MailComposer({
         .catch(() => {});
     }, 1500);
     return () => clearTimeout(t);
-  }, [to, cc, bcc, subject, html, canAutosave, hasContent, busy, saveDraft]);
+  }, [to, cc, bcc, subject, html, attached, canAutosave, hasContent, busy, saveDraft]);
 
   const touch = () => {
     dirtyRef.current = true;
   };
+
+  async function onPickFiles(filesList: FileList | null) {
+    if (!filesList || !filesList.length) return;
+    setUploading(true);
+    setError(null);
+    try {
+      for (const f of Array.from(filesList)) {
+        const fd = new FormData();
+        fd.append('file', f);
+        // Raw fetch: apiFetch can't do multipart (it forces JSON content-type).
+        const res = await fetch(`${API_BASE}/mail/attachments/upload`, {
+          method: 'POST',
+          credentials: 'include',
+          body: fd,
+        });
+        if (!res.ok) throw new Error('No se pudo subir el adjunto');
+        const r = (await res.json()) as StagedAttachment;
+        touch();
+        setAttached((prev) => [...prev, r]);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo subir el adjunto');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function removeAttachment(storageKey: string) {
+    touch();
+    setAttached((prev) => prev.filter((a) => a.storageKey !== storageKey));
+  }
 
   async function send() {
     if (!hasContent) return;
@@ -101,7 +158,7 @@ export function MailComposer({
         if (!forwardMessageId) throw new Error('Falta el mensaje a reenviar');
         await apiFetch(`/mail/messages/${forwardMessageId}/forward`, {
           method: 'POST',
-          json: { to, cc, bcc, html },
+          json: { to, cc, bcc, html, attachments: attached },
         });
       } else {
         const id = (await saveDraft()) ?? draftIdRef.current;
@@ -162,11 +219,34 @@ export function MailComposer({
 
       <RichEmailEditor initialHtml={initial?.html} onChange={(h) => { touch(); setHtml(h); }} />
 
+      {attached.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {attached.map((a) => (
+            <span key={a.storageKey} className="inline-flex items-center gap-1 rounded bg-ink-100 px-2 py-0.5 text-xs text-ink-700">
+              📎 {a.filename} <span className="text-ink-400">({humanSize(a.sizeBytes)})</span>
+              <button type="button" onClick={() => removeAttachment(a.storageKey)} className="text-ink-400 hover:text-red-600" aria-label="Quitar adjunto">✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] text-ink-400">
-          {busy ? 'Enviando…' : savedAt ? `Borrador guardado ${savedAt}` : ''}
-        </span>
+        <div className="flex items-center gap-3">
+          <label className={buttonClass('ghost', 'cursor-pointer text-xs')}>
+            {uploading ? 'Subiendo…' : '📎 Adjuntar'}
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              disabled={uploading || busy}
+              onChange={(e) => { void onPickFiles(e.target.files); e.currentTarget.value = ''; }}
+            />
+          </label>
+          <span className="text-[11px] text-ink-400">
+            {busy ? 'Enviando…' : savedAt ? `Borrador guardado ${savedAt}` : ''}
+          </span>
+        </div>
         <div className="flex gap-2">
           {onClose && (
             <button type="button" onClick={() => void discardDraft()} className={buttonClass('ghost', 'text-xs')} disabled={busy}>

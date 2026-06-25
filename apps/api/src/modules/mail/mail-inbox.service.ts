@@ -120,7 +120,9 @@ export class MailInboxService {
         where: { threadId },
         orderBy: { createdAt: 'asc' },
         include: {
-          attachments: { select: { id: true, filename: true, mimeType: true, sizeBytes: true } },
+          attachments: {
+            select: { id: true, filename: true, mimeType: true, sizeBytes: true, storageKey: true },
+          },
         },
       }),
     );

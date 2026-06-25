@@ -5,6 +5,14 @@ import { apiFetch } from '@/lib/api-client';
 import { buttonClass } from '@/components/ui/primitives';
 import { MailComposer, type ComposerInitial, type ComposerMode } from './mail-composer';
 
+interface AttachmentRow {
+  id: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  storageKey: string;
+}
+
 export interface MailboxOption {
   id: string;
   fromAddress: string;
@@ -33,7 +41,7 @@ interface Msg {
   text: string | null;
   receivedAt: string | null;
   createdAt: string;
-  attachments: { id: string; filename: string }[];
+  attachments: AttachmentRow[];
 }
 interface Detail {
   thread: { id: string; subject: string | null; folder: string; participants: string[] | null };
@@ -158,6 +166,12 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
           bcc: list(draft.bccAddresses),
           subject: draft.subject ?? '',
           html: draft.html ?? '',
+          attachments: draft.attachments.map((a) => ({
+            storageKey: a.storageKey,
+            filename: a.filename,
+            mimeType: a.mimeType,
+            sizeBytes: a.sizeBytes,
+          })),
         };
         if (d.thread.folder === 'DRAFTS') {
           // Brand-new email draft → reopen it in the modal composer.
@@ -210,6 +224,15 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
       await loadThreads(connectionId, folder);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function downloadAttachment(id: string) {
+    try {
+      const r = await apiFetch<{ url: string }>(`/mail/attachments/${id}/download`);
+      window.open(r.url, '_blank', 'noopener');
+    } catch {
+      /* ignore */
     }
   }
 
@@ -358,7 +381,15 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
                   {m.attachments.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1 border-t border-ink-100 pt-2 text-xs text-ink-500">
                       {m.attachments.map((a) => (
-                        <span key={a.id} className="rounded bg-ink-100 px-2 py-0.5">📎 {a.filename}</span>
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => void downloadAttachment(a.id)}
+                          className="rounded bg-ink-100 px-2 py-0.5 hover:bg-ink-200 hover:text-ink-800"
+                          title="Descargar"
+                        >
+                          📎 {a.filename}
+                        </button>
                       ))}
                     </div>
                   )}
