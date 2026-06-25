@@ -6,8 +6,8 @@ import { TabBar } from '@/components/ui/tab-bar';
 import { Inbox } from './inbox';
 
 const MAIL_TABS = [
-  { href: '/app/conversations', label: 'Mensajería' },
   { href: '/app/mail', label: 'Correo' },
+  { href: '/app/conversations', label: 'Mensajería' },
 ];
 
 interface ConvRow {

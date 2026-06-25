@@ -7,8 +7,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { MailWorkspace, type MailboxOption } from './mail-workspace';
 
 const MAIL_TABS = [
-  { href: '/app/conversations', label: 'Mensajería' },
   { href: '/app/mail', label: 'Correo' },
+  { href: '/app/conversations', label: 'Mensajería' },
 ];
 
 export const metadata = { title: 'Correo' };
