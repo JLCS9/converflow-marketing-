@@ -24,7 +24,8 @@ export class ConversationsService {
       : undefined;
     return this.prisma.withTenant(tenantId, (tx) =>
       tx.conversation.findMany({
-        where: { status },
+        // IM only — email now lives in the dedicated Mail module (/app/mail).
+        where: { status, channel: { not: 'EMAIL' } },
         orderBy: { lastMessageAt: 'desc' },
         take: opts.limit ?? 100,
         include: { lead: { select: { id: true, name: true, score: true } } },
@@ -35,8 +36,8 @@ export class ConversationsService {
   async counts(tenantId: string) {
     return this.prisma.withTenant(tenantId, async (tx) => {
       const [pending, total] = await Promise.all([
-        tx.conversation.count({ where: { status: 'PENDING' } }),
-        tx.conversation.count(),
+        tx.conversation.count({ where: { status: 'PENDING', channel: { not: 'EMAIL' } } }),
+        tx.conversation.count({ where: { channel: { not: 'EMAIL' } } }),
       ]);
       return { pending, total };
     });

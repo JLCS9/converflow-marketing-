@@ -24,7 +24,7 @@ export default async function ConversationsPage() {
     <div className="space-y-4">
       <PageHeader
         title="Conversaciones"
-        description="Bandeja unificada de WhatsApp, Email y Web Chat. Las marcadas sin responder esperan tu contestación; al responder se marcan como respondidas automáticamente."
+        description="Mensajería instantánea: WhatsApp y Web Chat. El correo vive en su propia sección «Correo». Las marcadas sin responder esperan tu contestación."
       />
       <Inbox initial={initial} />
     </div>
