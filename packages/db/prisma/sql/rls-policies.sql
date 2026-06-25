@@ -310,3 +310,12 @@ CREATE POLICY tenant_isolation ON email_attachments
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- email_thread_notes (Mail · Fase 2.5 — internal team notes)
+ALTER TABLE email_thread_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_thread_notes FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON email_thread_notes;
+CREATE POLICY tenant_isolation ON email_thread_notes
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

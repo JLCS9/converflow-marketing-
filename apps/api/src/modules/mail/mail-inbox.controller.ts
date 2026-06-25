@@ -11,6 +11,7 @@ import {
 } from '../../common/decorators/current-user.decorator.js';
 import { MailInboxService } from './mail-inbox.service.js';
 import { MailComposeService } from './mail-compose.service.js';
+import { MailSharedService } from './mail-shared.service.js';
 import { MailAttachmentsService, type StagedAttachment } from './mail-attachments.service.js';
 
 type MultipartFile = {
@@ -27,6 +28,7 @@ export class MailInboxController {
   constructor(
     private readonly inbox: MailInboxService,
     private readonly compose: MailComposeService,
+    private readonly shared: MailSharedService,
     private readonly attachments: MailAttachmentsService,
   ) {}
 
@@ -179,5 +181,58 @@ export class MailInboxController {
   @Delete('drafts/:id')
   deleteDraft(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.compose.deleteDraft(user.tenantId, id, this.actor(user));
+  }
+
+  // ---- shared mailbox: assignment / status / notes / lock ----
+  @Get('team')
+  team(@CurrentUser() user: AuthenticatedUser) {
+    return this.shared.listTeam(user.tenantId);
+  }
+
+  @Post('threads/:id/assign')
+  assign(
+    @Param('id') id: string,
+    @Body() body: { assigneeUserId?: string | null },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.shared.assign(user.tenantId, id, this.actor(user), body?.assigneeUserId ?? null);
+  }
+
+  @Post('threads/:id/status')
+  setStatus(
+    @Param('id') id: string,
+    @Body() body: { status?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.shared.setStatus(user.tenantId, id, this.actor(user), body?.status ?? '');
+  }
+
+  @Get('threads/:id/notes')
+  notes(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.shared.listNotes(user.tenantId, id, this.actor(user));
+  }
+
+  @Post('threads/:id/notes')
+  addNote(
+    @Param('id') id: string,
+    @Body() body: { body?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.shared.addNote(user.tenantId, id, this.actor(user), body?.body ?? '');
+  }
+
+  @Delete('notes/:id')
+  deleteNote(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.shared.deleteNote(user.tenantId, id, this.actor(user));
+  }
+
+  @Post('threads/:id/claim')
+  claim(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.shared.claim(user.tenantId, id, this.actor(user));
+  }
+
+  @Post('threads/:id/release')
+  release(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.shared.release(user.tenantId, id, this.actor(user));
   }
 }

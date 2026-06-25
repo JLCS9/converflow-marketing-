@@ -152,6 +152,7 @@ model Tenant {
   emailThreads           EmailThread[]
   emailMessages          EmailMessage[]
   emailAttachments       EmailAttachment[]
+  emailThreadNotes       EmailThreadNote[]
 
   @@map("tenants")
 }
@@ -1234,14 +1235,37 @@ model EmailThread {
   lastMessageAt DateTime?
   snippet       String?
 
+  // Soft lock for anti-collision in shared mailboxes: who is replying and when
+  // (heartbeat-refreshed; considered stale after a short timeout).
+  lockedByUserId String?
+  lockedAt       DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   messages EmailMessage[]
+  notes    EmailThreadNote[]
 
   @@index([tenantId, connectionId, folder, lastMessageAt])
   @@index([tenantId, assigneeUserId])
   @@map("email_threads")
+}
+
+/// Internal note on an email thread (team-only, never sent to the contact).
+model EmailThreadNote {
+  id           String      @id @default(cuid())
+  tenantId     String
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  threadId     String
+  thread       EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  authorUserId String
+  authorName   String      // denormalized for display
+  body         String
+
+  createdAt DateTime @default(now())
+
+  @@index([threadId, createdAt])
+  @@map("email_thread_notes")
 }
 
 model EmailMessage {

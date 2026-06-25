@@ -6,6 +6,7 @@ import { MailIngestService } from './mail-ingest.service.js';
 import { MailSyncService } from './mail-sync.service.js';
 import { MailInboxService } from './mail-inbox.service.js';
 import { MailComposeService } from './mail-compose.service.js';
+import { MailSharedService } from './mail-shared.service.js';
 import { MailAttachmentsService } from './mail-attachments.service.js';
 import { S3Service } from '../../common/storage/s3.service.js';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
@@ -24,6 +25,7 @@ import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
     MailSyncService,
     MailInboxService,
     MailComposeService,
+    MailSharedService,
     MailAttachmentsService,
     S3Service,
     TenantAuthGuard,
