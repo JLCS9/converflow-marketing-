@@ -59,6 +59,7 @@ export function MailConnectionActions({ id }: { id: string }) {
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-2">
+        <Link href={`/app/mail/${id}/inbox`} className={buttonClass('secondary', 'px-2 py-1 text-xs')}>Bandeja</Link>
         <Link href={`/app/mail/${id}`} className="text-xs text-primary-700 hover:underline">Editar</Link>
         <button type="button" onClick={() => void testSync()} className={buttonClass('ghost', 'px-2 py-1 text-xs')}>Probar sync</button>
         <button type="button" onClick={() => void testSend()} className={buttonClass('ghost', 'px-2 py-1 text-xs')}>Probar envío</button>
