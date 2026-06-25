@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { X } from 'lucide-react';
 
 /**
@@ -26,7 +27,7 @@ export function InboxShell({
   hasSelection: boolean;
 }) {
   return (
-    <div className="flex h-[calc(100dvh-9.5rem)] overflow-hidden rounded-lg border border-ink-100 bg-white">
+    <div className="flex h-[calc(100dvh-7.5rem)] overflow-hidden rounded-lg border border-ink-100 bg-white">
       <aside className="hidden w-44 shrink-0 flex-col overflow-y-auto border-r border-ink-100 bg-ink-50/40 md:flex">
         {filters}
       </aside>
@@ -43,6 +44,41 @@ export function InboxShell({
           {details}
         </aside>
       )}
+    </div>
+  );
+}
+
+// ---- section switch (Correo / Mensajería) ------------------------------
+
+export function InboxSwitch({
+  active,
+  mailCount,
+  imCount,
+}: {
+  active: 'mail' | 'im';
+  mailCount: number;
+  imCount: number;
+}) {
+  const item = (href: string, label: string, count: number, on: boolean) => (
+    <Link
+      href={href}
+      aria-current={on ? 'page' : undefined}
+      className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
+        on ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'
+      }`}
+    >
+      {label}
+      {count > 0 && (
+        <span className={`rounded-full px-1.5 text-[10px] font-semibold ${on ? 'bg-primary-600 text-white' : 'bg-ink-200 text-ink-600'}`}>
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
+    </Link>
+  );
+  return (
+    <div className="flex gap-1 rounded-lg bg-ink-100 p-1">
+      {item('/app/mail', 'Correo', mailCount, active === 'mail')}
+      {item('/app/conversations', 'Mensajería', imCount, active === 'im')}
     </div>
   );
 }

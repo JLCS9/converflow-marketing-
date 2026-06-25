@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
 import { buttonClass } from '@/components/ui/primitives';
-import { TabBar } from '@/components/ui/tab-bar';
 import { EmptyState } from '@/components/ui/empty-state';
+import { InboxSwitch } from '@/components/ui/inbox-kit';
 import { MailWorkspace, type MailboxOption } from './mail-workspace';
 
 export const metadata = { title: 'Correo' };
@@ -14,15 +14,10 @@ export default async function MailPage() {
     serverApiFetch<{ unread: number }>('/mail/unread-count').catch(() => ({ unread: 0 })),
   ]);
 
-  const tabs = [
-    { href: '/app/mail', label: 'Correo', badge: mail.unread },
-    { href: '/app/conversations', label: 'Mensajería', badge: convCount.pending },
-  ];
-
-  return (
-    <div className="space-y-3">
-      <TabBar items={tabs} />
-      {conns.length === 0 ? (
+  if (conns.length === 0) {
+    return (
+      <div className="space-y-3">
+        <InboxSwitch active="mail" mailCount={mail.unread} imCount={convCount.pending} />
         <EmptyState
           title="Sin buzones conectados"
           description="Conecta tu primer buzón (Gmail, Outlook, IONOS o cualquier IMAP/SMTP) para enviar y recibir correo desde Converflow."
@@ -32,9 +27,9 @@ export default async function MailPage() {
             </Link>
           }
         />
-      ) : (
-        <MailWorkspace connections={conns} />
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
+
+  return <MailWorkspace connections={conns} mailUnread={mail.unread} imPending={convCount.pending} />;
 }

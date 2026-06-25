@@ -10,7 +10,7 @@ import { MeetingScheduler } from '@/components/meeting-scheduler';
 import { ChannelBadge } from '@/components/ui/channel-badge';
 import { RichEmailEditor } from '@/components/ui/rich-email-editor';
 import { TemplatePicker } from '@/components/ui/template-picker';
-import { InboxShell, Avatar, DateSeparator, ContactPanel } from '@/components/ui/inbox-kit';
+import { InboxShell, InboxSwitch, Avatar, DateSeparator, ContactPanel } from '@/components/ui/inbox-kit';
 import { ComposeEmailModal } from './compose-email-modal';
 
 function escapeHtml(s: string): string {
@@ -113,7 +113,15 @@ function contactTitle(c: { contactName: string | null; contactPhone: string | nu
   return c.contactName || c.contactPhone || c.contactJid.split('@')[0] || 'Contacto';
 }
 
-export function Inbox({ initial }: { initial: ConvRow[] }) {
+export function Inbox({
+  initial,
+  mailUnread,
+  imPending,
+}: {
+  initial: ConvRow[];
+  mailUnread: number;
+  imPending: number;
+}) {
   const [status, setStatus] = useState('PENDING');
   const [convs, setConvs] = useState<ConvRow[]>(initial);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -283,6 +291,9 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
   // ---- column: filters (status) ----
   const filtersNode = (
     <div className="flex h-full flex-col">
+      <div className="border-b border-ink-100 p-2">
+        <InboxSwitch active="im" mailCount={mailUnread} imCount={imPending} />
+      </div>
       <nav className="flex-1 space-y-0.5 p-2">
         {TABS.map((t) => {
           const active = status === t.key;

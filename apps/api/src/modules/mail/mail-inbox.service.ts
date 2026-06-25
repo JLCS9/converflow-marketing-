@@ -72,6 +72,23 @@ export class MailInboxService {
     return { unread };
   }
 
+  /** Unread INBOX count per accessible connection — to flag other mailboxes. */
+  async unreadByConnection(tenantId: string, actor: Actor): Promise<Record<string, number>> {
+    const conns = await this.connections.list(tenantId, actor);
+    const ids = conns.map((c) => c.id);
+    if (!ids.length) return {};
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const grouped = await tx.emailThread.groupBy({
+        by: ['connectionId'],
+        where: { connectionId: { in: ids }, folder: 'INBOX', unreadCount: { gt: 0 } },
+        _count: { _all: true },
+      });
+      const out: Record<string, number> = {};
+      for (const g of grouped) out[g.connectionId] = g._count._all;
+      return out;
+    });
+  }
+
   /** Recent unread INBOX threads across accessible mailboxes — "correo por contestar". */
   async pending(tenantId: string, actor: Actor, limit = 8) {
     const conns = await this.connections.list(tenantId, actor);

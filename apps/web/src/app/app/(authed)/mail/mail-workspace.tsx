@@ -24,6 +24,7 @@ import { useFeedback } from '@/components/ui/feedback';
 import { buttonClass } from '@/components/ui/primitives';
 import {
   InboxShell,
+  InboxSwitch,
   Avatar,
   DateSeparator,
   ContactPanel,
@@ -195,7 +196,15 @@ function dayLabel(iso: string): string {
 
 const list = (v: string[] | null | undefined): string => (Array.isArray(v) ? v.join(', ') : '');
 
-export function MailWorkspace({ connections }: { connections: MailboxOption[] }) {
+export function MailWorkspace({
+  connections,
+  mailUnread,
+  imPending,
+}: {
+  connections: MailboxOption[];
+  mailUnread: number;
+  imPending: number;
+}) {
   const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '');
   const [folder, setFolder] = useState('INBOX');
   const [threads, setThreads] = useState<ThreadRow[]>([]);
@@ -214,6 +223,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerTab, setComposerTab] = useState<'reply' | 'note'>('reply');
   const [loadingList, setLoadingList] = useState(true);
+  const [unreadByConn, setUnreadByConn] = useState<Record<string, number>>({});
   const msgScrollRef = useRef<HTMLDivElement>(null);
   const fb = useFeedback();
   const [modal, setModal] = useState<
@@ -254,6 +264,15 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   // Team list (assignee picker + name resolution), loaded once.
   useEffect(() => {
     apiFetch<TeamMember[]>('/mail/team').then(setTeam).catch(() => {});
+  }, []);
+
+  // Unread per mailbox → flag other mailboxes with pending mail.
+  useEffect(() => {
+    const poll = () =>
+      apiFetch<Record<string, number>>('/mail/unread-by-connection').then(setUnreadByConn).catch(() => {});
+    void poll();
+    const t = setInterval(poll, 20000);
+    return () => clearInterval(t);
   }, []);
 
   // Reply-lock heartbeat while a thread is open (anti-collision).
@@ -494,18 +513,34 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   // ---- column: filters (folders + mailbox) ----
   const filtersNode = (
     <div className="flex h-full flex-col">
-      {connections.length > 1 && (
-        <div className="border-b border-ink-100 p-2">
-          <select
-            value={connectionId}
-            onChange={(e) => switchMailbox(e.target.value)}
-            className="w-full rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-700"
-            aria-label="Buzón"
-          >
-            {connections.map((c) => (
-              <option key={c.id} value={c.id}>{c.fromAddress}</option>
-            ))}
-          </select>
+      <div className="border-b border-ink-100 p-2">
+        <InboxSwitch active="mail" mailCount={mailUnread} imCount={imPending} />
+      </div>
+      {connections.length > 1 ? (
+        <div className="space-y-0.5 border-b border-ink-100 p-1.5">
+          {connections.map((c) => {
+            const n = unreadByConn[c.id] ?? 0;
+            const on = c.id === connectionId;
+            return (
+              <button
+                key={c.id}
+                onClick={() => switchMailbox(c.id)}
+                title={c.fromAddress}
+                className={`flex w-full items-center justify-between gap-2 rounded px-2 py-1 text-left text-xs ${on ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'}`}
+              >
+                <span className="truncate">{c.fromAddress}</span>
+                {n > 0 && (
+                  <span className={`shrink-0 rounded-full px-1.5 text-[10px] font-semibold ${on ? 'bg-white/20 text-white' : 'bg-primary-600 text-white'}`}>
+                    {n > 99 ? '99+' : n}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="truncate border-b border-ink-100 px-2 py-1 text-[11px] text-ink-500" title={connections[0]?.fromAddress}>
+          {connections[0]?.fromAddress}
         </div>
       )}
       <nav className="flex-1 space-y-0.5 p-2">

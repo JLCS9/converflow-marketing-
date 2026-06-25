@@ -1,5 +1,4 @@
 import { serverApiFetch } from '@/lib/server-api';
-import { TabBar } from '@/components/ui/tab-bar';
 import { Inbox } from './inbox';
 
 interface ConvRow {
@@ -24,15 +23,5 @@ export default async function ConversationsPage() {
     serverApiFetch<{ unread: number }>('/mail/unread-count').catch(() => ({ unread: 0 })),
   ]);
 
-  const tabs = [
-    { href: '/app/mail', label: 'Correo', badge: mail.unread },
-    { href: '/app/conversations', label: 'Mensajería', badge: convCount.pending },
-  ];
-
-  return (
-    <div className="space-y-3">
-      <TabBar items={tabs} />
-      <Inbox initial={initial} />
-    </div>
-  );
+  return <Inbox initial={initial} mailUnread={mail.unread} imPending={convCount.pending} />;
 }
