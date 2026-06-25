@@ -100,6 +100,10 @@ export class SmtpImapDriver implements MailDriver {
     return out.reverse();
   }
 
+  // First connect imports a bounded slice of recent mail (not the whole mailbox,
+  // to avoid flooding) so the inbox isn't empty right after connecting.
+  private static readonly FIRST_IMPORT = 25;
+
   async fetchSince(cursor: number | null): Promise<{ messages: ParsedEmail[]; cursor: number }> {
     const client = this.imap();
     await client.connect();
@@ -108,36 +112,18 @@ export class SmtpImapDriver implements MailDriver {
       const lock = await client.getMailboxLock('INBOX');
       try {
         const mbox = client.mailbox;
-        const uidNext = mbox && typeof mbox !== 'boolean' ? mbox.uidNext : 1;
-        // First sync: don't import history — just set the cursor at the tip.
-        if (cursor == null || cursor <= 0) {
-          return { messages, cursor: Math.max(0, (uidNext ?? 1) - 1) };
-        }
-        let maxUid = cursor;
-        for await (const msg of client.fetch(
-          { uid: `${cursor + 1}:*` },
-          { source: true, uid: true },
-        )) {
+        const tip = (mbox && typeof mbox !== 'boolean' ? mbox.uidNext : 1) - 1;
+        if (tip <= 0) return { messages, cursor: 0 };
+
+        const firstSync = cursor == null || cursor <= 0;
+        const from = firstSync ? Math.max(1, tip - SmtpImapDriver.FIRST_IMPORT + 1) : cursor + 1;
+        if (!firstSync && from > tip) return { messages, cursor: tip }; // nothing new
+
+        let maxUid = firstSync ? tip : cursor;
+        for await (const msg of client.fetch({ uid: `${from}:${tip}` }, { source: true, uid: true })) {
           if (msg.uid && msg.uid > maxUid) maxUid = msg.uid;
           if (!msg.source) continue;
-          const p = await simpleParser(msg.source);
-          const sender = p.from?.value?.[0];
-          const refs = Array.isArray(p.references) ? p.references.join(' ') : (p.references ?? undefined);
-          messages.push({
-            rfcMessageId: p.messageId ?? undefined,
-            inReplyTo: p.inReplyTo ?? undefined,
-            references: refs,
-            fromAddress: sender?.address ?? undefined,
-            fromName: sender?.name || undefined,
-            to: addrs(p.to as never),
-            cc: addrs(p.cc as never),
-            subject: p.subject ?? undefined,
-            html: typeof p.html === 'string' ? p.html : undefined,
-            text: p.text ?? undefined,
-            snippet: (p.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 200),
-            date: p.date ?? undefined,
-            hasAttachments: (p.attachments?.length ?? 0) > 0,
-          });
+          messages.push(await this.parseToEmail(msg.source));
         }
         return { messages, cursor: maxUid };
       } finally {
@@ -146,5 +132,26 @@ export class SmtpImapDriver implements MailDriver {
     } finally {
       await client.logout().catch(() => undefined);
     }
+  }
+
+  private async parseToEmail(source: Buffer): Promise<ParsedEmail> {
+    const p = await simpleParser(source);
+    const sender = p.from?.value?.[0];
+    const refs = Array.isArray(p.references) ? p.references.join(' ') : (p.references ?? undefined);
+    return {
+      rfcMessageId: p.messageId ?? undefined,
+      inReplyTo: p.inReplyTo ?? undefined,
+      references: refs,
+      fromAddress: sender?.address ?? undefined,
+      fromName: sender?.name || undefined,
+      to: addrs(p.to as never),
+      cc: addrs(p.cc as never),
+      subject: p.subject ?? undefined,
+      html: typeof p.html === 'string' ? p.html : undefined,
+      text: p.text ?? undefined,
+      snippet: (p.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 200),
+      date: p.date ?? undefined,
+      hasAttachments: (p.attachments?.length ?? 0) > 0,
+    };
   }
 }
