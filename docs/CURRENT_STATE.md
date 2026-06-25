@@ -2,7 +2,7 @@
 
 > Single source of truth. Update after every sprint. If reading this in a new session, you can skip 100% of conversation history and rely on this file + the repo.
 
-**Last sync:** **MAIL MODULE rebuild en curso** (Fases 1, 2.1, 2.2, **2.3 + 2.4 COMPLETAS** en `main`; bandeja unificada dentro de Conversaciones→Correo, sidebar colapsable, ajustes en `/app/mail/ajustes`, búsqueda + adjuntos R2 — ver sección "MAIL MODULE — rebuild". Siguiente: Fase 2.5 buzón compartido). Antes de eso se hizo: feature de **Soporte/tickets**, **Campañas v1** (email/WhatsApp), **email pro** (compositor Tiptap, plantillas GrapesJS/MJML, adjuntos) — ese email es el "intento previo" que se está sustituyendo. **Incidente operativo resuelto**: disco del VPS por caché de build (limpiado + `daemon.json` con GC 10GB + rotación de logs); proyecto viejo `converflow` (Clerk) eliminado del VPS; saldo Anthropic agotado (recargado). **LIVE in prod**: Sprint 7 (WhatsApp Baileys 7), Sprint 8 (Conversaciones inbox with channel-aware reply: text/emoji/documents + one-click AI suggestion send), **Agents v1a/b/d** (self-service builder + playground + tool execution + AUTO mode with AI disclosure + rate limit), **Design v2** (fixed shell, icon sidebar with expandable groups, "Hoy" home), **Web chat** (embeddable widget + agent auto-reply), **Email channel** (Resend system path + tenant **self-service IMAP/SMTP** with encrypted creds + workers IMAP poller), **Lead→Cliente** auto-conversion. (Kit Digital product side complete since Sprint 5: 17/18, #18 user-owned.) **Pending**: Agents v1c RAG (needs embeddings key from user), historical metrics for Hoy home (sparklines/IA-semana), WhatsApp Cloud API upgrade.
+**Last sync:** **MAIL MODULE rebuild — Fase 2 COMPLETA** (Fases 1, 2.1–2.5 en `main`): bandeja unificada dentro de Conversaciones→Correo, sidebar colapsable, ajustes en `/app/mail/ajustes`, búsqueda, adjuntos R2 y buzón compartido (asignación/estado/notas/anti-colisión). ⚠️ deploy 2.5 = `db push` + `apply:rls`. Siguiente: Fase 3 (transaccional) → Fase 4 (campañas). Ver sección "MAIL MODULE — rebuild". Antes de eso se hizo: feature de **Soporte/tickets**, **Campañas v1** (email/WhatsApp), **email pro** (compositor Tiptap, plantillas GrapesJS/MJML, adjuntos) — ese email es el "intento previo" que se está sustituyendo. **Incidente operativo resuelto**: disco del VPS por caché de build (limpiado + `daemon.json` con GC 10GB + rotación de logs); proyecto viejo `converflow` (Clerk) eliminado del VPS; saldo Anthropic agotado (recargado). **LIVE in prod**: Sprint 7 (WhatsApp Baileys 7), Sprint 8 (Conversaciones inbox with channel-aware reply: text/emoji/documents + one-click AI suggestion send), **Agents v1a/b/d** (self-service builder + playground + tool execution + AUTO mode with AI disclosure + rate limit), **Design v2** (fixed shell, icon sidebar with expandable groups, "Hoy" home), **Web chat** (embeddable widget + agent auto-reply), **Email channel** (Resend system path + tenant **self-service IMAP/SMTP** with encrypted creds + workers IMAP poller), **Lead→Cliente** auto-conversion. (Kit Digital product side complete since Sprint 5: 17/18, #18 user-owned.) **Pending**: Agents v1c RAG (needs embeddings key from user), historical metrics for Hoy home (sparklines/IA-semana), WhatsApp Cloud API upgrade.
 
 > **Cross-tenant isolation:** ✅ FIXED & VERIFIED. API now connects as non-superuser
 > `converflow_app` so RLS is enforced. A new tenant sees ONLY its own data. This was
@@ -130,13 +130,16 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 > `smtp_imap`, shared/private), Fase 2.1 (modelo `EmailThread/EmailMessage/EmailAttachment` +
 > recepción/threading + scheduler ~90s), Fase 2.2 (bandeja UI lectura), **Fase 2.3 COMPLETA**
 > (To/Cc/Bcc, responder-a-todos, reenviar, "Nuevo correo" y **borradores con autosave**),
-> **Fase 2.4 COMPLETA** (búsqueda + **adjuntos R2** entrantes y salientes con descarga firmada).
+> **Fase 2.4 COMPLETA** (búsqueda + **adjuntos R2** entrantes y salientes con descarga firmada),
+> **Fase 2.5 COMPLETA** (buzón compartido: asignación, estado abierto/pendiente/cerrado, notas
+> internas del equipo y **anti-colisión** por lock con heartbeat). **Fase 2 cerrada.**
 > **Refactor UX (en `main`)**: la bandeja vive ahora **dentro de Conversaciones → pestaña Correo**
 > (`/app/mail` = bandeja unificada con selector de buzón; ya no hay flujo de 3 clics ni entradas
 > «Correo»/«Plantillas» en el navbar). Gestión de buzones + plantillas en **`/app/mail/ajustes`**
 > (botón ⚙️ de la pestaña). Sidebar **colapsable a solo-iconos** (persistido). Conversaciones = **solo IM**.
-> **SIGUIENTE**: **Fase 2.5** (buzón compartido:
-> asignación/estado/notas/anti-colisión) → **Fase 3** (transaccional) → **Fase 4** (campañas con ESP).
+> **SIGUIENTE**: **Fase 3** (transaccional: evento→plantilla→conexión + log/reintentos) →
+> **Fase 4** (campañas con ESP/Resend + dominio verificado por tenant). ⚠️ Deploy 2.5 requiere
+> `prisma db push` + `apply:rls` (tabla `email_thread_notes` + columnas de lock en `email_threads`).
 > **PENDIENTE TRANSVERSAL**: borrar el intento previo (modelos/módulos viejos `EmailConnection` por-bot,
 > `campaigns`, `email-templates`, email en `conversations`) **tras** contar datos en prod y **migrar
 > `Suppression` (legal)**. Conteo aún no hecho. Todo lo nuevo coexiste con lo viejo (aditivo).
@@ -219,7 +222,18 @@ separado de IM con modelos propios (`EmailThread`/`EmailMessage`) — Fase 2.
   staged; borradores reconcilian por `storageKey`; `sendDraft` adjunta los del borrador. UI: botón
   «Adjuntar» (multi, `fetch` crudo porque `apiFetch` fuerza JSON), chips con tamaño/quitar, descarga
   al pulsar el adjunto del hilo. `getThread` expone `storageKey` para recargar borradores sin perder adjuntos.
-- **Pendiente 2.5**: compartido (asignación/estado/notas/anti-colisión).
+**Fase 2.5 — buzón compartido (COMPLETA, LIVE en `main`)**:
+- Schema: `EmailThread.lockedByUserId`/`lockedAt` (lock anti-colisión); modelo `EmailThreadNote`
+  (notas internas del equipo, nunca se envían) + RLS. ⚠️ deploy: `db push` + `apply:rls`.
+- `MailSharedService`: `listTeam`, `assign`, `setStatus` (OPEN/PENDING/CLOSED), notas
+  (list/add/delete — borra solo autor u OWNER), y lock con TTL 60s (`claim` refresca/avisa de
+  colisión, `release` libera). 4 tests (24 ok en el módulo).
+- Rutas (perm `conversations`): `GET /mail/team`, `POST /mail/threads/:id/assign`,
+  `/status`, `GET|POST /mail/threads/:id/notes`, `DELETE /mail/notes/:id`,
+  `POST /mail/threads/:id/claim` y `/release`.
+- Web: en el hilo, selectores de Asignado y Estado, banner «X está respondiendo» (heartbeat 30s
+  + release al salir), panel de notas internas; en la lista, iniciales del asignado + badge de estado.
+- **SIGUIENTE — Fase 3** (transaccional) y **Fase 4** (campañas con ESP).
 
 ## CRITICAL lessons (don't repeat these bugs)
 
