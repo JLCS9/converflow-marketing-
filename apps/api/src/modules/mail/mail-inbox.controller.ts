@@ -50,6 +50,11 @@ export class MailInboxController {
     return this.inbox.unreadCount(user.tenantId, this.actor(user));
   }
 
+  @Get('pending')
+  pending(@CurrentUser() user: AuthenticatedUser) {
+    return this.inbox.pending(user.tenantId, this.actor(user));
+  }
+
   @Get('connections/:id/folder-counts')
   folderCounts(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.inbox.folderCounts(user.tenantId, id, this.actor(user));

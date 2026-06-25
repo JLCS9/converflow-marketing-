@@ -8,6 +8,7 @@ import {
   type ConvRow,
   type TaskPreview,
   type DocPreview,
+  type PendingMailRow,
 } from './home-dashboard';
 
 export const metadata = { title: 'Inicio' };
@@ -25,7 +26,7 @@ const EMPTY_SERIES: Series = {
 };
 
 export default async function TodayHome() {
-  const [overview, series, alerts, convs, tasks, docs, mail, bots, agents, googleStatus, dash] =
+  const [overview, series, alerts, convs, tasks, docs, mail, pendingMail, bots, agents, googleStatus, dash] =
     await Promise.all([
       serverApiFetch<Overview>('/reports/overview'),
       serverApiFetch<Series>('/reports/series').catch(() => EMPTY_SERIES),
@@ -34,6 +35,7 @@ export default async function TodayHome() {
       serverApiFetch<TaskPreview[]>('/tasks?status=PENDING').catch(() => [] as TaskPreview[]),
       serverApiFetch<DocPreview[]>('/documents').catch(() => [] as DocPreview[]),
       serverApiFetch<{ unread: number }>('/mail/unread-count').catch(() => ({ unread: 0 })),
+      serverApiFetch<PendingMailRow[]>('/mail/pending').catch(() => [] as PendingMailRow[]),
       serverApiFetch<{ id: string }[]>('/bots').catch(() => [] as { id: string }[]),
       serverApiFetch<{ id: string }[]>('/agents').catch(() => [] as { id: string }[]),
       serverApiFetch<{ connected: boolean }>('/integrations/google/status').catch(() => ({ connected: false })),
@@ -49,7 +51,7 @@ export default async function TodayHome() {
 
   return (
     <HomeDashboard
-      data={{ overview, series, alerts, convs, tasks, docs, mailUnread: mail.unread }}
+      data={{ overview, series, alerts, convs, tasks, docs, mailUnread: mail.unread, pendingMail }}
       steps={steps}
       initialWidgets={dash.widgets}
     />

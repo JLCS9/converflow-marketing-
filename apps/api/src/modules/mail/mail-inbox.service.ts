@@ -66,6 +66,28 @@ export class MailInboxService {
     return { unread };
   }
 
+  /** Recent unread INBOX threads across accessible mailboxes — "correo por contestar". */
+  async pending(tenantId: string, actor: Actor, limit = 8) {
+    const conns = await this.connections.list(tenantId, actor);
+    const ids = conns.map((c) => c.id);
+    if (!ids.length) return [];
+    return this.prisma.withTenant(tenantId, (tx) =>
+      tx.emailThread.findMany({
+        where: { connectionId: { in: ids }, folder: 'INBOX', unreadCount: { gt: 0 } },
+        orderBy: { lastMessageAt: 'desc' },
+        take: limit,
+        select: {
+          id: true,
+          subject: true,
+          snippet: true,
+          participants: true,
+          unreadCount: true,
+          lastMessageAt: true,
+        },
+      }),
+    );
+  }
+
   /** Full-text-ish search across all folders of a connection (subject/snippet/body/sender). */
   async search(tenantId: string, connectionId: string, actor: Actor, q: string) {
     await this.connections.assertAccess(tenantId, connectionId, actor);

@@ -47,6 +47,7 @@ export interface AlertItem { id: string; type: string; severity: 'INFO' | 'WARNI
 export interface ConvRow { id: string; contactName: string | null; contactPhone: string | null; contactJid: string; lastMessagePreview: string | null; assignedUserId: string | null }
 export interface TaskPreview { id: string; title: string; dueAt: string | null; ownerId: string | null }
 export interface DocPreview { id: string; name: string; sizeBytes: number }
+export interface PendingMailRow { id: string; subject: string | null; snippet: string | null; participants: string[] | null; unreadCount: number; lastMessageAt: string | null }
 
 export interface DashboardData {
   overview: Overview;
@@ -56,34 +57,34 @@ export interface DashboardData {
   tasks: TaskPreview[];
   docs: DocPreview[];
   mailUnread: number;
+  pendingMail: PendingMailRow[];
 }
 
 // ---- widget registry ----
 
-type Size = 'sm' | 'md' | 'lg';
+// Two-column grid: cards are 'half' (one column) or 'full' (both columns).
+type Size = 'sm' | 'lg';
 interface WidgetItem { id: string; size: Size }
 interface WidgetDef { id: string; title: string; perm?: PermissionModule; defaultOn: boolean; size: Size }
 
 const WIDGETS: WidgetDef[] = [
-  { id: 'alerts', title: 'Alertas', defaultOn: true, size: 'md' },
-  { id: 'my-tasks', title: 'Mis tareas', perm: 'crm', defaultOn: true, size: 'md' },
-  { id: 'my-conversations', title: 'Mis conversaciones', perm: 'conversations', defaultOn: true, size: 'md' },
-  { id: 'unread-mail', title: 'Correo sin leer', perm: 'conversations', defaultOn: true, size: 'sm' },
+  { id: 'alerts', title: 'Alertas', defaultOn: true, size: 'sm' },
+  { id: 'pending-mail', title: 'Correo por contestar', perm: 'conversations', defaultOn: true, size: 'sm' },
+  { id: 'my-tasks', title: 'Mis tareas', perm: 'crm', defaultOn: true, size: 'sm' },
+  { id: 'my-conversations', title: 'Mis conversaciones', perm: 'conversations', defaultOn: true, size: 'sm' },
+  { id: 'unread-mail', title: 'Correo sin leer', perm: 'conversations', defaultOn: false, size: 'sm' },
   { id: 'kpis', title: 'Indicadores (KPIs)', perm: 'crm', defaultOn: true, size: 'lg' },
-  { id: 'queue', title: 'Tu cola de hoy', defaultOn: false, size: 'md' },
+  { id: 'queue', title: 'Tu cola de hoy', defaultOn: false, size: 'sm' },
   { id: 'ai-week', title: 'Tu IA esta semana', perm: 'agents', defaultOn: true, size: 'lg' },
-  { id: 'funnel', title: 'Embudo de leads', perm: 'crm', defaultOn: true, size: 'md' },
+  { id: 'funnel', title: 'Embudo de leads', perm: 'crm', defaultOn: true, size: 'sm' },
   { id: 'sources', title: 'Leads por fuente', perm: 'crm', defaultOn: false, size: 'sm' },
   { id: 'recent-docs', title: 'Documentos recientes', perm: 'documents', defaultOn: false, size: 'sm' },
 ];
 
-// Literal span classes so Tailwind JIT keeps them. Grid base: md:2 cols, xl:3 cols.
-const SIZE_SPAN: Record<Size, string> = {
-  sm: '',
-  md: 'md:col-span-2 xl:col-span-2',
-  lg: 'md:col-span-2 xl:col-span-3',
-};
-const NEXT_SIZE: Record<Size, Size> = { sm: 'md', md: 'lg', lg: 'sm' };
+// Literal span classes so Tailwind JIT keeps them. Grid base: md:2 cols.
+const SIZE_SPAN: Record<Size, string> = { sm: '', lg: 'md:col-span-2' };
+const NEXT_SIZE: Record<Size, Size> = { sm: 'lg', lg: 'sm' };
+const SIZE_LABEL: Record<Size, string> = { sm: 'Media', lg: 'Ancha' };
 
 // ---- helpers ----
 
@@ -152,13 +153,12 @@ export function HomeDashboard({
   const availableIds = available.map((w) => w.id);
 
   const defaults: WidgetItem[] = available.filter((w) => w.defaultOn).map((w) => ({ id: w.id, size: w.size }));
-  const coerceSize = (s: string | undefined, fallback: Size): Size =>
-    s === 'sm' || s === 'md' || s === 'lg' ? s : fallback;
+  const coerceSize = (s: string | undefined, _fallback: Size): Size => (s === 'lg' ? 'lg' : 'sm');
   const start: WidgetItem[] =
     initialWidgets && initialWidgets.length
       ? initialWidgets
           .filter((w) => availableIds.includes(w.id))
-          .map((w) => ({ id: w.id, size: coerceSize(w.size, WIDGETS.find((d) => d.id === w.id)?.size ?? 'md') }))
+          .map((w) => ({ id: w.id, size: coerceSize(w.size, WIDGETS.find((d) => d.id === w.id)?.size ?? 'sm') }))
       : defaults;
 
   const [items, setItems] = useState<WidgetItem[]>(start);
@@ -288,6 +288,32 @@ export function HomeDashboard({
                         {c.assignedUserId === session.userId && <span className="shrink-0 rounded bg-primary-100 px-1 text-[9px] font-medium text-primary-700">Mía</span>}
                       </div>
                       {c.lastMessagePreview && <div className="truncate text-xs text-ink-500">{c.lastMessagePreview}</div>}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        );
+      case 'pending-mail':
+        return (
+          <Card className="h-full">
+            <CardTitle right={<Link href="/app/mail" className="text-xs text-primary-700 hover:underline">Bandeja →</Link>}>
+              <Mail size={15} strokeWidth={1.75} className="text-primary-600" /> Correo por contestar
+            </CardTitle>
+            {data.pendingMail.length === 0 ? (
+              <p className="text-sm text-ink-500">Sin correos pendientes. 🎉</p>
+            ) : (
+              <ul className="space-y-1">
+                {data.pendingMail.map((t) => (
+                  <li key={t.id}>
+                    <Link href="/app/mail" className="block rounded p-1.5 hover:bg-ink-100/50">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-medium text-ink-900">{(t.participants && t.participants[0]) || 'Contacto'}</span>
+                        {t.unreadCount > 0 && <span className="shrink-0 rounded-full bg-primary-600 px-1.5 text-[10px] font-semibold text-white">{t.unreadCount}</span>}
+                      </div>
+                      <div className="truncate text-xs text-ink-600">{t.subject || '(sin asunto)'}</div>
+                      {t.snippet && <div className="truncate text-xs text-ink-400">{t.snippet}</div>}
                     </Link>
                   </li>
                 ))}
@@ -471,7 +497,7 @@ export function HomeDashboard({
           No hay tarjetas activas. Pulsa <strong>Editar panel</strong> para añadir alguna.
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {items.map((it) => (
             <div
               key={it.id}
@@ -486,8 +512,8 @@ export function HomeDashboard({
                   <div className="flex items-center gap-2 rounded-t-lg bg-primary-50 px-2 py-1 text-xs text-ink-600">
                     <GripVertical size={14} className="cursor-move text-ink-400" />
                     <span className="flex-1 font-medium">{defOf(it.id)?.title ?? it.id}</span>
-                    <button type="button" onClick={() => cycleSize(it.id)} className="rounded border border-ink-200 bg-white px-1.5 font-mono hover:bg-ink-100" title="Tamaño">
-                      {it.size.toUpperCase()}
+                    <button type="button" onClick={() => cycleSize(it.id)} className="rounded border border-ink-200 bg-white px-1.5 hover:bg-ink-100" title="Tamaño">
+                      {SIZE_LABEL[it.size]}
                     </button>
                     <button type="button" onClick={() => removeWidget(it.id)} className="rounded p-0.5 text-ink-400 hover:text-red-600" aria-label="Ocultar"><X size={14} /></button>
                   </div>
