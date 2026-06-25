@@ -1,101 +1,48 @@
 import Link from 'next/link';
+import { Settings } from 'lucide-react';
 import { serverApiFetch } from '@/lib/server-api';
-import { Card, Badge, buttonClass } from '@/components/ui/primitives';
-import { PageHeader } from '@/components/ui/page-header';
+import { buttonClass } from '@/components/ui/primitives';
 import { TabBar } from '@/components/ui/tab-bar';
 import { EmptyState } from '@/components/ui/empty-state';
-import { MailConnectionActions } from './mail-connection-actions';
+import { MailWorkspace, type MailboxOption } from './mail-workspace';
 
 const MAIL_TABS = [
   { href: '/app/conversations', label: 'Mensajería' },
   { href: '/app/mail', label: 'Correo' },
 ];
 
-interface ConnRow {
-  id: string;
-  fromAddress: string;
-  displayName: string | null;
-  driver: string;
-  visibility: string;
-  status: string;
-  lastError: string | null;
-  lastSyncedAt: string | null;
-}
+export const metadata = { title: 'Correo' };
 
-export const metadata = { title: 'Correo · Buzones' };
+const settingsAction = (
+  <Link
+    href="/app/mail/ajustes"
+    className={buttonClass('ghost', 'gap-1.5 px-2 py-1 text-xs')}
+    title="Buzones y plantillas"
+  >
+    <Settings size={14} strokeWidth={1.75} aria-hidden /> Ajustes
+  </Link>
+);
 
-const STATUS: Record<string, { label: string; color: 'gray' | 'green' | 'red' | 'yellow' }> = {
-  PENDING: { label: 'Pendiente', color: 'yellow' },
-  CONNECTED: { label: 'Conectado', color: 'green' },
-  ERROR: { label: 'Error', color: 'red' },
-};
-
-export default async function MailConnectionsPage() {
-  const conns = await serverApiFetch<ConnRow[]>('/mail/connections').catch(() => [] as ConnRow[]);
+export default async function MailPage() {
+  const conns = await serverApiFetch<MailboxOption[]>('/mail/connections').catch(
+    () => [] as MailboxOption[],
+  );
 
   return (
-    <div className="space-y-6">
-      <TabBar items={MAIL_TABS} />
-      <PageHeader
-        title="Correo · Buzones"
-        description="Conecta los buzones del equipo (compartidos) o tu buzón privado. Módulo independiente — no depende de los bots."
-        action={
-          <Link href="/app/mail/new" className={buttonClass('primary')}>
-            + Conectar buzón
-          </Link>
-        }
-      />
-
+    <div className="space-y-3">
+      <TabBar items={MAIL_TABS} action={settingsAction} />
       {conns.length === 0 ? (
         <EmptyState
           title="Sin buzones conectados"
-          description="Conecta tu primer buzón (Gmail, Outlook, IONOS o cualquier IMAP/SMTP) para enviar y recibir desde Converflow."
+          description="Conecta tu primer buzón (Gmail, Outlook, IONOS o cualquier IMAP/SMTP) para enviar y recibir correo desde Converflow."
           cta={
-            <Link href="/app/mail/new" className={buttonClass('primary', 'text-xs')}>
+            <Link href="/app/mail/ajustes" className={buttonClass('primary', 'text-xs')}>
               + Conectar buzón
             </Link>
           }
         />
       ) : (
-        <Card className="overflow-x-auto p-0">
-          <table className="w-full text-sm">
-            <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
-              <tr>
-                <th className="px-4 py-3">Buzón</th>
-                <th className="px-4 py-3">Visibilidad</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {conns.map((c) => {
-                const st = STATUS[c.status] ?? { label: c.status, color: 'gray' as const };
-                return (
-                  <tr key={c.id} className="border-b border-ink-100 last:border-0 hover:bg-ink-100/40">
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{c.fromAddress}</div>
-                      {c.displayName && <div className="text-xs text-ink-500">{c.displayName}</div>}
-                    </td>
-                    <td className="px-4 py-3 text-xs">
-                      {c.visibility === 'PRIVATE' ? '🔒 Privado' : '👥 Compartido'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge color={st.color}>{st.label}</Badge>
-                      {c.status === 'ERROR' && c.lastError && (
-                        <div className="mt-0.5 max-w-xs truncate text-[11px] text-red-600" title={c.lastError}>
-                          {c.lastError}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <MailConnectionActions id={c.id} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </Card>
+        <MailWorkspace connections={conns} />
       )}
     </div>
   );

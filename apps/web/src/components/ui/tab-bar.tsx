@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
 export interface TabItem {
@@ -13,6 +14,8 @@ export interface TabItem {
 interface Props {
   items: TabItem[];
   className?: string;
+  /** Optional right-aligned slot (e.g. a settings button). */
+  action?: ReactNode;
 }
 
 /**
@@ -20,13 +23,13 @@ interface Props {
  * pathname starting with `href + "/"` (so detail pages keep their parent tab
  * highlighted).
  */
-export function TabBar({ items, className }: Props) {
+export function TabBar({ items, className, action }: Props) {
   const pathname = usePathname() ?? '';
   return (
     <nav
       aria-label="Secciones"
       className={cn(
-        '-mx-4 -mt-2 mb-2 flex gap-1 overflow-x-auto border-b border-ink-100 px-4 pb-0 sm:mx-0 sm:px-0',
+        '-mx-4 -mt-2 mb-2 flex items-center gap-1 overflow-x-auto border-b border-ink-100 px-4 pb-0 sm:mx-0 sm:px-0',
         className,
       )}
     >
@@ -64,6 +67,7 @@ export function TabBar({ items, className }: Props) {
           </Link>
         );
       })}
+      {action && <div className="ml-auto flex shrink-0 items-center pb-1 pl-2">{action}</div>}
     </nav>
   );
 }

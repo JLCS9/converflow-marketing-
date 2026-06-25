@@ -1,10 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { buttonClass } from '@/components/ui/primitives';
 import { RichEmailEditor } from '@/components/ui/rich-email-editor';
+
+export interface MailboxOption {
+  id: string;
+  fromAddress: string;
+  displayName: string | null;
+}
 
 interface ThreadRow {
   id: string;
@@ -62,7 +67,8 @@ function fmt(iso: string | null): string {
   return new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export function MailInbox({ connectionId, fromAddress }: { connectionId: string; fromAddress: string }) {
+export function MailWorkspace({ connections }: { connections: MailboxOption[] }) {
+  const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '');
   const [folder, setFolder] = useState('INBOX');
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -74,11 +80,12 @@ export function MailInbox({ connectionId, fromAddress }: { connectionId: string;
   const [replyError, setReplyError] = useState<string | null>(null);
 
   const loadThreads = useCallback(
-    async (f: string) => {
+    async (conn: string, f: string) => {
+      if (!conn) return;
       try {
         const [t, c] = await Promise.all([
-          apiFetch<ThreadRow[]>(`/mail/connections/${connectionId}/threads?folder=${f}`),
-          apiFetch<Record<string, number>>(`/mail/connections/${connectionId}/folder-counts`).catch(() => ({})),
+          apiFetch<ThreadRow[]>(`/mail/connections/${conn}/threads?folder=${f}`),
+          apiFetch<Record<string, number>>(`/mail/connections/${conn}/folder-counts`).catch(() => ({})),
         ]);
         setThreads(t);
         setCounts(c);
@@ -86,19 +93,27 @@ export function MailInbox({ connectionId, fromAddress }: { connectionId: string;
         /* keep last */
       }
     },
-    [connectionId],
+    [],
   );
 
   useEffect(() => {
-    void loadThreads(folder);
-    const t = setInterval(() => void loadThreads(folder), 15000);
+    void loadThreads(connectionId, folder);
+    const t = setInterval(() => void loadThreads(connectionId, folder), 15000);
     return () => clearInterval(t);
-  }, [folder, loadThreads]);
+  }, [connectionId, folder, loadThreads]);
 
   function resetReply() {
     setReplyHtml('');
     setReplyError(null);
     setReplyKey((k) => k + 1);
+  }
+
+  function switchMailbox(id: string) {
+    setConnectionId(id);
+    setFolder('INBOX');
+    setSelectedId(null);
+    setDetail(null);
+    resetReply();
   }
 
   async function sendReply() {
@@ -110,7 +125,7 @@ export function MailInbox({ connectionId, fromAddress }: { connectionId: string;
       resetReply();
       const d = await apiFetch<Detail>(`/mail/threads/${selectedId}`);
       setDetail(d);
-      void loadThreads(folder);
+      void loadThreads(connectionId, folder);
     } catch (e) {
       setReplyError(e instanceof Error ? e.message : 'No se pudo enviar');
     } finally {
@@ -126,7 +141,7 @@ export function MailInbox({ connectionId, fromAddress }: { connectionId: string;
       const d = await apiFetch<Detail>(`/mail/threads/${id}`);
       setDetail(d);
       await apiFetch(`/mail/threads/${id}/read`, { method: 'POST' }).catch(() => {});
-      void loadThreads(folder);
+      void loadThreads(connectionId, folder);
     } catch {
       /* ignore */
     }
@@ -139,7 +154,7 @@ export function MailInbox({ connectionId, fromAddress }: { connectionId: string;
       await apiFetch(`/mail/threads/${selectedId}/move`, { method: 'POST', json: { folder: toFolder } });
       setSelectedId(null);
       setDetail(null);
-      await loadThreads(folder);
+      await loadThreads(connectionId, folder);
     } finally {
       setBusy(false);
     }
@@ -150,14 +165,31 @@ export function MailInbox({ connectionId, fromAddress }: { connectionId: string;
     await apiFetch(`/mail/threads/${selectedId}/unread`, { method: 'POST' }).catch(() => {});
     setSelectedId(null);
     setDetail(null);
-    void loadThreads(folder);
+    void loadThreads(connectionId, folder);
   }
 
   return (
-    <div className="flex h-[calc(100vh-11rem)] gap-3">
-      {/* Folders */}
-      <div className="w-44 shrink-0 space-y-1 overflow-y-auto rounded-lg border border-ink-100 bg-white p-2">
-        <Link href="/app/mail" className="mb-2 block px-2 text-xs text-primary-700 hover:underline">← Buzones</Link>
+    <div className="flex h-[calc(100vh-9rem)] gap-3">
+      {/* Folders + mailbox selector */}
+      <div className="flex w-44 shrink-0 flex-col gap-1 overflow-y-auto rounded-lg border border-ink-100 bg-white p-2">
+        {connections.length > 1 ? (
+          <select
+            value={connectionId}
+            onChange={(e) => switchMailbox(e.target.value)}
+            className="mb-1 w-full rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-700"
+            aria-label="Buzón"
+          >
+            {connections.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.fromAddress}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div className="mb-1 truncate px-1 text-[11px] text-ink-500" title={connections[0]?.fromAddress}>
+            {connections[0]?.fromAddress}
+          </div>
+        )}
         {FOLDERS.map((f) => (
           <button
             key={f.key}
@@ -174,7 +206,6 @@ export function MailInbox({ connectionId, fromAddress }: { connectionId: string;
 
       {/* Thread list */}
       <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg border border-ink-100 bg-white">
-        <div className="border-b border-ink-100 p-2 text-xs text-ink-500 truncate">{fromAddress}</div>
         <div className="flex-1 overflow-y-auto">
           {threads.length === 0 ? (
             <p className="p-4 text-sm text-ink-500">
