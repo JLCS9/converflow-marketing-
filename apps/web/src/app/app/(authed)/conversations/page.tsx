@@ -1,5 +1,7 @@
+import Link from 'next/link';
+import { Settings } from 'lucide-react';
 import { serverApiFetch } from '@/lib/server-api';
-import { PageHeader } from '@/components/ui/page-header';
+import { buttonClass } from '@/components/ui/primitives';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Inbox } from './inbox';
 
@@ -23,16 +25,22 @@ interface ConvRow {
 
 export const metadata = { title: 'Conversaciones' };
 
+const settingsAction = (
+  <Link
+    href="/app/bots"
+    className={buttonClass('ghost', 'gap-1.5 px-2 py-1 text-xs')}
+    title="Canales conectados (WhatsApp, Web Chat)"
+  >
+    <Settings size={14} strokeWidth={1.75} aria-hidden /> Canales
+  </Link>
+);
+
 export default async function ConversationsPage() {
   const initial = await serverApiFetch<ConvRow[]>('/conversations?status=PENDING');
 
   return (
-    <div className="space-y-4">
-      <TabBar items={MAIL_TABS} />
-      <PageHeader
-        title="Conversaciones"
-        description="Mensajería instantánea: WhatsApp y Web Chat. El correo vive en su propia sección «Correo». Las marcadas sin responder esperan tu contestación."
-      />
+    <div className="space-y-3">
+      <TabBar items={MAIL_TABS} action={settingsAction} />
       <Inbox initial={initial} />
     </div>
   );
