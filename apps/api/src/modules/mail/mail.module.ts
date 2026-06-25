@@ -5,6 +5,7 @@ import { MailConnectionsService } from './mail-connections.service.js';
 import { MailIngestService } from './mail-ingest.service.js';
 import { MailSyncService } from './mail-sync.service.js';
 import { MailInboxService } from './mail-inbox.service.js';
+import { MailComposeService } from './mail-compose.service.js';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 
 /**
@@ -20,6 +21,7 @@ import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
     MailIngestService,
     MailSyncService,
     MailInboxService,
+    MailComposeService,
     TenantAuthGuard,
   ],
   exports: [MailConnectionsService, MailIngestService, MailSyncService],

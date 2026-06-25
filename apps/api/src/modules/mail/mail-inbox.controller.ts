@@ -8,13 +8,17 @@ import {
   type AuthenticatedUser,
 } from '../../common/decorators/current-user.decorator.js';
 import { MailInboxService } from './mail-inbox.service.js';
+import { MailComposeService } from './mail-compose.service.js';
 
 @ApiTags('mail/inbox')
 @UseGuards(TenantAuthGuard, PermissionsGuard)
 @RequirePerm('conversations')
 @Controller('mail')
 export class MailInboxController {
-  constructor(private readonly inbox: MailInboxService) {}
+  constructor(
+    private readonly inbox: MailInboxService,
+    private readonly compose: MailComposeService,
+  ) {}
 
   private actor(user: AuthenticatedUser) {
     return { userId: user.userId, role: user.role };
@@ -56,5 +60,23 @@ export class MailInboxController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.inbox.move(user.tenantId, id, this.actor(user), body?.folder ?? '');
+  }
+
+  @Post('threads/:id/reply')
+  reply(
+    @Param('id') id: string,
+    @Body() body: { html?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.compose.reply(user.tenantId, id, this.actor(user), body?.html ?? '');
+  }
+
+  @Post('connections/:id/compose')
+  composeNew(
+    @Param('id') id: string,
+    @Body() body: { to?: string; subject?: string; html?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.compose.compose(user.tenantId, id, this.actor(user), body ?? {});
   }
 }

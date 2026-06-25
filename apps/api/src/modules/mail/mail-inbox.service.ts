@@ -26,9 +26,17 @@ export class MailInboxService {
   async listThreads(tenantId: string, connectionId: string, actor: Actor, folderRaw?: string) {
     await this.connections.assertAccess(tenantId, connectionId, actor);
     const folder = asFolder(folderRaw);
+    // INBOX/ARCHIVE/SPAM/TRASH are thread buckets. SENT/DRAFTS are message-level
+    // (a thread "appears" in them if it has a matching message).
+    const where =
+      folder === 'SENT'
+        ? { connectionId, messages: { some: { direction: 'OUT' as const, isDraft: false } } }
+        : folder === 'DRAFTS'
+          ? { connectionId, messages: { some: { isDraft: true } } }
+          : { connectionId, folder };
     return this.prisma.withTenant(tenantId, (tx) =>
       tx.emailThread.findMany({
-        where: { connectionId, folder },
+        where,
         orderBy: { lastMessageAt: 'desc' },
         take: 50,
         select: {
