@@ -13,6 +13,8 @@ export interface MailSendInput {
   html?: string;
   inReplyTo?: string;
   references?: string;
+  /** Files to attach. `path` is a URL (presigned R2) nodemailer fetches. */
+  attachments?: { filename: string; path: string }[];
 }
 
 /** A parsed inbound message summary (Fase 1 test-sync; full ingest is Fase 2). */
@@ -40,6 +42,13 @@ export interface ParsedEmail {
   snippet?: string;
   date?: Date;
   hasAttachments: boolean;
+  attachments?: {
+    filename?: string;
+    mimeType?: string;
+    content?: Buffer;
+    inline?: boolean;
+    contentId?: string;
+  }[];
 }
 
 export interface MailDriver {

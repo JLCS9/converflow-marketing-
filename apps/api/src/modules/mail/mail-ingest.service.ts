@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { sanitizeEmailHtml } from '../../common/utils/email-html.js';
 import type { ParsedEmail } from './drivers/index.js';
+import { MailAttachmentsService } from './mail-attachments.service.js';
 
 export function normalizeSubject(subject?: string): string {
   return (subject ?? '').replace(/^((re|rv|fwd|fw)\s*:\s*)+/i, '').trim();
@@ -20,10 +21,13 @@ function refIds(email: ParsedEmail): string[] {
  */
 @Injectable()
 export class MailIngestService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly attachments: MailAttachmentsService,
+  ) {}
 
   async ingest(tenantId: string, connectionId: string, email: ParsedEmail) {
-    return this.prisma.withTenant(tenantId, async (tx) => {
+    const result = await this.prisma.withTenant(tenantId, async (tx) => {
       // 1) Dedupe by Message-ID (per connection).
       if (email.rfcMessageId) {
         const dupe = await tx.emailMessage.findFirst({
@@ -112,5 +116,15 @@ export class MailIngestService {
 
       return { created: true, threadId, messageId: message.id };
     });
+
+    // Store attachments outside the DB call (S3 uploads), only for new messages.
+    if (result.created && email.attachments?.length) {
+      try {
+        await this.attachments.storeInbound(tenantId, result.messageId, email.attachments);
+      } catch {
+        /* attachments are best-effort; the message is already saved */
+      }
+    }
+    return result;
   }
 }

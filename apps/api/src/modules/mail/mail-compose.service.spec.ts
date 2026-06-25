@@ -30,7 +30,11 @@ function makeService(tx: Record<string, unknown>) {
     withTenant: (_t: string, fn: (tx: unknown) => unknown) => fn(tx),
   } as never;
   const connections = { assertAccess: vi.fn().mockResolvedValue(CONN) } as never;
-  return new MailComposeService(prisma, connections);
+  const attachments = {
+    presignForSend: vi.fn().mockResolvedValue([]),
+    presignForMessage: vi.fn().mockResolvedValue([]),
+  } as never;
+  return new MailComposeService(prisma, connections, attachments);
 }
 
 const actor = { userId: 'u1', role: 'OWNER' };

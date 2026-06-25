@@ -5,6 +5,7 @@ import { decryptSecret } from '../../common/utils/crypto.js';
 import { sanitizeEmailHtml, htmlToText } from '../../common/utils/email-html.js';
 import { createMailDriver, type DriverConfig } from './drivers/index.js';
 import { MailConnectionsService } from './mail-connections.service.js';
+import { MailAttachmentsService, type StagedAttachment } from './mail-attachments.service.js';
 import { normalizeSubject } from './mail-ingest.service.js';
 
 interface Actor {
@@ -59,6 +60,7 @@ export class MailComposeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly connections: MailConnectionsService,
+    private readonly attachments: MailAttachmentsService,
   ) {}
 
   /** Reply to a thread. To defaults to the last inbound sender; cc/bcc optional (reply-all = caller sets cc). */
@@ -66,7 +68,13 @@ export class MailComposeService {
     tenantId: string,
     threadId: string,
     actor: Actor,
-    input: { html?: string; to?: string | string[]; cc?: string | string[]; bcc?: string | string[] },
+    input: {
+      html?: string;
+      to?: string | string[];
+      cc?: string | string[];
+      bcc?: string | string[];
+      attachments?: StagedAttachment[];
+    },
   ) {
     const safeHtml = sanitizeEmailHtml((input.html ?? '').trim());
     if (!safeHtml || safeHtml === '<p></p>') throw new BadRequestError('El mensaje está vacío');
@@ -99,7 +107,8 @@ export class MailComposeService {
     const inReplyTo = last?.rfcMessageId ?? undefined;
     const references = [last?.references, last?.rfcMessageId].filter(Boolean).join(' ') || undefined;
 
-    const sentId = await this.send(tenantId, conn, { to, cc, bcc, subject, html: safeHtml, inReplyTo, references });
+    const files = await this.attachments.presignForSend(input.attachments);
+    const sentId = await this.send(tenantId, conn, { to, cc, bcc, subject, html: safeHtml, inReplyTo, references, attachments: files });
 
     return this.recordOutbound(tenantId, {
       threadId,
@@ -112,6 +121,7 @@ export class MailComposeService {
       html: safeHtml,
       inReplyTo,
       references,
+      attachments: input.attachments,
       bumpThread: true,
     });
   }
@@ -121,7 +131,14 @@ export class MailComposeService {
     tenantId: string,
     connectionId: string,
     actor: Actor,
-    input: { to?: string | string[]; cc?: string | string[]; bcc?: string | string[]; subject?: string; html?: string },
+    input: {
+      to?: string | string[];
+      cc?: string | string[];
+      bcc?: string | string[];
+      subject?: string;
+      html?: string;
+      attachments?: StagedAttachment[];
+    },
   ) {
     const to = parseAddressList(input.to);
     if (!to.length) throw new BadRequestError('Destinatario inválido');
@@ -135,7 +152,8 @@ export class MailComposeService {
 
     const thread = await this.createThread(tenantId, connectionId, subject, [...to, ...cc], safeHtml);
 
-    const sentId = await this.send(tenantId, conn, { to, cc, bcc, subject, html: safeHtml });
+    const files = await this.attachments.presignForSend(input.attachments);
+    const sentId = await this.send(tenantId, conn, { to, cc, bcc, subject, html: safeHtml, attachments: files });
     return this.recordOutbound(tenantId, {
       threadId: thread.id,
       connectionId,
@@ -145,6 +163,7 @@ export class MailComposeService {
       bcc,
       subject,
       html: safeHtml,
+      attachments: input.attachments,
       bumpThread: false,
     });
   }
@@ -154,7 +173,13 @@ export class MailComposeService {
     tenantId: string,
     messageId: string,
     actor: Actor,
-    input: { to?: string | string[]; cc?: string | string[]; bcc?: string | string[]; html?: string },
+    input: {
+      to?: string | string[];
+      cc?: string | string[];
+      bcc?: string | string[];
+      html?: string;
+      attachments?: StagedAttachment[];
+    },
   ) {
     const src = await this.prisma.withTenant(tenantId, (tx) =>
       tx.emailMessage.findUnique({ where: { id: messageId } }),
@@ -179,7 +204,8 @@ export class MailComposeService {
 
     const thread = await this.createThread(tenantId, src.connectionId, subject, [...to, ...cc], body);
 
-    const sentId = await this.send(tenantId, conn, { to, cc, bcc, subject, html: body });
+    const files = await this.attachments.presignForSend(input.attachments);
+    const sentId = await this.send(tenantId, conn, { to, cc, bcc, subject, html: body, attachments: files });
     return this.recordOutbound(tenantId, {
       threadId: thread.id,
       connectionId: src.connectionId,
@@ -189,6 +215,7 @@ export class MailComposeService {
       bcc,
       subject,
       html: body,
+      attachments: input.attachments,
       bumpThread: false,
     });
   }
@@ -212,6 +239,7 @@ export class MailComposeService {
       bcc?: string | string[];
       subject?: string;
       html?: string;
+      attachments?: StagedAttachment[];
     },
   ): Promise<{ draftId: string; threadId: string }> {
     const to = parseAddressList(input.to);
@@ -238,6 +266,7 @@ export class MailComposeService {
           data: { snippet, lastMessageAt: new Date() },
         });
       });
+      await this.reconcileDraftAttachments(tenantId, existing.id, input.attachments);
       return { draftId: existing.id, threadId: existing.threadId };
     }
 
@@ -249,6 +278,7 @@ export class MailComposeService {
       if (!thread) throw new NotFoundError('Hilo no encontrado');
       await this.connections.assertAccess(tenantId, thread.connectionId, actor);
       const id = await this.createDraftMessage(tenantId, thread.connectionId, thread.id, { to, cc, bcc, subject, html, snippet });
+      await this.reconcileDraftAttachments(tenantId, id, input.attachments);
       return { draftId: id, threadId: thread.id };
     }
 
@@ -271,6 +301,7 @@ export class MailComposeService {
       }),
     );
     const id = await this.createDraftMessage(tenantId, input.connectionId, thread.id, { to, cc, bcc, subject, html, snippet });
+    await this.reconcileDraftAttachments(tenantId, id, input.attachments);
     return { draftId: id, threadId: thread.id };
   }
 
@@ -322,7 +353,8 @@ export class MailComposeService {
     const inReplyTo = isReply ? last?.rfcMessageId ?? undefined : undefined;
     const references = isReply ? [last?.references, last?.rfcMessageId].filter(Boolean).join(' ') || undefined : undefined;
 
-    const sentId = await this.send(tenantId, conn, { to, cc, bcc, subject, html, inReplyTo, references });
+    const files = await this.attachments.presignForMessage(tenantId, msg.id);
+    const sentId = await this.send(tenantId, conn, { to, cc, bcc, subject, html, inReplyTo, references, attachments: files });
 
     return this.prisma.withTenant(tenantId, async (tx) => {
       const now = new Date();
@@ -407,7 +439,7 @@ export class MailComposeService {
   private async send(
     tenantId: string,
     conn: { driver: string; fromAddress: string; displayName: string | null; smtpHost: string | null; smtpPort: number | null; imapHost: string | null; imapPort: number | null; username: string | null; secretEnc: string | null; secure: boolean },
-    msg: { to: string[]; cc?: string[]; bcc?: string[]; subject: string; html: string; inReplyTo?: string; references?: string },
+    msg: { to: string[]; cc?: string[]; bcc?: string[]; subject: string; html: string; inReplyTo?: string; references?: string; attachments?: { filename: string; path: string }[] },
   ): Promise<string | undefined> {
     const cfg: DriverConfig = {
       driver: conn.driver,
@@ -431,6 +463,7 @@ export class MailComposeService {
         text: htmlToText(msg.html),
         inReplyTo: msg.inReplyTo,
         references: msg.references,
+        attachments: msg.attachments && msg.attachments.length ? msg.attachments : undefined,
       });
       return res.id;
     } catch (err) {
@@ -451,6 +484,7 @@ export class MailComposeService {
       html: string;
       inReplyTo?: string;
       references?: string;
+      attachments?: StagedAttachment[];
       bumpThread: boolean;
     },
   ) {
@@ -477,6 +511,18 @@ export class MailComposeService {
         },
         select: { id: true },
       });
+      for (const a of m.attachments ?? []) {
+        await tx.emailAttachment.create({
+          data: {
+            tenantId,
+            messageId: message.id,
+            filename: a.filename,
+            mimeType: a.mimeType,
+            sizeBytes: a.sizeBytes,
+            storageKey: a.storageKey,
+          },
+        });
+      }
       await tx.emailThread.update({
         where: { id: m.threadId },
         data: {
@@ -487,6 +533,40 @@ export class MailComposeService {
         },
       });
       return { ok: true, threadId: m.threadId, messageId: message.id };
+    });
+  }
+
+  /** Sync a draft message's attachment rows to the provided staged list (by storageKey). */
+  private async reconcileDraftAttachments(
+    tenantId: string,
+    messageId: string,
+    staged: StagedAttachment[] | undefined,
+  ) {
+    if (staged === undefined) return; // not provided → leave as-is
+    await this.prisma.withTenant(tenantId, async (tx) => {
+      const existing = await tx.emailAttachment.findMany({
+        where: { messageId },
+        select: { id: true, storageKey: true },
+      });
+      const keep = new Set(staged.map((s) => s.storageKey));
+      for (const e of existing) {
+        if (!keep.has(e.storageKey)) await tx.emailAttachment.delete({ where: { id: e.id } });
+      }
+      const have = new Set(existing.map((e) => e.storageKey));
+      for (const s of staged) {
+        if (!have.has(s.storageKey)) {
+          await tx.emailAttachment.create({
+            data: {
+              tenantId,
+              messageId,
+              filename: s.filename,
+              mimeType: s.mimeType,
+              sizeBytes: s.sizeBytes,
+              storageKey: s.storageKey,
+            },
+          });
+        }
+      }
     });
   }
 }

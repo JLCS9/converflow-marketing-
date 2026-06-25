@@ -64,6 +64,7 @@ export class SmtpImapDriver implements MailDriver {
       html: input.html,
       inReplyTo: input.inReplyTo,
       references: input.references,
+      attachments: input.attachments,
     });
     return { id: info.messageId };
   }
@@ -154,6 +155,13 @@ export class SmtpImapDriver implements MailDriver {
       snippet: (p.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 200),
       date: p.date ?? undefined,
       hasAttachments: (p.attachments?.length ?? 0) > 0,
+      attachments: (p.attachments ?? []).map((a) => ({
+        filename: a.filename ?? undefined,
+        mimeType: a.contentType ?? undefined,
+        content: a.content as Buffer,
+        inline: a.contentDisposition === 'inline',
+        contentId: a.contentId ?? undefined,
+      })),
     };
   }
 }
