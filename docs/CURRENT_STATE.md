@@ -146,8 +146,20 @@ separado de IM con modelos propios (`EmailThread`/`EmailMessage`) — Fase 2.
   7 tests verdes (permisos shared/private, no-leak de secreto, filtro de list, factory de driver).
 - **Aditivo**: NO borra el intento previo todavía (pendiente del conteo de datos en prod
   + migración de `Suppression` legal). Coexisten `mail_connections` (nuevo) y `email_connections` (viejo).
-- **Siguiente**: Fase 2 (bandeja potente: carpetas, threading RFC, borradores, búsqueda,
-  adjuntos, asignación en compartido + separación IM/email en Conversaciones).
+**Fase 2.1 — modelo de bandeja + recepción/threading (LIVE en `main`)**:
+- Modelos propios `EmailThread` / `EmailMessage` / `EmailAttachment` (+ enums
+  `MailFolder`/`MailThreadStatus`/`MailDirection`) — email **desacoplado** del
+  Conversation/Message de IM. RLS para los 3. Dedupe por `[connectionId, rfcMessageId]`.
+- Driver `smtp_imap`: `fetchSince(cursor)` (UID incremental; **primer sync NO importa
+  histórico** — fija cursor en uidNext-1).
+- `MailIngestService`: dedupe por Message-ID → thread por In-Reply-To/References →
+  fallback por asunto normalizado (30d) → hilo nuevo; actualiza snippet/unread/lastMessageAt.
+- `MailSyncService`: scheduler (~90s) que sincroniza conexiones `CONNECTED` smtp_imap
+  (scan cross-tenant por bypass) → ingest → avanza cursor. (API-side; migrable a worker.)
+- Tests: 11 verdes (threading dedupe/References/nuevo-hilo + normalizeSubject + permisos + driver).
+- **Sub-pasos restantes de Fase 2**: 2.2 bandeja UI (carpetas/lista/hilo/leído/archivar/spam/papelera),
+  2.3 redacción (borradores/responder/reenviar/cita/To-Cc-Bcc), 2.4 búsqueda+adjuntos,
+  2.5 compartido (asignación/estado/notas/anti-colisión) + separación IM/email en Conversaciones.
 
 ## CRITICAL lessons (don't repeat these bugs)
 
