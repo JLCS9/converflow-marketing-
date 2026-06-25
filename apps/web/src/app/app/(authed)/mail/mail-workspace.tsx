@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useState, type ComponentType } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import {
   Inbox,
   Send,
@@ -205,6 +205,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerTab, setComposerTab] = useState<'reply' | 'note'>('reply');
   const [loadingList, setLoadingList] = useState(true);
+  const msgScrollRef = useRef<HTMLDivElement>(null);
   const fb = useFeedback();
   const [modal, setModal] = useState<
     { mode: ComposerMode; initial?: ComposerInitial; forwardMessageId?: string } | null
@@ -275,6 +276,12 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
     }, 400);
     return () => clearTimeout(t);
   }, [searching, query, connectionId]);
+
+  // Jump to the latest message when a thread opens or grows.
+  useEffect(() => {
+    const el = msgScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [detail?.thread.id, detail?.messages.length]);
 
   function switchMailbox(id: string) {
     setConnectionId(id);
@@ -629,7 +636,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
         </div>
       )}
 
-      <div className="flex-1 space-y-1 overflow-y-auto bg-ink-100/20 p-4">
+      <div ref={msgScrollRef} className="flex-1 space-y-1 overflow-y-auto bg-ink-100/20 p-4">
         {visibleMessages.map((m) => {
           const ts = m.receivedAt || m.createdAt;
           const k = dayKey(ts);

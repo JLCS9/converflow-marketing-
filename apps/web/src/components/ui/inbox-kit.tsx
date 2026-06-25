@@ -26,7 +26,7 @@ export function InboxShell({
   hasSelection: boolean;
 }) {
   return (
-    <div className="flex h-[calc(100dvh-8.5rem)] overflow-hidden rounded-lg border border-ink-100 bg-white">
+    <div className="flex h-[calc(100dvh-9.5rem)] overflow-hidden rounded-lg border border-ink-100 bg-white">
       <aside className="hidden w-44 shrink-0 flex-col overflow-y-auto border-r border-ink-100 bg-ink-50/40 md:flex">
         {filters}
       </aside>
@@ -126,11 +126,11 @@ export function ContactPanel({
           </button>
         )}
       </div>
-      <div className="flex flex-col items-center gap-2 border-b border-ink-100 p-4 text-center">
+      <div className="flex w-full flex-col items-center gap-2 border-b border-ink-100 p-4 text-center">
         <Avatar name={name} size="lg" />
-        <div className="min-w-0">
-          <div className="truncate font-medium text-ink-900">{name}</div>
-          {sub && <div className="truncate text-xs text-ink-500">{sub}</div>}
+        <div className="w-full min-w-0">
+          <div className="break-words text-sm font-medium leading-tight text-ink-900">{name}</div>
+          {sub && <div className="mt-0.5 break-all text-xs text-ink-500">{sub}</div>}
         </div>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">

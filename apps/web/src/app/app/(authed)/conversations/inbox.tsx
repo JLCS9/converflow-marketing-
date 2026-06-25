@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Zap } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
@@ -130,6 +130,7 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
   const [docs, setDocs] = useState<{ id: string; name: string }[] | null>(null);
   const [showDocs, setShowDocs] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const msgScrollRef = useRef<HTMLDivElement>(null);
 
   const loadList = useCallback(async (st: string) => {
     try {
@@ -263,6 +264,12 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
     .filter((m) => m.direction === 'IN' && m.aiSuggestedReply)
     .at(-1);
 
+  // Jump to the latest message when a conversation opens or grows.
+  useEffect(() => {
+    const el = msgScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [thread?.id, thread?.messages.length]);
+
   // ---- column: filters (status) ----
   const filtersNode = (
     <nav className="space-y-0.5 p-2">
@@ -388,7 +395,7 @@ export function Inbox({ initial }: { initial: ConvRow[] }) {
         </div>
       )}
 
-      <div className="flex-1 space-y-1 overflow-y-auto bg-ink-100/20 p-4">
+      <div ref={msgScrollRef} className="flex-1 space-y-1 overflow-y-auto bg-ink-100/20 p-4">
         <div role="note" aria-label="Aviso de uso de IA" className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
           <strong>Aviso IA.</strong> Algunas respuestas de este chat pueden generarse automáticamente con un asistente de IA. Las marcadas con la etiqueta IA están generadas por el modelo.
         </div>
