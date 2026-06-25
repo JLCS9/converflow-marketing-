@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { LogoutButton } from './logout-button';
 import { SidebarNav } from './sidebar-nav';
 import { PoliciesBanner } from './policies-banner';
@@ -36,6 +36,20 @@ export function AppShell({
 }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Restore collapsed preference (desktop rail). Read once on mount.
+  useEffect(() => {
+    setCollapsed(localStorage.getItem('cf-sidebar-collapsed') === '1');
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      const next = !c;
+      localStorage.setItem('cf-sidebar-collapsed', next ? '1' : '0');
+      return next;
+    });
+  }
 
   // Close drawer when navigating
   useEffect(() => {
@@ -52,42 +66,77 @@ export function AppShell({
     };
   }, [open]);
 
-  const SidebarInner = (
+  const desktopSidebar = (
     <>
-      <div className="shrink-0 border-b border-ink-100 px-6 py-[18px]">
-        <div className="font-semibold tracking-tight">
-          converflow<span className="text-primary-600">.ai</span>
-        </div>
-        <div className="mt-1 text-xs text-ink-500">{tenantName}</div>
+      <div
+        className={`flex shrink-0 items-center border-b border-ink-100 py-[14px] ${
+          collapsed ? 'justify-center px-2' : 'justify-between px-4'
+        }`}
+      >
+        {collapsed ? (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label="Expandir menú"
+            title="Expandir menú"
+            className="rounded p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900"
+          >
+            <PanelLeftOpen size={18} strokeWidth={1.75} />
+          </button>
+        ) : (
+          <>
+            <div className="min-w-0">
+              <div className="font-semibold tracking-tight">
+                converflow<span className="text-primary-600">.ai</span>
+              </div>
+              <div className="mt-0.5 truncate text-xs text-ink-500">{tenantName}</div>
+            </div>
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              aria-label="Contraer menú"
+              title="Contraer menú"
+              className="shrink-0 rounded p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900"
+            >
+              <PanelLeftClose size={18} strokeWidth={1.75} />
+            </button>
+          </>
+        )}
       </div>
-      <SidebarNav convPending={convPending} alertCount={alertCount} />
-      <div className="shrink-0 border-t border-ink-100 px-4 py-3 text-xs">
-        <div className="text-ink-500">Conectado como</div>
-        <div className="truncate font-medium text-ink-900">{userEmail}</div>
-        <div className="text-[10px] font-mono uppercase tracking-wider text-ink-500">
-          {userRole}
+      <SidebarNav convPending={convPending} alertCount={alertCount} collapsed={collapsed} />
+      {!collapsed && (
+        <div className="shrink-0 border-t border-ink-100 px-4 py-3 text-xs">
+          <div className="text-ink-500">Conectado como</div>
+          <div className="truncate font-medium text-ink-900">{userEmail}</div>
+          <div className="text-[10px] font-mono uppercase tracking-wider text-ink-500">
+            {userRole}
+          </div>
+          <LogoutButton />
+          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-ink-400">
+            <Link href="/app/ayuda" className="hover:text-ink-700">
+              Ayuda
+            </Link>
+            <Link href="/ai-disclosure" target="_blank" className="hover:text-ink-700">
+              Aviso IA
+            </Link>
+            <Link href="/privacy" target="_blank" className="hover:text-ink-700">
+              Privacidad
+            </Link>
+          </div>
         </div>
-        <LogoutButton />
-        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-ink-400">
-          <Link href="/app/ayuda" className="hover:text-ink-700">
-            Ayuda
-          </Link>
-          <Link href="/ai-disclosure" target="_blank" className="hover:text-ink-700">
-            Aviso IA
-          </Link>
-          <Link href="/privacy" target="_blank" className="hover:text-ink-700">
-            Privacidad
-          </Link>
-        </div>
-      </div>
+      )}
     </>
   );
 
   return (
     <div className="flex h-screen overflow-hidden bg-ink-100/30">
       {/* Desktop sidebar */}
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-ink-100 bg-white md:flex">
-        {SidebarInner}
+      <aside
+        className={`hidden shrink-0 flex-col border-r border-ink-100 bg-white transition-[width] duration-200 md:flex ${
+          collapsed ? 'w-16' : 'w-60'
+        }`}
+      >
+        {desktopSidebar}
       </aside>
 
       {/* Mobile drawer */}

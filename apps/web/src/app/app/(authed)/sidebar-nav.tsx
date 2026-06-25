@@ -9,6 +9,7 @@ import {
   Bell,
   Users,
   Bot,
+  Megaphone,
   Settings,
   Plus,
   ChevronRight,
@@ -39,6 +40,7 @@ type IconType = ComponentType<{ size?: number; strokeWidth?: number; className?:
 const sectionIcons: Record<string, IconType> = {
   crm: Users,
   ia: Bot,
+  campaigns: Megaphone,
   config: Settings,
 };
 
@@ -59,8 +61,19 @@ const createItems: {
   { href: '/app/bots/new', label: 'Nuevo bot', icon: Bot, requires: ['bots'] },
 ];
 
-function Count({ n, color }: { n: number; color: 'blue' | 'red' }) {
+function Count({ n, color, collapsed }: { n: number; color: 'blue' | 'red'; collapsed?: boolean }) {
   if (n <= 0) return null;
+  // Collapsed rail: a small corner dot instead of a full pill (no room for digits).
+  if (collapsed) {
+    return (
+      <span
+        aria-hidden
+        className={`absolute right-1.5 top-1.5 h-2 w-2 rounded-full ring-2 ring-white ${
+          color === 'blue' ? 'bg-primary-600' : 'bg-red-600'
+        }`}
+      />
+    );
+  }
   return (
     <span
       className={`ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white ${
@@ -72,24 +85,31 @@ function Count({ n, color }: { n: number; color: 'blue' | 'red' }) {
   );
 }
 
-const itemCls = (active: boolean) =>
-  `flex w-full items-center gap-2.5 rounded-md px-3 py-2 transition-colors ${
-    active ? 'bg-ink-100 font-medium text-ink-900' : 'text-ink-700 hover:bg-ink-100'
-  }`;
+const itemCls = (active: boolean, collapsed?: boolean) =>
+  `relative flex w-full items-center rounded-md py-2 transition-colors ${
+    collapsed ? 'justify-center px-0' : 'gap-2.5 px-3'
+  } ${active ? 'bg-ink-100 font-medium text-ink-900' : 'text-ink-700 hover:bg-ink-100'}`;
 
 function SectionLink({
   section,
   pathname,
+  collapsed,
 }: {
   section: NavSection;
   pathname: string;
+  collapsed?: boolean;
 }) {
   const Icon = sectionIcons[section.key];
   const active = isSectionActive(pathname, section);
   return (
-    <Link href={section.defaultHref} className={itemCls(active)}>
+    <Link
+      href={section.defaultHref}
+      className={itemCls(active, collapsed)}
+      title={collapsed ? section.label : undefined}
+      aria-label={collapsed ? section.label : undefined}
+    >
       {Icon && <Icon size={18} strokeWidth={1.75} aria-hidden />}
-      <span>{section.label}</span>
+      {!collapsed && <span>{section.label}</span>}
     </Link>
   );
 }
@@ -97,9 +117,11 @@ function SectionLink({
 export function SidebarNav({
   convPending,
   alertCount,
+  collapsed = false,
 }: {
   convPending: number;
   alertCount: number;
+  collapsed?: boolean;
 }) {
   const pathname = usePathname() ?? '';
   const session = useSession();
@@ -146,15 +168,22 @@ export function SidebarNav({
             aria-expanded={menu}
             aria-label="Atajos de creación"
             title="Atajos de creación"
-            className="flex w-full items-center justify-center gap-2 rounded-md bg-ink-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-700"
+            className={`flex w-full items-center justify-center rounded-md bg-ink-900 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-700 ${
+              collapsed ? 'px-0' : 'gap-2 px-3'
+            }`}
           >
-            <Plus size={16} strokeWidth={1.75} aria-hidden /> Crear
-            <ChevronRight
-              size={14}
-              strokeWidth={1.75}
-              aria-hidden
-              className={`transition-transform ${menu ? 'rotate-90' : ''}`}
-            />
+            <Plus size={16} strokeWidth={1.75} aria-hidden />
+            {!collapsed && (
+              <>
+                Crear
+                <ChevronRight
+                  size={14}
+                  strokeWidth={1.75}
+                  aria-hidden
+                  className={`transition-transform ${menu ? 'rotate-90' : ''}`}
+                />
+              </>
+            )}
           </button>
           {menu && (
             <div
@@ -178,24 +207,36 @@ export function SidebarNav({
       )}
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-4 pt-2 text-sm">
-        <Link href="/app" className={itemCls(pathname === '/app')}>
+        <Link
+          href="/app"
+          className={itemCls(pathname === '/app', collapsed)}
+          title={collapsed ? 'Inicio' : undefined}
+          aria-label={collapsed ? 'Inicio' : undefined}
+        >
           <Home size={18} strokeWidth={1.75} aria-hidden />
-          <span>Inicio</span>
+          {!collapsed && <span>Inicio</span>}
         </Link>
         {showConversations && (
           <Link
             href="/app/conversations"
-            className={itemCls(pathname.startsWith('/app/conversations'))}
+            className={itemCls(pathname.startsWith('/app/conversations'), collapsed)}
+            title={collapsed ? 'Conversaciones' : undefined}
+            aria-label={collapsed ? 'Conversaciones' : undefined}
           >
             <MessageCircle size={18} strokeWidth={1.75} aria-hidden />
-            <span>Conversaciones</span>
-            <Count n={pending} color="blue" />
+            {!collapsed && <span>Conversaciones</span>}
+            <Count n={pending} color="blue" collapsed={collapsed} />
           </Link>
         )}
-        <Link href="/app/alerts" className={itemCls(pathname.startsWith('/app/alerts'))}>
+        <Link
+          href="/app/alerts"
+          className={itemCls(pathname.startsWith('/app/alerts'), collapsed)}
+          title={collapsed ? 'Alertas' : undefined}
+          aria-label={collapsed ? 'Alertas' : undefined}
+        >
           <Bell size={18} strokeWidth={1.75} aria-hidden />
-          <span>Alertas</span>
-          <Count n={alertCount} color="red" />
+          {!collapsed && <span>Alertas</span>}
+          <Count n={alertCount} color="red" collapsed={collapsed} />
         </Link>
 
         {visibleSections.length > 0 && (
@@ -203,17 +244,24 @@ export function SidebarNav({
         )}
 
         {visibleSections.map((s) => (
-          <SectionLink key={s.key} section={s} pathname={pathname} />
+          <SectionLink key={s.key} section={s} pathname={pathname} collapsed={collapsed} />
         ))}
       </nav>
 
       {/* Ayuda + Configuración pinned to the bottom — primary nav stays uncluttered. */}
       <div className="shrink-0 space-y-0.5 border-t border-ink-100 px-3 py-2 text-sm">
-        <Link href="/app/ayuda" className={itemCls(pathname.startsWith('/app/ayuda'))}>
+        <Link
+          href="/app/ayuda"
+          className={itemCls(pathname.startsWith('/app/ayuda'), collapsed)}
+          title={collapsed ? 'Ayuda' : undefined}
+          aria-label={collapsed ? 'Ayuda' : undefined}
+        >
           <HelpCircle size={18} strokeWidth={1.75} aria-hidden />
-          <span>Ayuda</span>
+          {!collapsed && <span>Ayuda</span>}
         </Link>
-        {showSettings && <SectionLink section={SETTINGS_SECTION} pathname={pathname} />}
+        {showSettings && (
+          <SectionLink section={SETTINGS_SECTION} pathname={pathname} collapsed={collapsed} />
+        )}
       </div>
     </>
   );

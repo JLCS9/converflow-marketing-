@@ -46,20 +46,9 @@ export const NAV_SECTIONS: NavSection[] = [
     routes: ['/app/campaigns'],
     requires: ['campaigns'],
   },
-  {
-    key: 'templates',
-    label: 'Plantillas',
-    defaultHref: '/app/templates',
-    routes: ['/app/templates'],
-    requires: ['conversations'],
-  },
-  {
-    key: 'mail',
-    label: 'Correo',
-    defaultHref: '/app/mail',
-    routes: ['/app/mail'],
-    requires: ['mail'],
-  },
+  // Correo y Plantillas ya no tienen entrada propia en el navbar: viven dentro
+  // de Conversaciones → pestaña «Correo» (bandeja) y su botón de ajustes
+  // (/app/mail/ajustes), que agrupa buzones conectados + plantillas.
 ];
 
 /**
