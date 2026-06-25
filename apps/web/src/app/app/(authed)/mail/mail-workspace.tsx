@@ -54,6 +54,7 @@ export interface MailboxOption {
   fromAddress: string;
   displayName: string | null;
   signature: string | null;
+  visibility: string;
 }
 
 /** Build the signature block appended to a fresh composer (plain text → safe html). */
@@ -216,6 +217,8 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   const currentConn = connections.find((c) => c.id === connectionId);
   const selfAddress = (currentConn?.fromAddress ?? '').toLowerCase();
   const sigHtml = signatureHtml(currentConn?.signature);
+  // Private mailbox = only mine → no assignment UI (no team to hand off to).
+  const isPrivate = currentConn?.visibility === 'PRIVATE';
   const nameOf = (userId: string | null): string =>
     userId ? team.find((m) => m.id === userId)?.name ?? 'Asignado' : '';
 
@@ -593,11 +596,12 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
                       {t.unreadCount > 0 && (
                         <span className="inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-semibold text-white">{t.unreadCount}</span>
                       )}
-                      {t.assigneeUserId ? (
-                        <Avatar name={nameOf(t.assigneeUserId)} size="sm" />
-                      ) : (
-                        <span className="h-4 w-4 rounded-full border border-dashed border-ink-300" title="Sin asignar" />
-                      )}
+                      {!isPrivate &&
+                        (t.assigneeUserId ? (
+                          <Avatar name={nameOf(t.assigneeUserId)} size="sm" />
+                        ) : (
+                          <span className="h-4 w-4 rounded-full border border-dashed border-ink-300" title="Sin asignar" />
+                        ))}
                     </span>
                   </div>
                 </div>
@@ -627,31 +631,38 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
           <ArrowLeft size={18} />
         </button>
         <h2 className="min-w-0 flex-1 truncate text-base font-semibold">{detail.thread.subject || '(sin asunto)'}</h2>
-        <select
-          value={detail.thread.assigneeUserId ?? ''}
-          onChange={(e) => void assign(e.target.value)}
-          title="Asignar"
-          className="rounded border border-ink-200 bg-white px-1.5 py-0.5 text-xs text-ink-700"
-        >
-          <option value="">Sin asignar</option>
-          {team.map((m) => (
-            <option key={m.id} value={m.id}>{m.name}</option>
-          ))}
-        </select>
-        <select
-          value={detail.thread.status}
-          onChange={(e) => void setStatus(e.target.value)}
-          title="Estado"
-          className={`rounded border border-ink-200 px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[detail.thread.status] ?? 'text-ink-700'}`}
-        >
-          {Object.keys(STATUS_LABEL).map((s) => (
-            <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-          ))}
-        </select>
+        {!isPrivate && (
+          <select
+            value={detail.thread.assigneeUserId ?? ''}
+            onChange={(e) => void assign(e.target.value)}
+            title="Asignar"
+            className="rounded border border-ink-200 bg-white px-1.5 py-0.5 text-xs text-ink-700"
+          >
+            <option value="">Sin asignar</option>
+            {team.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+        )}
         {(MOVES[folder] ?? []).map((m) => (
           <button key={m.folder} disabled={busy} onClick={() => void move(m.folder)} className={buttonClass('ghost', 'px-1.5 py-0.5 text-xs')}>{m.label}</button>
         ))}
         <button onClick={() => void markUnread()} className={buttonClass('ghost', 'px-1.5 py-0.5 text-xs')}>No leído</button>
+        <Link
+          href={`/app/tasks/new?title=${encodeURIComponent(detail.thread.subject ?? '')}`}
+          className={buttonClass('ghost', 'px-2 py-0.5 text-xs')}
+        >
+          + Tarea
+        </Link>
+        {detail.thread.status === 'CLOSED' ? (
+          <button type="button" onClick={() => void setStatus('OPEN')} className={buttonClass('secondary', 'px-3 py-1 text-xs')}>
+            Reabrir
+          </button>
+        ) : (
+          <button type="button" onClick={() => void setStatus('CLOSED')} className={buttonClass('primary', 'px-3 py-1 text-xs')}>
+            Cerrar
+          </button>
+        )}
       </div>
 
       {lock && !lock.byMe && (
