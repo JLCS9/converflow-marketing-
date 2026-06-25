@@ -74,7 +74,12 @@ export class MailSyncService implements OnModuleInit, OnModuleDestroy {
     try {
       const { messages, cursor } = await driver.fetchSince(conn.syncCursor);
       for (const m of messages) {
-        await this.ingest.ingest(tenantId, connectionId, m);
+        // Isolate per-message: one bad message (e.g. duplicate Message-ID in the
+        // same batch) must not abort the rest or block the cursor — otherwise the
+        // mailbox gets stuck and stops receiving any further replies.
+        await this.ingest.ingest(tenantId, connectionId, m).catch((err) =>
+          this.logger.warn({ err, id: connectionId, mid: m.rfcMessageId }, 'mail ingest skipped one message'),
+        );
       }
       await this.prisma.withTenant(tenantId, (tx) =>
         tx.mailConnection.update({

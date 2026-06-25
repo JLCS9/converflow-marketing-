@@ -261,6 +261,22 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
     };
   }, [selectedId]);
 
+  // Poll the OPEN thread so replies from third parties appear without reselecting.
+  // Only swaps in fresh messages — never touches the reply composer/draft state.
+  useEffect(() => {
+    if (!selectedId) return;
+    const id = selectedId;
+    const t = setInterval(async () => {
+      try {
+        const d = await apiFetch<Detail>(`/mail/threads/${id}`);
+        setDetail((prev) => (prev && prev.thread.id === id ? d : prev));
+      } catch {
+        /* keep last */
+      }
+    }, 12000);
+    return () => clearInterval(t);
+  }, [selectedId]);
+
   // Debounced search across all folders of the mailbox.
   useEffect(() => {
     if (!searching) return;
