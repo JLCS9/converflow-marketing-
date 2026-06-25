@@ -157,9 +157,18 @@ separado de IM con modelos propios (`EmailThread`/`EmailMessage`) — Fase 2.
 - `MailSyncService`: scheduler (~90s) que sincroniza conexiones `CONNECTED` smtp_imap
   (scan cross-tenant por bypass) → ingest → avanza cursor. (API-side; migrable a worker.)
 - Tests: 11 verdes (threading dedupe/References/nuevo-hilo + normalizeSubject + permisos + driver).
-- **Sub-pasos restantes de Fase 2**: 2.2 bandeja UI (carpetas/lista/hilo/leído/archivar/spam/papelera),
-  2.3 redacción (borradores/responder/reenviar/cita/To-Cc-Bcc), 2.4 búsqueda+adjuntos,
-  2.5 compartido (asignación/estado/notas/anti-colisión) + separación IM/email en Conversaciones.
+**Fase 2.2 — bandeja UI (lectura) (LIVE en `main`)**:
+- API `MailInboxService`/`MailInboxController` (gated `conversations`; acceso real por
+  visibilidad de conexión): `GET /mail/connections/:id/threads?folder=`, `…/folder-counts`,
+  `GET /mail/threads/:id`, `POST /mail/threads/:id/{read,unread,move}`.
+- Web: bandeja 3-paneles en `/app/mail/[id]/inbox` (carpetas Recibidos/Enviados/Borradores/
+  Spam/Archivo/Papelera + badges no-leídos, lista de hilos, vista de hilo con mensajes,
+  leído/no-leído, archivar/spam/papelera/restaurar). Enlace "Bandeja" en cada conexión.
+- **Seguridad**: el HTML entrante se **sanea en el ingest** (`sanitizeEmailHtml`) antes de
+  guardarse → render seguro. (Enviados/Borradores se poblarán en 2.3.)
+- **Sub-pasos restantes de Fase 2**: 2.3 redacción (borradores/responder/reenviar/cita/To-Cc-Bcc),
+  2.4 búsqueda+adjuntos, 2.5 compartido (asignación/estado/notas/anti-colisión) + separación
+  IM/email en Conversaciones.
 
 ## CRITICAL lessons (don't repeat these bugs)
 
