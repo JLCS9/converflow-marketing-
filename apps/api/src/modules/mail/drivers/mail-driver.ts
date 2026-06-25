@@ -23,6 +23,23 @@ export interface ParsedMessageSummary {
   snippet?: string;
 }
 
+/** A fully parsed inbound email for ingestion (Fase 2.1). */
+export interface ParsedEmail {
+  rfcMessageId?: string;
+  inReplyTo?: string;
+  references?: string; // space-separated
+  fromAddress?: string;
+  fromName?: string;
+  to: string[];
+  cc: string[];
+  subject?: string;
+  html?: string;
+  text?: string;
+  snippet?: string;
+  date?: Date;
+  hasAttachments: boolean;
+}
+
 export interface MailDriver {
   /** Verify connectivity/credentials. Throws on failure. */
   verify(): Promise<void>;
@@ -30,6 +47,12 @@ export interface MailDriver {
   send(input: MailSendInput): Promise<{ id?: string }>;
   /** Fetch the most recent INBOX messages (parsed summaries). */
   fetchRecent(limit: number): Promise<ParsedMessageSummary[]>;
+  /**
+   * Incremental INBOX fetch by UID cursor. First sync (cursor null/0) MUST NOT
+   * import history: it sets the cursor to the current uidNext-1 and returns no
+   * messages. Subsequent calls return messages with UID > cursor.
+   */
+  fetchSince(cursor: number | null): Promise<{ messages: ParsedEmail[]; cursor: number }>;
 }
 
 /** Decrypted connection config a driver needs (secret already plaintext). */
