@@ -53,6 +53,47 @@ export class MailInboxService {
     );
   }
 
+  /** Full-text-ish search across all folders of a connection (subject/snippet/body/sender). */
+  async search(tenantId: string, connectionId: string, actor: Actor, q: string) {
+    await this.connections.assertAccess(tenantId, connectionId, actor);
+    const term = (q ?? '').trim();
+    if (term.length < 2) return [];
+    return this.prisma.withTenant(tenantId, (tx) =>
+      tx.emailThread.findMany({
+        where: {
+          connectionId,
+          OR: [
+            { subject: { contains: term, mode: 'insensitive' } },
+            { snippet: { contains: term, mode: 'insensitive' } },
+            {
+              messages: {
+                some: {
+                  OR: [
+                    { subject: { contains: term, mode: 'insensitive' } },
+                    { text: { contains: term, mode: 'insensitive' } },
+                    { fromAddress: { contains: term, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+        orderBy: { lastMessageAt: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          subject: true,
+          snippet: true,
+          participants: true,
+          unreadCount: true,
+          status: true,
+          assigneeUserId: true,
+          lastMessageAt: true,
+        },
+      }),
+    );
+  }
+
   /** Unread counts per bucket folder, for the sidebar badges. */
   async folderCounts(tenantId: string, connectionId: string, actor: Actor) {
     await this.connections.assertAccess(tenantId, connectionId, actor);

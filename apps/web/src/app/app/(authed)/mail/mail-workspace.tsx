@@ -83,6 +83,8 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   const [busy, setBusy] = useState(false);
   const [replyInit, setReplyInit] = useState<ComposerInitial>({});
   const [replyKey, setReplyKey] = useState(0);
+  const [query, setQuery] = useState('');
+  const searching = query.trim().length >= 2;
   const [modal, setModal] = useState<
     { mode: ComposerMode; initial?: ComposerInitial; forwardMessageId?: string } | null
   >(null);
@@ -104,16 +106,34 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   }, []);
 
   useEffect(() => {
+    if (searching) return; // pause folder polling while searching
     void loadThreads(connectionId, folder);
     const t = setInterval(() => void loadThreads(connectionId, folder), 15000);
     return () => clearInterval(t);
-  }, [connectionId, folder, loadThreads]);
+  }, [connectionId, folder, loadThreads, searching]);
+
+  // Debounced search across all folders of the mailbox.
+  useEffect(() => {
+    if (!searching) return;
+    const t = setTimeout(async () => {
+      try {
+        const r = await apiFetch<ThreadRow[]>(
+          `/mail/connections/${connectionId}/search?q=${encodeURIComponent(query.trim())}`,
+        );
+        setThreads(r);
+      } catch {
+        /* keep last */
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searching, query, connectionId]);
 
   function switchMailbox(id: string) {
     setConnectionId(id);
     setFolder('INBOX');
     setSelectedId(null);
     setDetail(null);
+    setQuery('');
   }
 
   function computeDefaultTo(d: Detail): string {
@@ -229,7 +249,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
         {FOLDERS.map((f) => (
           <button
             key={f.key}
-            onClick={() => { setFolder(f.key); setSelectedId(null); setDetail(null); }}
+            onClick={() => { setFolder(f.key); setSelectedId(null); setDetail(null); setQuery(''); }}
             className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm ${folder === f.key ? 'bg-ink-900 text-white' : 'text-ink-700 hover:bg-ink-100'}`}
           >
             <span>{f.label}</span>
@@ -242,7 +262,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
 
       {/* Thread list */}
       <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg border border-ink-100 bg-white">
-        <div className="border-b border-ink-100 p-2">
+        <div className="space-y-2 border-b border-ink-100 p-2">
           <button
             type="button"
             onClick={() => setModal({ mode: 'new', initial: {} })}
@@ -250,10 +270,30 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
           >
             ✉️ Nuevo correo
           </button>
+          <div className="relative">
+            <input
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setSelectedId(null); setDetail(null); }}
+              placeholder="Buscar en el correo…"
+              className="w-full rounded border border-ink-200 bg-white px-2 py-1 pr-6 text-xs focus:border-ink-700 focus:outline-none"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700"
+                aria-label="Limpiar búsqueda"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto">
           {threads.length === 0 ? (
-            <p className="p-4 text-sm text-ink-500">Sin mensajes en esta carpeta.</p>
+            <p className="p-4 text-sm text-ink-500">
+              {searching ? 'Sin resultados.' : 'Sin mensajes en esta carpeta.'}
+            </p>
           ) : (
             threads.map((t) => (
               <button

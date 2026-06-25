@@ -38,6 +38,15 @@ export class MailInboxController {
     return this.inbox.folderCounts(user.tenantId, id, this.actor(user));
   }
 
+  @Get('connections/:id/search')
+  search(
+    @Param('id') id: string,
+    @Query('q') q: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.inbox.search(user.tenantId, id, this.actor(user), q ?? '');
+  }
+
   @Get('threads/:id')
   thread(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.inbox.getThread(user.tenantId, id, this.actor(user));
