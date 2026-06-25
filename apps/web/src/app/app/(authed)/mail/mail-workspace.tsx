@@ -128,6 +128,8 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   const [notes, setNotes] = useState<NoteRow[]>([]);
   const [noteDraft, setNoteDraft] = useState('');
   const [lock, setLock] = useState<LockState | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [modal, setModal] = useState<
     { mode: ComposerMode; initial?: ComposerInitial; forwardMessageId?: string } | null
   >(null);
@@ -218,6 +220,8 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
     setNotes([]);
     setNoteDraft('');
     setLock(null);
+    setComposerOpen(false);
+    setNotesOpen(false);
     apiFetch<NoteRow[]>(`/mail/threads/${id}/notes`).then(setNotes).catch(() => {});
     try {
       const d = await apiFetch<Detail>(`/mail/threads/${id}`);
@@ -243,8 +247,9 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
           setModal({ mode: 'new', initial: init });
           return;
         }
-        // Reply draft → prefill the inline composer.
+        // Reply draft → prefill and auto-open the composer to continue it.
         setReplyInit(init);
+        setComposerOpen(true);
       } else {
         setReplyInit({ to: computeDefaultTo(d) });
       }
@@ -270,12 +275,18 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
     void loadThreads(connectionId, folder);
   }
 
+  function openReply() {
+    setReplyKey((k) => k + 1);
+    setComposerOpen(true);
+  }
+
   function replyAll() {
     const parts = (detail?.thread.participants ?? []).map((p) => p.toLowerCase());
     const to = (replyInit.to ?? '').toLowerCase();
     const others = parts.filter((p) => p !== selfAddress && p !== to);
     setReplyInit((prev) => ({ ...prev, cc: others.join(', ') }));
     setReplyKey((k) => k + 1);
+    setComposerOpen(true);
   }
 
   async function move(toFolder: string) {
@@ -455,43 +466,33 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
           <div className="flex flex-1 items-center justify-center text-sm text-ink-500">Selecciona un hilo.</div>
         ) : (
           <>
-            <div className="flex items-center justify-between gap-2 border-b border-ink-100 px-4 py-3">
-              <h2 className="truncate text-base font-semibold">{detail.thread.subject || '(sin asunto)'}</h2>
-              <div className="flex shrink-0 gap-1">
-                {(MOVES[folder] ?? []).map((m) => (
-                  <button key={m.folder} disabled={busy} onClick={() => void move(m.folder)} className={buttonClass('secondary', 'px-2 py-1 text-xs')}>{m.label}</button>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-ink-100 px-4 py-2">
+              <h2 className="min-w-0 flex-1 truncate text-base font-semibold">{detail.thread.subject || '(sin asunto)'}</h2>
+              <select
+                value={detail.thread.assigneeUserId ?? ''}
+                onChange={(e) => void assign(e.target.value)}
+                title="Asignar"
+                className="rounded border border-ink-200 bg-white px-1.5 py-0.5 text-xs text-ink-700"
+              >
+                <option value="">Sin asignar</option>
+                {team.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
-                <button onClick={() => void markUnread()} className={buttonClass('ghost', 'px-2 py-1 text-xs')}>No leído</button>
-              </div>
-            </div>
-
-            {/* Shared-mailbox controls */}
-            <div className="flex flex-wrap items-center gap-3 border-b border-ink-100 px-4 py-2 text-xs">
-              <label className="flex items-center gap-1 text-ink-500">
-                Asignado:
-                <select
-                  value={detail.thread.assigneeUserId ?? ''}
-                  onChange={(e) => void assign(e.target.value)}
-                  className="rounded border border-ink-200 bg-white px-1.5 py-0.5 text-xs text-ink-700"
-                >
-                  <option value="">Sin asignar</option>
-                  {team.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-center gap-1 text-ink-500">
-                Estado:
-                <select
-                  value={detail.thread.status}
-                  onChange={(e) => void setStatus(e.target.value)}
-                  className={`rounded border border-ink-200 px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[detail.thread.status] ?? 'text-ink-700'}`}
-                >
-                  {Object.keys(STATUS_LABEL).map((s) => (
-                    <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-                  ))}
-                </select>
-              </label>
+              </select>
+              <select
+                value={detail.thread.status}
+                onChange={(e) => void setStatus(e.target.value)}
+                title="Estado"
+                className={`rounded border border-ink-200 px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[detail.thread.status] ?? 'text-ink-700'}`}
+              >
+                {Object.keys(STATUS_LABEL).map((s) => (
+                  <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+                ))}
+              </select>
+              {(MOVES[folder] ?? []).map((m) => (
+                <button key={m.folder} disabled={busy} onClick={() => void move(m.folder)} className={buttonClass('ghost', 'px-1.5 py-0.5 text-xs')}>{m.label}</button>
+              ))}
+              <button onClick={() => void markUnread()} className={buttonClass('ghost', 'px-1.5 py-0.5 text-xs')}>No leído</button>
             </div>
 
             {lock && !lock.byMe && (
@@ -543,67 +544,83 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
               ))}
             </div>
 
-            {/* Internal notes (team-only, never sent) */}
-            <div className="border-t border-ink-100 bg-amber-50/40 px-3 py-2">
-              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
-                Notas internas {notes.length > 0 && `(${notes.length})`}
+            {/* Internal notes — collapsed by default so they don't steal reading space */}
+            {notesOpen && (
+              <div className="border-t border-ink-100 bg-amber-50/40 px-3 py-2">
+                {notes.length > 0 && (
+                  <ul className="mb-2 max-h-32 space-y-1 overflow-y-auto">
+                    {notes.map((n) => (
+                      <li key={n.id} className="group flex items-start justify-between gap-2 rounded bg-white/70 px-2 py-1 text-xs">
+                        <span className="min-w-0">
+                          <span className="font-medium text-ink-700">{n.authorName}: </span>
+                          <span className="text-ink-700">{n.body}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void deleteNote(n.id)}
+                          className="shrink-0 text-ink-300 opacity-0 hover:text-red-600 group-hover:opacity-100"
+                          aria-label="Borrar nota"
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addNote(); } }}
+                    placeholder="Añadir nota interna para el equipo…"
+                    className="flex-1 rounded border border-amber-200 bg-white px-2 py-1 text-xs focus:border-amber-400 focus:outline-none"
+                  />
+                  <button type="button" onClick={() => void addNote()} disabled={!noteDraft.trim()} className={buttonClass('secondary', 'px-2 py-1 text-xs')}>
+                    Añadir
+                  </button>
+                </div>
               </div>
-              {notes.length > 0 && (
-                <ul className="mb-2 max-h-28 space-y-1 overflow-y-auto">
-                  {notes.map((n) => (
-                    <li key={n.id} className="group flex items-start justify-between gap-2 rounded bg-white/70 px-2 py-1 text-xs">
-                      <span className="min-w-0">
-                        <span className="font-medium text-ink-700">{n.authorName}: </span>
-                        <span className="text-ink-700">{n.body}</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => void deleteNote(n.id)}
-                        className="shrink-0 text-ink-300 opacity-0 hover:text-red-600 group-hover:opacity-100"
-                        aria-label="Borrar nota"
-                      >
-                        ✕
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="flex gap-2">
-                <input
-                  value={noteDraft}
-                  onChange={(e) => setNoteDraft(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addNote(); } }}
-                  placeholder="Añadir nota interna para el equipo…"
-                  className="flex-1 rounded border border-amber-200 bg-white px-2 py-1 text-xs focus:border-amber-400 focus:outline-none"
-                />
-                <button type="button" onClick={() => void addNote()} disabled={!noteDraft.trim()} className={buttonClass('secondary', 'px-2 py-1 text-xs')}>
-                  Añadir
-                </button>
-              </div>
-            </div>
+            )}
 
-            <div className="space-y-2 border-t border-ink-100 bg-white p-3">
-              <div className="flex items-center gap-3 text-xs">
-                <span className="font-medium text-ink-600">Responder</span>
-                <button type="button" onClick={replyAll} className="text-primary-700 hover:underline">Responder a todos</button>
-                {lastMessageId && (
+            {/* Reply: a slim action bar by default; the composer only expands on demand */}
+            <div className="border-t border-ink-100 bg-white">
+              {composerOpen ? (
+                <div className="space-y-2 p-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-ink-600">Responder</span>
+                    <button type="button" onClick={() => setComposerOpen(false)} className="text-ink-400 hover:text-ink-700">✕ Cerrar</button>
+                  </div>
+                  <MailComposer
+                    key={replyKey}
+                    mode="reply"
+                    connectionId={connectionId}
+                    threadId={detail.thread.id}
+                    initial={replyInit}
+                    onSent={() => { setComposerOpen(false); void refreshThread(); }}
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2">
+                  <button type="button" onClick={openReply} className={buttonClass('primary', 'text-sm')}>Responder</button>
+                  <button type="button" onClick={replyAll} className={buttonClass('secondary', 'text-sm')}>Responder a todos</button>
+                  {lastMessageId && (
+                    <button
+                      type="button"
+                      onClick={() => setModal({ mode: 'forward', forwardMessageId: lastMessageId, initial: {} })}
+                      className={buttonClass('ghost', 'text-sm')}
+                    >
+                      Reenviar
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => setModal({ mode: 'forward', forwardMessageId: lastMessageId, initial: {} })}
-                    className="text-primary-700 hover:underline"
+                    onClick={() => setNotesOpen((o) => !o)}
+                    className={buttonClass('ghost', 'ml-auto text-sm')}
                   >
-                    Reenviar
+                    📝 Notas{notes.length ? ` (${notes.length})` : ''}
                   </button>
-                )}
-              </div>
-              <MailComposer
-                key={replyKey}
-                mode="reply"
-                connectionId={connectionId}
-                threadId={detail.thread.id}
-                initial={replyInit}
-                onSent={() => void refreshThread()}
-              />
+                </div>
+              )}
             </div>
           </>
         )}
