@@ -27,11 +27,11 @@ export function InboxShell({
 }) {
   return (
     <div className="flex h-[calc(100dvh-8.5rem)] overflow-hidden rounded-lg border border-ink-100 bg-white">
-      <aside className="hidden w-52 shrink-0 flex-col overflow-y-auto border-r border-ink-100 bg-ink-50/40 md:flex">
+      <aside className="hidden w-44 shrink-0 flex-col overflow-y-auto border-r border-ink-100 bg-ink-50/40 md:flex">
         {filters}
       </aside>
       <section
-        className={`${hasSelection ? 'hidden lg:flex' : 'flex'} w-full shrink-0 flex-col overflow-hidden border-r border-ink-100 lg:w-[20rem]`}
+        className={`${hasSelection ? 'hidden lg:flex' : 'flex'} w-full shrink-0 flex-col overflow-hidden border-r border-ink-100 lg:w-[17rem]`}
       >
         {list}
       </section>
@@ -39,7 +39,7 @@ export function InboxShell({
         {thread}
       </section>
       {details && (
-        <aside className="hidden w-72 shrink-0 flex-col overflow-y-auto border-l border-ink-100 xl:flex">
+        <aside className="hidden w-60 shrink-0 flex-col overflow-y-auto border-l border-ink-100 xl:flex">
           {details}
         </aside>
       )}

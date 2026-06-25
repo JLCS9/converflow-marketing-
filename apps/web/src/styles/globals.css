@@ -11,6 +11,12 @@ body {
   @apply min-h-screen bg-white text-ink-900 antialiased;
 }
 
+/* Base scale: rem-based spacing/typography shrink with this so the whole app
+   reads denser (≈88%) and fits without browser zoom. Tune here if needed. */
+html {
+  font-size: 14px;
+}
+
 a {
   @apply text-primary-700 hover:text-primary-600;
 }
