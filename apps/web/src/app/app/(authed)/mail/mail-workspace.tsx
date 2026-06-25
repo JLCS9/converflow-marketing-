@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ComponentType } from 'react';
+import { Fragment, useCallback, useEffect, useState, type ComponentType } from 'react';
 import {
   Inbox,
   Send,
@@ -12,7 +12,6 @@ import {
   Search,
   X,
   ArrowLeft,
-  StickyNote,
   Forward,
   Paperclip,
   AlertTriangle,
@@ -21,6 +20,13 @@ import {
 import { apiFetch } from '@/lib/api-client';
 import { useFeedback } from '@/components/ui/feedback';
 import { buttonClass } from '@/components/ui/primitives';
+import {
+  InboxShell,
+  Avatar,
+  DateSeparator,
+  ContactPanel,
+  ReplyNoteTabs,
+} from '@/components/ui/inbox-kit';
 import { MailComposer, type ComposerInitial, type ComposerMode } from './mail-composer';
 
 type IconType = ComponentType<{ size?: number; className?: string }>;
@@ -155,6 +161,28 @@ function fmt(iso: string | null): string {
   if (!iso) return '';
   return new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
+function timeShort(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+function dayKey(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  const diff = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+  if (diff === 0) return 'Hoy';
+  if (diff === 1) return 'Ayer';
+  return d.toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: 'long',
+    ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' as const } : {}),
+  });
+}
 
 const list = (v: string[] | null | undefined): string => (Array.isArray(v) ? v.join(', ') : '');
 
@@ -175,7 +203,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   const [noteDraft, setNoteDraft] = useState('');
   const [lock, setLock] = useState<LockState | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
-  const [notesOpen, setNotesOpen] = useState(false);
+  const [composerTab, setComposerTab] = useState<'reply' | 'note'>('reply');
   const [loadingList, setLoadingList] = useState(true);
   const fb = useFeedback();
   const [modal, setModal] = useState<
@@ -187,8 +215,6 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   const sigHtml = signatureHtml(currentConn?.signature);
   const nameOf = (userId: string | null): string =>
     userId ? team.find((m) => m.id === userId)?.name ?? 'Asignado' : '';
-  const initials = (name: string): string =>
-    name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
   const loadThreads = useCallback(async (conn: string, f: string) => {
     if (!conn) return;
@@ -273,7 +299,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
     setNoteDraft('');
     setLock(null);
     setComposerOpen(false);
-    setNotesOpen(false);
+    setComposerTab('reply');
     apiFetch<NoteRow[]>(`/mail/threads/${id}/notes`).then(setNotes).catch(() => {});
     try {
       const d = await apiFetch<Detail>(`/mail/threads/${id}`);
@@ -319,7 +345,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
     try {
       const d = await apiFetch<Detail>(`/mail/threads/${selectedId}`);
       setDetail(d);
-      setReplyInit({ to: computeDefaultTo(d) });
+      setReplyInit({ to: computeDefaultTo(d), html: sigHtml });
       setReplyKey((k) => k + 1);
     } catch {
       /* ignore */
@@ -328,6 +354,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   }
 
   function openReply() {
+    setComposerTab('reply');
     setReplyKey((k) => k + 1);
     setComposerOpen(true);
   }
@@ -338,6 +365,7 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
     const others = parts.filter((p) => p !== selfAddress && p !== to);
     setReplyInit((prev) => ({ ...prev, cc: others.join(', ') }));
     setReplyKey((k) => k + 1);
+    setComposerTab('reply');
     setComposerOpen(true);
   }
 
@@ -418,22 +446,24 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
   const visibleMessages = detail ? detail.messages.filter((m) => !m.isDraft) : [];
   const lastMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]!.id : null;
 
-  return (
-    <div className="flex h-[calc(100dvh-8.5rem)] flex-col gap-2">
-      {/* Folder bar — horizontal, with labels (avoids clashing with the navbar rail) */}
-      <div className="flex shrink-0 items-center gap-1 overflow-x-auto rounded-lg border border-ink-100 bg-white p-1">
-        {connections.length > 1 && (
+  // ---- column: filters (folders + mailbox) ----
+  const filtersNode = (
+    <div className="flex h-full flex-col">
+      {connections.length > 1 && (
+        <div className="border-b border-ink-100 p-2">
           <select
             value={connectionId}
             onChange={(e) => switchMailbox(e.target.value)}
-            className="mr-1 shrink-0 rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-700"
+            className="w-full rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-700"
             aria-label="Buzón"
           >
             {connections.map((c) => (
               <option key={c.id} value={c.id}>{c.fromAddress}</option>
             ))}
           </select>
-        )}
+        </div>
+      )}
+      <nav className="flex-1 space-y-0.5 p-2">
         {FOLDERS.map((f) => {
           const Icon = FOLDER_ICON[f.key] ?? Inbox;
           const active = folder === f.key;
@@ -442,10 +472,10 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
             <button
               key={f.key}
               onClick={() => { setFolder(f.key); setSelectedId(null); setDetail(null); setQuery(''); }}
-              className={`flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm ${active ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'}`}
+              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm ${active ? 'bg-ink-900 text-white' : 'text-ink-700 hover:bg-ink-100'}`}
             >
-              <Icon size={15} />
-              <span>{f.label}</span>
+              <Icon size={16} />
+              <span className="flex-1 text-left">{f.label}</span>
               {n > 0 && (
                 <span className={`rounded-full px-1.5 text-[10px] font-semibold ${active ? 'bg-white/20 text-white' : 'bg-primary-600 text-white'}`}>
                   {n > 99 ? '99+' : n}
@@ -454,280 +484,306 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
             </button>
           );
         })}
-      </div>
+      </nav>
+    </div>
+  );
 
-      {/* List + detail */}
-      <div className="flex min-h-0 flex-1 gap-2 sm:gap-3">
-      {/* Thread list — full width on mobile, hidden when a thread is open */}
-      <div className={`${selectedId ? 'hidden md:flex' : 'flex'} w-full flex-col overflow-hidden rounded-lg border border-ink-100 bg-white md:w-80 md:shrink-0`}>
-        <div className="space-y-2 border-b border-ink-100 p-2">
-          <button
-            type="button"
-            onClick={() => setModal({ mode: 'new', initial: { html: sigHtml } })}
-            className={buttonClass('primary', 'flex w-full items-center justify-center gap-1.5 text-xs')}
-          >
-            <Mail size={14} /> Nuevo correo
-          </button>
-          <div className="relative">
-            <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-400" />
-            <input
-              value={query}
-              onChange={(e) => { setQuery(e.target.value); setSelectedId(null); setDetail(null); }}
-              placeholder="Buscar en el correo…"
-              className="w-full rounded border border-ink-200 bg-white px-2 py-1 pl-7 pr-6 text-xs focus:border-ink-700 focus:outline-none"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery('')}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700"
-                aria-label="Limpiar búsqueda"
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {loadingList && threads.length === 0 ? (
-            <div className="space-y-3 p-3">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="animate-pulse space-y-1.5">
-                  <div className="h-3 w-2/3 rounded bg-ink-100" />
-                  <div className="h-2.5 w-1/2 rounded bg-ink-100" />
-                </div>
-              ))}
-            </div>
-          ) : threads.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-ink-500">
-              <Inbox size={28} className="text-ink-300" />
-              {searching ? 'Sin resultados.' : 'Sin mensajes en esta carpeta.'}
-            </div>
-          ) : (
-            threads.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => void openThread(t.id)}
-                className={`block w-full border-b border-ink-100 p-3 text-left hover:bg-ink-100/40 ${selectedId === t.id ? 'bg-ink-100/60' : ''}`}
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[t.status] ?? 'bg-ink-300'}`}
-                      title={`Estado: ${STATUS_LABEL[t.status] ?? t.status}`}
-                    />
-                    <span className={`truncate text-sm ${t.unreadCount > 0 ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>
-                      {(t.participants && t.participants[0]) || 'Contacto'}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-[10px] text-ink-400">{fmt(t.lastMessageAt)}</span>
-                </div>
-                <div className={`truncate pl-3.5 text-xs ${t.unreadCount > 0 ? 'font-medium text-ink-800' : 'text-ink-500'}`}>{t.subject || '(sin asunto)'}</div>
-                <div className="flex items-center justify-between gap-2 pl-3.5">
-                  <span className="truncate text-xs text-ink-400">{t.snippet}</span>
-                  {t.assigneeUserId ? (
-                    <span
-                      className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary-100 text-[8px] font-semibold text-primary-700"
-                      title={`Asignado a ${nameOf(t.assigneeUserId)}`}
-                    >
-                      {initials(nameOf(t.assigneeUserId))}
-                    </span>
-                  ) : (
-                    <span
-                      className="h-4 w-4 shrink-0 rounded-full border border-dashed border-ink-300"
-                      title="Sin asignar"
-                    />
-                  )}
-                </div>
-              </button>
-            ))
+  // ---- column: thread list ----
+  const listNode = (
+    <div className="flex h-full flex-col">
+      <div className="space-y-2 border-b border-ink-100 p-2">
+        <button
+          type="button"
+          onClick={() => setModal({ mode: 'new', initial: { html: sigHtml } })}
+          className={buttonClass('primary', 'flex w-full items-center justify-center gap-1.5 text-xs')}
+        >
+          <Mail size={14} /> Nuevo correo
+        </button>
+        <div className="relative">
+          <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-400" />
+          <input
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setSelectedId(null); setDetail(null); }}
+            placeholder="Buscar en el correo…"
+            className="w-full rounded border border-ink-200 bg-white px-2 py-1 pl-7 pr-6 text-xs focus:border-ink-700 focus:outline-none"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700"
+              aria-label="Limpiar búsqueda"
+            >
+              <X size={13} />
+            </button>
           )}
         </div>
       </div>
-
-      {/* Thread detail — hidden on mobile until a thread is selected */}
-      <div className={`${selectedId ? 'flex' : 'hidden md:flex'} min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-ink-100 bg-white`}>
-        {!detail ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-ink-500">
-            {selectedId ? <Loader2 size={22} className="animate-spin text-ink-300" /> : 'Selecciona un hilo.'}
+      <div className="flex-1 overflow-y-auto">
+        {loadingList && threads.length === 0 ? (
+          <div className="space-y-3 p-3">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex animate-pulse gap-2.5">
+                <div className="h-8 w-8 shrink-0 rounded-full bg-ink-100" />
+                <div className="flex-1 space-y-1.5 py-0.5">
+                  <div className="h-3 w-2/3 rounded bg-ink-100" />
+                  <div className="h-2.5 w-1/2 rounded bg-ink-100" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : threads.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-ink-500">
+            <Inbox size={28} className="text-ink-300" />
+            {searching ? 'Sin resultados.' : 'Sin mensajes en esta carpeta.'}
           </div>
         ) : (
-          <>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-ink-100 px-3 py-2 md:px-4">
+          threads.map((t) => {
+            const who = (t.participants && t.participants[0]) || 'Contacto';
+            return (
               <button
-                type="button"
-                onClick={() => { setSelectedId(null); setDetail(null); }}
-                className="-ml-1 shrink-0 rounded p-1 text-ink-500 hover:bg-ink-100 md:hidden"
-                aria-label="Volver"
+                key={t.id}
+                onClick={() => void openThread(t.id)}
+                className={`flex w-full gap-2.5 border-b border-ink-100 p-2.5 text-left hover:bg-ink-100/50 ${selectedId === t.id ? 'bg-primary-50' : ''}`}
               >
-                <ArrowLeft size={18} />
-              </button>
-              <h2 className="min-w-0 flex-1 truncate text-base font-semibold">{detail.thread.subject || '(sin asunto)'}</h2>
-              <select
-                value={detail.thread.assigneeUserId ?? ''}
-                onChange={(e) => void assign(e.target.value)}
-                title="Asignar"
-                className="rounded border border-ink-200 bg-white px-1.5 py-0.5 text-xs text-ink-700"
-              >
-                <option value="">Sin asignar</option>
-                {team.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-              <select
-                value={detail.thread.status}
-                onChange={(e) => void setStatus(e.target.value)}
-                title="Estado"
-                className={`rounded border border-ink-200 px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[detail.thread.status] ?? 'text-ink-700'}`}
-              >
-                {Object.keys(STATUS_LABEL).map((s) => (
-                  <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-                ))}
-              </select>
-              {(MOVES[folder] ?? []).map((m) => (
-                <button key={m.folder} disabled={busy} onClick={() => void move(m.folder)} className={buttonClass('ghost', 'px-1.5 py-0.5 text-xs')}>{m.label}</button>
-              ))}
-              <button onClick={() => void markUnread()} className={buttonClass('ghost', 'px-1.5 py-0.5 text-xs')}>No leído</button>
-            </div>
-
-            {lock && !lock.byMe && (
-              <div className="flex items-center gap-1.5 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-800">
-                <AlertTriangle size={13} /> {lock.byName} está respondiendo a este hilo ahora mismo.
-              </div>
-            )}
-            <div className="flex-1 space-y-3 overflow-y-auto bg-ink-100/20 p-4">
-              {visibleMessages.map((m) => {
-                const out = m.direction === 'OUT';
-                return (
-                  <div key={m.id} className={`flex ${out ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[88%] rounded-lg border p-3 ${out ? 'border-primary-100 bg-primary-50' : 'border-ink-100 bg-white'}`}>
-                      <div className="mb-2 flex items-baseline justify-between gap-2 text-xs text-ink-500">
-                        <span className={`truncate font-medium ${out ? 'text-primary-800' : 'text-ink-700'}`}>
-                          {out ? 'Tú' : m.fromName || m.fromAddress || 'Contacto'}
-                        </span>
-                        <span className="flex shrink-0 items-center gap-2">
-                          <span>{fmt(m.receivedAt || m.createdAt)}</span>
-                          <button
-                            type="button"
-                            onClick={() => setModal({ mode: 'forward', forwardMessageId: m.id, initial: { html: sigHtml } })}
-                            className="inline-flex items-center gap-1 text-primary-700 hover:underline"
-                            title="Reenviar este mensaje"
-                          >
-                            <Forward size={11} /> Reenviar
-                          </button>
-                        </span>
-                      </div>
-                      {m.html ? (
-                        <div
-                          className="text-sm [&_a]:text-primary-700 [&_a]:underline [&_img]:max-w-full [&_ul]:list-disc [&_ul]:pl-5 [&_p]:my-1"
-                          dangerouslySetInnerHTML={{ __html: m.html }}
-                        />
+                <Avatar name={who} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[t.status] ?? 'bg-ink-300'}`} title={`Estado: ${STATUS_LABEL[t.status] ?? t.status}`} />
+                      <span className={`truncate text-sm ${t.unreadCount > 0 ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>{who}</span>
+                    </span>
+                    <span className="shrink-0 text-[10px] text-ink-400">{timeShort(t.lastMessageAt)}</span>
+                  </div>
+                  <div className={`truncate text-xs ${t.unreadCount > 0 ? 'font-medium text-ink-800' : 'text-ink-500'}`}>{t.subject || '(sin asunto)'}</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-xs text-ink-400">{t.snippet}</span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {t.unreadCount > 0 && (
+                        <span className="inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-semibold text-white">{t.unreadCount}</span>
+                      )}
+                      {t.assigneeUserId ? (
+                        <Avatar name={nameOf(t.assigneeUserId)} size="sm" />
                       ) : (
-                        <p className="whitespace-pre-wrap text-sm text-ink-800">{m.text}</p>
+                        <span className="h-4 w-4 rounded-full border border-dashed border-ink-300" title="Sin asignar" />
                       )}
-                      {m.attachments.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1 border-t border-ink-100 pt-2 text-xs text-ink-500">
-                          {m.attachments.map((a) => (
-                            <button
-                              key={a.id}
-                              type="button"
-                              onClick={() => void downloadAttachment(a.id)}
-                              className="inline-flex items-center gap-1 rounded bg-ink-100 px-2 py-0.5 hover:bg-ink-200 hover:text-ink-800"
-                              title="Descargar"
-                            >
-                              <Paperclip size={11} /> {a.filename}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Internal notes — collapsed by default so they don't steal reading space */}
-            {notesOpen && (
-              <div className="border-t border-ink-100 bg-amber-50/40 px-3 py-2">
-                {notes.length > 0 && (
-                  <ul className="mb-2 max-h-32 space-y-1 overflow-y-auto">
-                    {notes.map((n) => (
-                      <li key={n.id} className="group flex items-start justify-between gap-2 rounded bg-white/70 px-2 py-1 text-xs">
-                        <span className="min-w-0">
-                          <span className="font-medium text-ink-700">{n.authorName}: </span>
-                          <span className="text-ink-700">{n.body}</span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => void deleteNote(n.id)}
-                          className="shrink-0 text-ink-300 opacity-0 hover:text-red-600 group-hover:opacity-100"
-                          aria-label="Borrar nota"
-                        >
-                          ✕
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="flex gap-2">
-                  <input
-                    value={noteDraft}
-                    onChange={(e) => setNoteDraft(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addNote(); } }}
-                    placeholder="Añadir nota interna para el equipo…"
-                    className="flex-1 rounded border border-amber-200 bg-white px-2 py-1 text-xs focus:border-amber-400 focus:outline-none"
-                  />
-                  <button type="button" onClick={() => void addNote()} disabled={!noteDraft.trim()} className={buttonClass('secondary', 'px-2 py-1 text-xs')}>
-                    Añadir
-                  </button>
                 </div>
-              </div>
-            )}
-
-            {/* Reply: a slim action bar by default; the composer only expands on demand */}
-            <div className="border-t border-ink-100 bg-white">
-              {composerOpen ? (
-                <div className="space-y-2 p-3">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-ink-600">Responder</span>
-                    <button type="button" onClick={() => setComposerOpen(false)} className="text-ink-400 hover:text-ink-700">✕ Cerrar</button>
-                  </div>
-                  <MailComposer
-                    key={replyKey}
-                    mode="reply"
-                    connectionId={connectionId}
-                    threadId={detail.thread.id}
-                    initial={replyInit}
-                    onSent={() => { setComposerOpen(false); void refreshThread(); }}
-                  />
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 px-3 py-2">
-                  <button type="button" onClick={openReply} className={buttonClass('primary', 'text-sm')}>Responder</button>
-                  <button type="button" onClick={replyAll} className={buttonClass('secondary', 'text-sm')}>Responder a todos</button>
-                  {lastMessageId && (
-                    <button
-                      type="button"
-                      onClick={() => setModal({ mode: 'forward', forwardMessageId: lastMessageId, initial: { html: sigHtml } })}
-                      className={buttonClass('ghost', 'flex items-center gap-1.5 text-sm')}
-                    >
-                      <Forward size={14} /> Reenviar
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setNotesOpen((o) => !o)}
-                    className={buttonClass(notesOpen ? 'secondary' : 'ghost', 'ml-auto flex items-center gap-1.5 text-sm')}
-                  >
-                    <StickyNote size={14} /> Notas{notes.length ? ` (${notes.length})` : ''}
-                  </button>
-                </div>
-              )}
-            </div>
-          </>
+              </button>
+            );
+          })
         )}
       </div>
+    </div>
+  );
+
+  // ---- column: thread ----
+  let lastDay = '';
+  const threadNode = !detail ? (
+    <div className="flex flex-1 items-center justify-center text-sm text-ink-500">
+      {selectedId ? <Loader2 size={22} className="animate-spin text-ink-300" /> : 'Selecciona un hilo.'}
+    </div>
+  ) : (
+    <>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-ink-100 px-3 py-2 md:px-4">
+        <button
+          type="button"
+          onClick={() => { setSelectedId(null); setDetail(null); }}
+          className="-ml-1 shrink-0 rounded p-1 text-ink-500 hover:bg-ink-100 lg:hidden"
+          aria-label="Volver"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <h2 className="min-w-0 flex-1 truncate text-base font-semibold">{detail.thread.subject || '(sin asunto)'}</h2>
+        <select
+          value={detail.thread.assigneeUserId ?? ''}
+          onChange={(e) => void assign(e.target.value)}
+          title="Asignar"
+          className="rounded border border-ink-200 bg-white px-1.5 py-0.5 text-xs text-ink-700"
+        >
+          <option value="">Sin asignar</option>
+          {team.map((m) => (
+            <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
+        <select
+          value={detail.thread.status}
+          onChange={(e) => void setStatus(e.target.value)}
+          title="Estado"
+          className={`rounded border border-ink-200 px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[detail.thread.status] ?? 'text-ink-700'}`}
+        >
+          {Object.keys(STATUS_LABEL).map((s) => (
+            <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+          ))}
+        </select>
+        {(MOVES[folder] ?? []).map((m) => (
+          <button key={m.folder} disabled={busy} onClick={() => void move(m.folder)} className={buttonClass('ghost', 'px-1.5 py-0.5 text-xs')}>{m.label}</button>
+        ))}
+        <button onClick={() => void markUnread()} className={buttonClass('ghost', 'px-1.5 py-0.5 text-xs')}>No leído</button>
       </div>
+
+      {lock && !lock.byMe && (
+        <div className="flex items-center gap-1.5 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-800">
+          <AlertTriangle size={13} /> {lock.byName} está respondiendo a este hilo ahora mismo.
+        </div>
+      )}
+
+      <div className="flex-1 space-y-1 overflow-y-auto bg-ink-100/20 p-4">
+        {visibleMessages.map((m) => {
+          const ts = m.receivedAt || m.createdAt;
+          const k = dayKey(ts);
+          const sep = k !== lastDay ? <DateSeparator label={dayLabel(ts)} /> : null;
+          lastDay = k;
+          const out = m.direction === 'OUT';
+          const who = out ? 'Tú' : m.fromName || m.fromAddress || 'Contacto';
+          return (
+            <Fragment key={m.id}>
+              {sep}
+              <div className={`flex gap-2 py-1 ${out ? 'flex-row-reverse' : ''}`}>
+                <Avatar name={who} size="sm" />
+                <div className={`min-w-0 max-w-[85%] rounded-lg border p-3 ${out ? 'border-primary-100 bg-primary-50' : 'border-ink-100 bg-white'}`}>
+                  <div className="mb-2 flex items-baseline justify-between gap-2 text-xs text-ink-500">
+                    <span className={`truncate font-medium ${out ? 'text-primary-800' : 'text-ink-700'}`}>{who}</span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span>{fmt(ts)}</span>
+                      <button
+                        type="button"
+                        onClick={() => setModal({ mode: 'forward', forwardMessageId: m.id, initial: { html: sigHtml } })}
+                        className="inline-flex items-center gap-1 text-primary-700 hover:underline"
+                        title="Reenviar este mensaje"
+                      >
+                        <Forward size={11} /> Reenviar
+                      </button>
+                    </span>
+                  </div>
+                  {m.html ? (
+                    <div
+                      className="text-sm [&_a]:text-primary-700 [&_a]:underline [&_img]:max-w-full [&_ul]:list-disc [&_ul]:pl-5 [&_p]:my-1"
+                      dangerouslySetInnerHTML={{ __html: m.html }}
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap text-sm text-ink-800">{m.text}</p>
+                  )}
+                  {m.attachments.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1 border-t border-ink-100 pt-2 text-xs text-ink-500">
+                      {m.attachments.map((a) => (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => void downloadAttachment(a.id)}
+                          className="inline-flex items-center gap-1 rounded bg-ink-100 px-2 py-0.5 hover:bg-ink-200 hover:text-ink-800"
+                          title="Descargar"
+                        >
+                          <Paperclip size={11} /> {a.filename}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Fragment>
+          );
+        })}
+      </div>
+
+      <ReplyNoteTabs
+        tab={composerTab}
+        onTab={setComposerTab}
+        noteCount={notes.length}
+        reply={
+          composerOpen ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium text-ink-600">Responder</span>
+                <button type="button" onClick={() => setComposerOpen(false)} className="text-ink-400 hover:text-ink-700">✕ Cerrar</button>
+              </div>
+              <MailComposer
+                key={replyKey}
+                mode="reply"
+                connectionId={connectionId}
+                threadId={detail.thread.id}
+                initial={replyInit}
+                onSent={() => { setComposerOpen(false); void refreshThread(); }}
+              />
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={openReply} className={buttonClass('primary', 'text-sm')}>Responder</button>
+              <button type="button" onClick={replyAll} className={buttonClass('secondary', 'text-sm')}>Responder a todos</button>
+              {lastMessageId && (
+                <button
+                  type="button"
+                  onClick={() => setModal({ mode: 'forward', forwardMessageId: lastMessageId, initial: { html: sigHtml } })}
+                  className={buttonClass('ghost', 'flex items-center gap-1.5 text-sm')}
+                >
+                  <Forward size={14} /> Reenviar
+                </button>
+              )}
+            </div>
+          )
+        }
+        note={
+          <div className="space-y-2">
+            {notes.length > 0 && (
+              <ul className="max-h-40 space-y-1 overflow-y-auto">
+                {notes.map((n) => (
+                  <li key={n.id} className="group flex items-start justify-between gap-2 rounded bg-white/70 px-2 py-1 text-xs">
+                    <span className="min-w-0">
+                      <span className="font-medium text-ink-700">{n.authorName}: </span>
+                      <span className="text-ink-700">{n.body}</span>
+                    </span>
+                    <button type="button" onClick={() => void deleteNote(n.id)} className="shrink-0 text-ink-300 opacity-0 hover:text-red-600 group-hover:opacity-100" aria-label="Borrar nota">✕</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flex gap-2">
+              <input
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addNote(); } }}
+                placeholder="Añadir nota interna para el equipo…"
+                className="flex-1 rounded border border-amber-200 bg-white px-2 py-1 text-xs focus:border-amber-400 focus:outline-none"
+              />
+              <button type="button" onClick={() => void addNote()} disabled={!noteDraft.trim()} className={buttonClass('secondary', 'px-2 py-1 text-xs')}>Añadir</button>
+            </div>
+          </div>
+        }
+      />
+    </>
+  );
+
+  // ---- column: contact details ----
+  const detailsNode = detail ? (
+    <ContactPanel
+      name={(detail.thread.participants && detail.thread.participants[0]) || 'Contacto'}
+      sub={currentConn ? `vía ${currentConn.fromAddress}` : null}
+      fields={[
+        {
+          label: 'Estado',
+          value: (
+            <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[detail.thread.status] ?? ''}`}>
+              {STATUS_LABEL[detail.thread.status] ?? detail.thread.status}
+            </span>
+          ),
+        },
+        { label: 'Asignado a', value: detail.thread.assigneeUserId ? nameOf(detail.thread.assigneeUserId) : 'Sin asignar' },
+        { label: 'Participantes', value: (detail.thread.participants ?? []).join(', ') || '—' },
+        { label: 'Notas internas', value: notes.length ? `${notes.length}` : 'Ninguna' },
+      ]}
+    />
+  ) : undefined;
+
+  return (
+    <>
+      <InboxShell
+        hasSelection={!!selectedId}
+        filters={filtersNode}
+        list={listNode}
+        thread={threadNode}
+        details={detailsNode}
+      />
 
       {/* New / Forward modal */}
       {modal && (
@@ -751,6 +807,6 @@ export function MailWorkspace({ connections }: { connections: MailboxOption[] })
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
