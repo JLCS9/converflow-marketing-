@@ -138,6 +138,105 @@ describe('MailComposeService.reply', () => {
   });
 });
 
+describe('MailComposeService.forward', () => {
+  it('uses the caller-provided subject when present', async () => {
+    const created: Record<string, unknown>[] = [];
+    const tx = {
+      emailMessage: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'm1',
+          connectionId: 'c1',
+          fromName: 'Cliente',
+          fromAddress: 'cli@x.com',
+          subject: 'Pedido',
+          html: '<p>Hola</p>',
+        }),
+        create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => {
+          created.push(data);
+          return { id: 'm-out' };
+        }),
+      },
+      emailThread: {
+        create: vi.fn().mockResolvedValue({ id: 't-new' }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+    const svc = makeService(tx);
+    await svc.forward('tenant', 'm1', actor, { to: 'dest@z.com', subject: 'Mi asunto' });
+    expect(created[0]!.subject).toBe('Mi asunto');
+  });
+
+  it('falls back to Fwd: <original> when no subject is given', async () => {
+    const created: Record<string, unknown>[] = [];
+    const tx = {
+      emailMessage: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'm1',
+          connectionId: 'c1',
+          fromAddress: 'cli@x.com',
+          subject: 'Re: Pedido',
+          html: '<p>Hola</p>',
+        }),
+        create: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => {
+          created.push(data);
+          return { id: 'm-out' };
+        }),
+      },
+      emailThread: {
+        create: vi.fn().mockResolvedValue({ id: 't-new' }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+    const svc = makeService(tx);
+    await svc.forward('tenant', 'm1', actor, { to: 'dest@z.com' });
+    expect(created[0]!.subject).toBe('Fwd: Pedido');
+  });
+});
+
+describe('MailComposeService.sendDraft', () => {
+  /** tx stub for sending a draft: reply draft (empty subject) on a thread with subject. */
+  function draftTx(draft: Record<string, unknown>, thread: Record<string, unknown>, last: Record<string, unknown> | null) {
+    const updates: Record<string, unknown>[] = [];
+    const tx = {
+      emailMessage: {
+        findUnique: vi.fn().mockResolvedValue(draft),
+        findFirst: vi.fn().mockResolvedValue(last),
+        update: vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => {
+          updates.push(data);
+          return {};
+        }),
+      },
+      emailThread: {
+        findUnique: vi.fn().mockResolvedValue(thread),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+    return { tx, updates };
+  }
+
+  it('derives "Re: <thread subject>" when a reply draft has an empty subject', async () => {
+    const { tx, updates } = draftTx(
+      { id: 'd1', isDraft: true, connectionId: 'c1', threadId: 't1', subject: '', html: '<p>Vale</p>', toAddresses: ['cli@x.com'], ccAddresses: [], bccAddresses: [] },
+      { id: 't1', subject: 'Pedido', folder: 'INBOX' },
+      { rfcMessageId: '<a@x>', references: null },
+    );
+    const svc = makeService(tx);
+    await svc.sendDraft('tenant', 'd1', actor);
+    expect(updates[0]!.subject).toBe('Re: Pedido');
+  });
+
+  it('keeps the typed subject on a new-compose draft', async () => {
+    const { tx, updates } = draftTx(
+      { id: 'd1', isDraft: true, connectionId: 'c1', threadId: 't1', subject: 'Hola equipo', html: '<p>x</p>', toAddresses: ['cli@x.com'], ccAddresses: [], bccAddresses: [] },
+      { id: 't1', subject: null, folder: 'DRAFTS' },
+      null,
+    );
+    const svc = makeService(tx);
+    await svc.sendDraft('tenant', 'd1', actor);
+    expect(updates[0]!.subject).toBe('Hola equipo');
+  });
+});
+
 describe('MailComposeService.compose', () => {
   it('rejects when there is no valid recipient', async () => {
     const svc = makeService({});

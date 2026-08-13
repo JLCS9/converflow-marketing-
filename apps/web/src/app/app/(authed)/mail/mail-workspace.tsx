@@ -70,6 +70,12 @@ function signatureHtml(sig: string | null | undefined): string {
   return `<p></p><p>—<br>${esc}</p>`;
 }
 
+/** Default subject when forwarding: "Fwd: <original>" without stacked Re:/Fwd: prefixes. */
+function fwdSubject(original: string | null | undefined): string {
+  const base = (original ?? '').replace(/^((re|rv|fwd|fw)\s*:\s*)+/i, '').trim();
+  return base ? `Fwd: ${base}` : '';
+}
+
 interface ThreadRow {
   id: string;
   subject: string | null;
@@ -743,7 +749,7 @@ export function MailWorkspace({
                       <span>{fmt(ts)}</span>
                       <button
                         type="button"
-                        onClick={() => setModal({ mode: 'forward', forwardMessageId: m.id, initial: { html: sigHtml } })}
+                        onClick={() => setModal({ mode: 'forward', forwardMessageId: m.id, initial: { subject: fwdSubject(m.subject || detail.thread.subject), html: sigHtml } })}
                         className="inline-flex items-center gap-1 text-primary-700 hover:underline"
                         title="Reenviar este mensaje"
                       >
@@ -808,7 +814,7 @@ export function MailWorkspace({
               {lastMessageId && (
                 <button
                   type="button"
-                  onClick={() => setModal({ mode: 'forward', forwardMessageId: lastMessageId, initial: { html: sigHtml } })}
+                  onClick={() => setModal({ mode: 'forward', forwardMessageId: lastMessageId, initial: { subject: fwdSubject(detail.thread.subject), html: sigHtml } })}
                   className={buttonClass('ghost', 'flex items-center gap-1.5 text-sm')}
                 >
                   <Forward size={14} /> Reenviar

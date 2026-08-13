@@ -159,7 +159,7 @@ export function MailComposer({
         if (!forwardMessageId) throw new Error('Falta el mensaje a reenviar');
         await apiFetch(`/mail/messages/${forwardMessageId}/forward`, {
           method: 'POST',
-          json: { to, cc, bcc, html, attachments: attached },
+          json: { to, cc, bcc, subject, html, attachments: attached },
         });
       } else {
         const id = (await saveDraft()) ?? draftIdRef.current;

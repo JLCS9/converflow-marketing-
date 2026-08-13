@@ -177,6 +177,7 @@ export class MailComposeService {
       to?: string | string[];
       cc?: string | string[];
       bcc?: string | string[];
+      subject?: string;
       html?: string;
       attachments?: StagedAttachment[];
     },
@@ -194,7 +195,7 @@ export class MailComposeService {
     const bcc = parseAddressList(input.bcc).filter((a) => a !== self && !to.includes(a));
 
     const base = normalizeSubject(src.subject ?? '');
-    const subject = base ? `Fwd: ${base}` : 'Fwd:';
+    const subject = (input.subject ?? '').trim() || (base ? `Fwd: ${base}` : 'Fwd:');
     const body = sanitizeEmailHtml(
       buildForwardBody(
         { fromName: src.fromName, fromAddress: src.fromAddress, subject: src.subject, html: src.html, text: src.text, sentAt: src.sentAt, receivedAt: src.receivedAt },
@@ -261,9 +262,21 @@ export class MailComposeService {
           where: { id: existing.id },
           data: { toAddresses: to, ccAddresses: cc, bccAddresses: bcc, subject, html, text: htmlToText(html), snippet },
         });
+        const thread = await tx.emailThread.findUnique({
+          where: { id: existing.threadId },
+          select: { folder: true },
+        });
         await tx.emailThread.update({
           where: { id: existing.threadId },
-          data: { snippet, lastMessageAt: new Date() },
+          data: {
+            snippet,
+            lastMessageAt: new Date(),
+            // Only new-compose (DRAFTS) threads track the draft's subject/recipients;
+            // reply drafts must not rename the existing thread.
+            ...(thread?.folder === 'DRAFTS'
+              ? { subject: subject || null, participants: [...to, ...cc] }
+              : {}),
+          },
         });
       });
       await this.reconcileDraftAttachments(tenantId, existing.id, input.attachments);
@@ -348,8 +361,10 @@ export class MailComposeService {
       }),
     );
     const isReply = !!last;
-    const base = normalizeSubject(msg.subject ?? thread?.subject ?? '');
-    const subject = (msg.subject ?? '').trim() || (isReply ? (base ? `Re: ${base}` : 'Re:') : base) || '(sin asunto)';
+    // Empty-string draft subjects must fall back to the thread/last subject ('' is not nullish).
+    const own = (msg.subject ?? '').trim();
+    const base = normalizeSubject(own || thread?.subject || last?.subject || '');
+    const subject = own || (isReply ? (base ? `Re: ${base}` : 'Re:') : base) || '(sin asunto)';
     const inReplyTo = isReply ? last?.rfcMessageId ?? undefined : undefined;
     const references = isReply ? [last?.references, last?.rfcMessageId].filter(Boolean).join(' ') || undefined : undefined;
 
@@ -380,7 +395,9 @@ export class MailComposeService {
           lastMessageAt: now,
           snippet: htmlToText(html).slice(0, 200),
           status: 'OPEN',
-          ...(thread?.folder === 'DRAFTS' ? { folder: 'INBOX' } : {}),
+          ...(thread?.folder === 'DRAFTS'
+            ? { folder: 'INBOX', subject: normalizeSubject(subject) || subject }
+            : {}),
         },
       });
       return { ok: true, threadId: msg.threadId, messageId: msg.id };
