@@ -52,7 +52,13 @@ async function forwardInbound(payload: {
 
 async function setCursor(botId: string, uid: number): Promise<void> {
   await withRlsBypass(prisma, (tx) =>
-    tx.emailConnection.update({ where: { botId }, data: { lastSeenUid: uid } }),
+    tx.emailConnection.update({
+      where: { botId },
+      // Clear the error too: nothing used to reset this, so one transient
+      // network blip left `status = ERROR` forever while the mailbox kept
+      // working perfectly. The field was reporting "failed once, ever".
+      data: { lastSeenUid: uid, status: 'CONNECTED', lastError: null },
+    }),
   );
 }
 
@@ -153,11 +159,12 @@ async function pollConnection(conn: Conn): Promise<void> {
  *     (`MailConnection`), which polls it too. Two pollers on one mailbox means
  *     the same email ingested twice: once as a Conversation/Message and once as
  *     an EmailThread/EmailMessage.
- *  2. ERROR — this poller had NO status filter, so a failing connection was
- *     retried every 60s forever, with no backoff. Against a mailbox whose app
- *     password was revoked that is a login-failure loop, and providers respond
- *     to those by locking the account. An ERROR connection needs a human, the
- *     same rule the mail module's sync already follows.
+ * NOTE: we deliberately do NOT skip connections whose status is ERROR. In this
+ * legacy model that flag was never reset on success, so it means "a poll failed
+ * at some point", not "this mailbox is broken". Both ERROR rows in production
+ * turned out to be transient network errors ("Failed to establish connection in
+ * required time", "Unexpected close") on mailboxes that were still delivering
+ * mail. Skipping them would have silently switched off a customer's only inbox.
  */
 async function loadPollable(): Promise<Conn[]> {
   const rows = await withRlsBypass(prisma, (tx) =>
@@ -166,7 +173,6 @@ async function loadPollable(): Promise<Conn[]> {
         botId: true,
         tenantId: true,
         email: true,
-        status: true,
         imapHost: true,
         imapPort: true,
         username: true,
@@ -185,16 +191,8 @@ async function loadPollable(): Promise<Conn[]> {
 
   const out: Conn[] = [];
   for (const r of rows) {
-    const verdict = pollVerdict(r, superseded);
-    if (verdict === 'superseded') {
+    if (pollVerdict(r, superseded) === 'superseded') {
       logger.info({ email: r.email }, 'skipping legacy connection: already in the mail module');
-      continue;
-    }
-    if (verdict === 'errored') {
-      logger.warn(
-        { email: r.email },
-        'skipping legacy connection in ERROR — needs reconnecting, retrying would just hammer the provider',
-      );
       continue;
     }
     out.push(r as unknown as Conn);
@@ -207,14 +205,17 @@ export function mailboxKey(tenantId: string, email: string): string {
   return `${tenantId}:${email.trim().toLowerCase()}`;
 }
 
-/** Pure decision, extracted so it can be tested without a database. */
+/**
+ * Pure decision, extracted so it can be tested without a database.
+ *
+ * Only "already migrated" stops a poll. Status is NOT consulted on purpose —
+ * see the note on `loadPollable`.
+ */
 export function pollVerdict(
-  row: { tenantId: string; email: string; status: string },
+  row: { tenantId: string; email: string },
   superseded: Set<string>,
-): 'poll' | 'superseded' | 'errored' {
-  if (superseded.has(mailboxKey(row.tenantId, row.email))) return 'superseded';
-  if (row.status === 'ERROR') return 'errored';
-  return 'poll';
+): 'poll' | 'superseded' {
+  return superseded.has(mailboxKey(row.tenantId, row.email)) ? 'superseded' : 'poll';
 }
 
 async function tick(): Promise<void> {
