@@ -5,6 +5,7 @@ import { Paperclip, X } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { buttonClass } from '@/components/ui/primitives';
 import { RichEmailEditor } from '@/components/ui/rich-email-editor';
+import { MailAssistant } from './mail-assistant';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
@@ -67,6 +68,18 @@ export function MailComposer({
   const [bcc, setBcc] = useState(initial?.bcc ?? '');
   const [subject, setSubject] = useState(initial?.subject ?? '');
   const [html, setHtml] = useState(initial?.html ?? '');
+  // RichEmailEditor only reads `initialHtml` when it mounts (Tiptap `content`),
+  // so applying an AI draft means remounting it with fresh content.
+  const [editorHtml, setEditorHtml] = useState(initial?.html);
+  const [editorKey, setEditorKey] = useState(0);
+
+  /** Put AI output in the editor. Replaces the body; the user reviews and sends. */
+  function applyAiHtml(next: string) {
+    touch();
+    setHtml(next);
+    setEditorHtml(next);
+    setEditorKey((k) => k + 1);
+  }
   const [showCc, setShowCc] = useState(!!(initial?.cc || initial?.bcc));
   const [attached, setAttached] = useState<StagedAttachment[]>(initial?.attachments ?? []);
   const [uploading, setUploading] = useState(false);
@@ -218,7 +231,16 @@ export function MailComposer({
         )}
       </div>
 
-      <RichEmailEditor initialHtml={initial?.html} onChange={(h) => { touch(); setHtml(h); }} />
+      <MailAssistant
+        threadId={mode === 'reply' ? (threadId ?? null) : null}
+        connectionId={mode === 'reply' ? null : (connectionId ?? null)}
+        to={to}
+        currentHtml={html}
+        onApply={applyAiHtml}
+        onSubject={showSubject ? (s) => { touch(); setSubject(s); } : undefined}
+      />
+
+      <RichEmailEditor key={editorKey} initialHtml={editorHtml} onChange={(h) => { touch(); setHtml(h); }} />
 
       {attached.length > 0 && (
         <div className="flex flex-wrap gap-1.5">

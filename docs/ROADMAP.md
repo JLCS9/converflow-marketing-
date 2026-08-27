@@ -298,7 +298,52 @@ feature). No hace falta infraestructura nueva.
 
 ---
 
-## Sprint D — IA de escritura: el asistente (~5 días)
+## Sprint D — IA de escritura: el asistente ✅ HECHO
+
+`typecheck` 8/8 · `lint` 6/6 · `test` **134/134** (17 nuevos).
+**Sin cambios de schema** — no hace falta `db push` ni `apply:rls`.
+
+- `POST /mail/threads/:id/ai/draft` (respuesta) y
+  `POST /mail/connections/:id/ai/draft` (correo nuevo, propone también asunto).
+  Devuelven **dos variantes** con enfoques distintos y etiqueta corta.
+- `POST /mail/ai/refine` sobre el texto ya escrito: mejorar · acortar · más
+  formal · más cercano · traducir.
+- **Contexto inyectado**: hilo (8 mensajes máx.), ficha CRM del contacto
+  (lead/cliente, estado, puntuación, oportunidades abiertas con importe y etapa,
+  últimas notas) y el `businessInfo`+`faqs` del agente publicado del tenant —
+  reutilizado, no duplicado en un segundo sitio que mantener. Todo bajo la regla
+  «no inventes precios, plazos ni compromisos».
+- Responde en el **idioma en que escribe el contacto** (usa `detectedLang` del
+  Sprint C).
+- **Nunca envía**: el resultado se carga en el editor. Sonnet, no Haiku: aquí la
+  calidad es el producto.
+- Rate limit de 20 llamadas/minuto por tenant, coste en `ai_usage`
+  (`mail_draft_reply`, `mail_draft_new`, `mail_refine`), y declarado en
+  `/ai-disclosure`.
+- Salida saneada: se quita el cercado ```html que el modelo añade a veces, se
+  pasa por `sanitizeEmailHtml` y se rechaza con 502 si no queda texto útil.
+
+### Bugs encontrados durante el sprint
+
+- **`systemPrompt` recibía `agentKnowledge` y nunca lo usaba.** TypeScript no se
+  queja de una propiedad de objeto sin leer, así que el conocimiento de producto
+  se recogía de la base y se tiraba: el asistente habría redactado genérico sin
+  ningún error visible. Es justo lo que lo diferencia de pegar el hilo en un
+  chatbot, así que era el bug más caro del sprint.
+- **El typecheck corrigió mis suposiciones sobre el schema**: `Opportunity.name`
+  (no `title`) y `PipelineStage.label` (no `name`).
+- **El bloque «sobre lo escrito» aparecía con solo la firma en el editor**, así
+  que «Mejorar» le habría pasado la firma al modelo, que podía reescribirla.
+  Guardado por los dos lados: la UI exige 20 caracteres escritos antes del
+  marcador de firma, y el prompt obliga a reproducir el bloque de firma literal.
+
+### Pendiente de verificación
+
+Igual que en el Sprint C: flujo, guardarraíles, saneado, límite de uso y
+degradación sin clave están verificados; **la calidad del texto generado no**,
+porque no hay `ANTHROPIC_API_KEY` en el `.env` local.
+
+## Sprint D — diseño original (~5 días)
 
 `POST /mail/threads/:id/ai/compose` · `POST /mail/connections/:id/ai/compose`
 

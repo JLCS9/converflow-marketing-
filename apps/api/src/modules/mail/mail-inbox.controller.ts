@@ -14,6 +14,7 @@ import { MailComposeService } from './mail-compose.service.js';
 import { MailSharedService } from './mail-shared.service.js';
 import { MailAttachmentsService, type StagedAttachment } from './mail-attachments.service.js';
 import { MailAiService } from './mail-ai.service.js';
+import { MailDraftAiService } from './mail-draft-ai.service.js';
 
 type MultipartFile = {
   filename: string;
@@ -32,6 +33,7 @@ export class MailInboxController {
     private readonly shared: MailSharedService,
     private readonly attachments: MailAttachmentsService,
     private readonly mailAi: MailAiService,
+    private readonly draftAi: MailDraftAiService,
   ) {}
 
   private actor(user: AuthenticatedUser) {
@@ -104,6 +106,36 @@ export class MailInboxController {
     return this.mailAi.summarize(user.tenantId, id, this.actor(user), {
       force: body?.force === true,
     });
+  }
+
+  /**
+   * Writing assistant. Never sends: the result goes to the composer for review.
+   */
+  @Post('threads/:id/ai/draft')
+  draftReply(
+    @Param('id') id: string,
+    @Body() body: { instruction?: string; tone?: string; length?: string } | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.draftAi.draftReply(user.tenantId, id, this.actor(user), body ?? {});
+  }
+
+  @Post('connections/:id/ai/draft')
+  draftNew(
+    @Param('id') id: string,
+    @Body() body: { instruction?: string; to?: string; tone?: string; length?: string } | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.draftAi.draftNew(user.tenantId, id, this.actor(user), body ?? {});
+  }
+
+  /** Rework text the user already typed (mejorar / acortar / formal / cercano / traducir). */
+  @Post('ai/refine')
+  refine(
+    @Body() body: { html?: string; action?: string; lang?: string } | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.draftAi.refine(user.tenantId, this.actor(user), body ?? {});
   }
 
   @Post('messages/:id/ai/translate')

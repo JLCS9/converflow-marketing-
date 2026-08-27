@@ -207,6 +207,15 @@ export default function AiDisclosurePage() {
               usuario, traduce el texto de un mensaje recibido. La traducción se muestra
               identificada como automática y <em>junto</em> al original, nunca en su lugar.
             </li>
+            <li>
+              <strong>Asistente de redacción de correos.</strong> A partir de una
+              instrucción del usuario, propone el borrador de un correo usando el hilo, la
+              ficha del contacto en el CRM y la información de producto configurada por el
+              propio usuario. También reescribe texto que el usuario ya ha redactado
+              (mejorar, acortar, cambiar el tono, traducir). Los borradores{' '}
+              <strong>nunca se envían automáticamente</strong>: se cargan en el editor para
+              que una persona los revise y decida.
+            </li>
           </ul>
           <p>
             CONVERFLOW SL no entrena modelos fundacionales propios. Actúa como{' '}
