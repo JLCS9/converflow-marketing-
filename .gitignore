@@ -8,6 +8,11 @@ build/
 .next/
 .turbo/
 *.tsbuildinfo
+# Compiled output must never sit next to sources: NodeNext imports use .js
+# extensions, so a stale src/index.js can shadow src/index.ts at runtime.
+apps/*/src/**/*.js
+apps/*/src/**/*.js.map
+apps/*/src/**/*.d.ts.map
 
 # Env files (never commit secrets)
 .env
@@ -52,3 +57,7 @@ infra/docker/.volumes/
 *.pem
 *.key
 .python-version
+
+# Local-only scratch (fixtures for manual verification, never committed).
+# Must live inside a workspace package or tsx can't resolve @converflow/*.
+**/*.local.ts

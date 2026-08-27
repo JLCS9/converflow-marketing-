@@ -23,7 +23,7 @@ export function parseFlexibleDate(raw: unknown): Date | null {
   }
 
   // European DD[/.-]MM[/.-]YYYY (and YY).
-  const m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+  const m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
   if (m) {
     const dd = Number(m[1]);
     const mm = Number(m[2]);

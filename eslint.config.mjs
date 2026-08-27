@@ -15,6 +15,8 @@ export default tseslint.config(
       '**/src/generated/**',
       '**/*.config.{js,mjs,cjs}',
       '**/*.config.ts',
+      // Local-only scripts, deliberately outside every tsconfig.
+      '**/*.local.ts',
     ],
   },
   eslint.configs.recommended,
@@ -43,6 +45,16 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
       eqeqeq: ['error', 'always', { null: 'ignore' }],
+    },
+  },
+  {
+    // Scripts that live outside any package's tsconfig `include` (the Prisma
+    // seed is compiled by tsx, not tsc). Without opting out of the type-aware
+    // project service, eslint aborts with "was not found by the project
+    // service" and takes the whole `turbo run lint` down with it.
+    files: ['**/prisma/seed.ts'],
+    languageOptions: {
+      parserOptions: { projectService: false, project: false },
     },
   },
   prettierConfig,
