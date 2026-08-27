@@ -4,6 +4,7 @@ import { sanitizeEmailHtml } from '../../common/utils/email-html.js';
 import type { ParsedEmail } from './drivers/index.js';
 import { MailAttachmentsService } from './mail-attachments.service.js';
 import { MailContactsService } from './mail-contacts.service.js';
+import { guessLanguage } from './mail-ai.service.js';
 
 /** Reply/forward prefixes we recognise. Keep both helpers below in sync. */
 const REPLY_PREFIX_RE = /^((re|rv|fwd|fw)\s*:\s*)+/i;
@@ -124,6 +125,10 @@ export class MailIngestService {
           html: email.html ? sanitizeEmailHtml(email.html) : null,
           text: email.text,
           snippet: email.snippet,
+          // Guessed once here, never on read: the inbox re-fetches the open
+          // thread every 12s, so detecting lazily would mean a write per tick.
+          // Heuristic only — no model call, so ingest stays free.
+          detectedLang: guessLanguage(email.text ?? email.snippet ?? ''),
           receivedAt: when,
         },
         select: { id: true },

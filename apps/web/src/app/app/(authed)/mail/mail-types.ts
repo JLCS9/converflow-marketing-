@@ -51,6 +51,8 @@ export interface Msg {
   attachments: AttachmentRow[];
   /** Team member who sent it (OUT only). Null for inbound and for legacy rows. */
   sentByUserId: string | null;
+  /** ISO-639-1 guessed at ingest. Null = unknown (older rows, or too short). */
+  detectedLang: string | null;
   sentBy: { id: string; name: string } | null;
 }
 
@@ -107,3 +109,15 @@ export function authorshipOf(m: Msg, currentUserId: string): Authorship {
   if (m.sentByUserId && m.sentByUserId === currentUserId) return 'me';
   return 'teammate';
 }
+
+export type ThreadState = 'WAITING_US' | 'WAITING_THEM' | 'BLOCKED' | 'CLOSED';
+
+export interface ThreadSummary {
+  bullets: string[];
+  asks: string[];
+  nextStep: string;
+  state: ThreadState;
+}
+
+/** UI language of the app. Messages already in it get no "Traducir" button. */
+export const UI_LANG = 'es';

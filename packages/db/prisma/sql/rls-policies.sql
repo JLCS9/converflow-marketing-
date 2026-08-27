@@ -375,3 +375,12 @@ CREATE POLICY tenant_isolation ON email_templates
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- email_message_translations (Mail · Fase 3 — caché de traducción por mensaje)
+ALTER TABLE email_message_translations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_message_translations FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON email_message_translations;
+CREATE POLICY tenant_isolation ON email_message_translations
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

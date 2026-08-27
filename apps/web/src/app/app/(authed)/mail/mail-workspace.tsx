@@ -29,6 +29,7 @@ import {
 import { MailComposer, type ComposerInitial, type ComposerMode } from './mail-composer';
 import { ThreadMessages, type AddressLabeller } from './mail-message-card';
 import { MailThreadList } from './mail-thread-list';
+import { MailAiPanel } from './mail-ai-panel';
 import type {
   ContactInfo,
   Detail,
@@ -630,6 +631,8 @@ export function MailWorkspace({
           <AlertTriangle size={13} /> {lock.byName} está respondiendo a este hilo ahora mismo.
         </div>
       )}
+
+      <MailAiPanel threadId={detail.thread.id} messageCount={visibleMessages.length} />
 
       <div ref={msgScrollRef} className="flex-1 overflow-y-auto bg-ink-100/20 p-3 md:p-4">
         <ThreadMessages

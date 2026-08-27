@@ -3,6 +3,8 @@ import { NotFoundError, BadRequestError } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { MailConnectionsService } from './mail-connections.service.js';
 import { MailContactsService } from './mail-contacts.service.js';
+import { guessLanguage } from './mail-ai.service.js';
+import { htmlToText } from '../../common/utils/email-html.js';
 
 interface Actor {
   userId: string;
@@ -258,7 +260,40 @@ export class MailInboxService {
       }),
     );
     const contact = await this.contacts.findByEmail(tenantId, firstParticipant(thread.participants));
+    await this.backfillLanguages(tenantId, messages);
     return { thread, messages, contact };
+  }
+
+  /**
+   * Fill in `detectedLang` for messages that predate the detection (everything
+   * ingested before it existed, and anything created outside the ingest path).
+   *
+   * Without this every historical message reports "unknown", and the UI would
+   * offer "Traducir" on Spanish mail — exactly the noise the feature is meant to
+   * avoid. Runs at most once per message: the guess is persisted, so the 12s
+   * thread poller finds it already set. Pure heuristic, no model call, and the
+   * mutated objects are the ones we return so the first response is correct too.
+   */
+  private async backfillLanguages(tenantId: string, messages: { id: string; detectedLang: string | null; text: string | null; html: string | null }[]) {
+    const found: { id: string; lang: string }[] = [];
+    for (const m of messages) {
+      if (m.detectedLang) continue;
+      const body = (m.text ?? '').trim() || htmlToText(m.html ?? '');
+      const lang = guessLanguage(body);
+      // A null guess is NOT persisted: it costs nothing to recompute, and a
+      // sentinel would just be a value we'd have to special-case forever.
+      if (!lang) continue;
+      m.detectedLang = lang;
+      found.push({ id: m.id, lang });
+    }
+    if (!found.length) return;
+    await this.prisma
+      .withTenant(tenantId, async (tx) => {
+        for (const f of found) {
+          await tx.emailMessage.update({ where: { id: f.id }, data: { detectedLang: f.lang } });
+        }
+      })
+      .catch(() => undefined); // best-effort: never break opening a thread
   }
 
   /** Save the thread's contact as a CRM lead (or return the existing lead/client). */

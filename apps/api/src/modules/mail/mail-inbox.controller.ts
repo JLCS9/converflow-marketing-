@@ -13,6 +13,7 @@ import { MailInboxService } from './mail-inbox.service.js';
 import { MailComposeService } from './mail-compose.service.js';
 import { MailSharedService } from './mail-shared.service.js';
 import { MailAttachmentsService, type StagedAttachment } from './mail-attachments.service.js';
+import { MailAiService } from './mail-ai.service.js';
 
 type MultipartFile = {
   filename: string;
@@ -30,6 +31,7 @@ export class MailInboxController {
     private readonly compose: MailComposeService,
     private readonly shared: MailSharedService,
     private readonly attachments: MailAttachmentsService,
+    private readonly mailAi: MailAiService,
   ) {}
 
   private actor(user: AuthenticatedUser) {
@@ -87,6 +89,30 @@ export class MailInboxController {
   @Get('threads/:id')
   thread(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.inbox.getThread(user.tenantId, id, this.actor(user));
+  }
+
+  /**
+   * Thread summary. POST, not GET: it may spend money and it writes the cache.
+   * Returns the cached summary untouched unless the thread grew or force=true.
+   */
+  @Post('threads/:id/ai/summary')
+  summary(
+    @Param('id') id: string,
+    @Body() body: { force?: boolean } | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.mailAi.summarize(user.tenantId, id, this.actor(user), {
+      force: body?.force === true,
+    });
+  }
+
+  @Post('messages/:id/ai/translate')
+  translate(
+    @Param('id') id: string,
+    @Body() body: { lang?: string } | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.mailAi.translate(user.tenantId, id, this.actor(user), body?.lang ?? 'es');
   }
 
   @Post('threads/:id/read')

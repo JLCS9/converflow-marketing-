@@ -226,7 +226,52 @@ buzón del fixture apunta a un host inexistente y quedó en `DEGRADED` con
 
 ---
 
-## Sprint C — IA de lectura: Resumen + Traducir (~4 días)
+## Sprint C — IA de lectura: Resumen + Traducir ✅ HECHO
+
+`typecheck` 8/8 · `lint` 6/6 · `test` **117/117** (21 nuevos).
+⚠️ **Deploy: `prisma db push` + `apply:rls`** (caché de resumen en
+`email_threads`, `email_messages.detectedLang`, y la tabla nueva
+`email_message_translations`, que **sí necesita política RLS**).
+
+- **Resumen** — `POST /mail/threads/:id/ai/summary`, con `force` para regenerar.
+  Viñetas + «te piden» + siguiente paso + estado (te toca / esperando / bloqueado
+  / cerrado). Cacheado con el recuento de mensajes que lo hizo válido: si el hilo
+  crece, se recalcula; si no, sale gratis. **No se genera al abrir el hilo** — lo
+  pide el usuario, porque el sondeo de 12 s lo dispararía en cada tick. Haiku.
+- **Traducir** — `POST /mail/messages/:id/ai/translate`. Solo texto plano,
+  cacheado por `(messageId, lang)`, mostrado **junto** al original y nunca en su
+  lugar. Si el mensaje ya está en el idioma destino, no gasta llamada.
+- **Detección de idioma** en el ingest (heurística, coste cero) + relleno
+  perezoso al abrir el hilo para el correo histórico, una sola vez por mensaje.
+- Aviso de IA en `/ai-disclosure` para ambas funciones (AI Act).
+- Degradación: sin `ANTHROPIC_API_KEY` la UI dice «La IA no está configurada en
+  este entorno» en lugar de romperse. Verificado en el navegador.
+
+### Bugs encontrados durante el sprint
+
+- **El test de cobertura RLS del P0 cazó la tabla nueva** antes de que me diera
+  tiempo a olvidar la política. Funcionó exactamente para lo que se escribió.
+- **La detección de idioma acertaba 2 de 5** con textos reales. La primera
+  versión puntuaba solo palabras largas y «Perfecto, entonces lo dejamos en 40
+  licencias y pago a 30 días» no contiene ninguna → el botón «Traducir» aparecía
+  en correos en español, el ruido exacto que la función quería evitar. Rehecha
+  con enfoque español-primero por **ratio** de palabras funcionales (incluidas
+  las cortas), con marcadores que descartan portugués e italiano. Los cinco
+  cuerpos reales son ahora casos de test.
+- **Todo el correo histórico tenía `detectedLang` null**, así que el botón se
+  mostraba en todo. De ahí el relleno perezoso al leer.
+- Un test mío partía de una premisa falsa (creía que «com» empataba español y
+  portugués; en realidad es portugués y gana 3-2 legítimamente). Corregido el
+  test, no el código.
+
+### Pendiente de verificación
+
+El flujo, la caché, el relleno de idioma y la degradación sin clave están
+verificados en el navegador. **La calidad del texto que devuelve el modelo no**:
+no hay `ANTHROPIC_API_KEY` en el `.env` local. Añádela (nunca por chat) y se
+verifica de punta a punta; coste, céntimos.
+
+## Sprint C — diseño original (~4 días)
 
 Reutiliza `AiService` (`complete`, `callWithTool`, `recordUsage` con coste por
 feature). No hace falta infraestructura nueva.

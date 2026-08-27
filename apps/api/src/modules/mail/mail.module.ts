@@ -10,6 +10,7 @@ import { MailComposeService } from './mail-compose.service.js';
 import { MailSharedService } from './mail-shared.service.js';
 import { MailAttachmentsService } from './mail-attachments.service.js';
 import { MailContactsService } from './mail-contacts.service.js';
+import { MailAiService } from './mail-ai.service.js';
 import { S3Service } from '../../common/storage/s3.service.js';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 
@@ -33,6 +34,7 @@ import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
     MailSharedService,
     MailAttachmentsService,
     MailContactsService,
+    MailAiService,
     S3Service,
     TenantAuthGuard,
   ],

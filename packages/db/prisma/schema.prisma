@@ -153,6 +153,7 @@ model Tenant {
   emailMessages          EmailMessage[]
   emailAttachments       EmailAttachment[]
   emailThreadNotes       EmailThreadNote[]
+  emailMessageTranslations EmailMessageTranslation[]
 
   @@map("tenants")
 }
@@ -1260,6 +1261,14 @@ model EmailThread {
   lastMessageAt DateTime?
   snippet       String?
 
+  /// Cached AI summary. Recomputed only when the thread has grown since it was
+  /// made (aiSummaryMsgCount != current non-draft count). NOT optional: the
+  /// thread detail is re-fetched every 12s by the inbox poller, so summarizing
+  /// on read would pay for a Claude call on every tick.
+  aiSummary         Json?
+  aiSummaryAt       DateTime?
+  aiSummaryMsgCount Int?
+
   // Soft lock for anti-collision in shared mailboxes: who is replying and when
   // (heartbeat-refreshed; considered stale after a short timeout).
   lockedByUserId String?
@@ -1324,19 +1333,46 @@ model EmailMessage {
   text         String?
   snippet      String?
   spamScore    Float?
+  /// ISO-639-1 of the body, detected once and cached. Drives whether the
+  /// "Traducir" button is even shown — offering it on a message already in the
+  /// reader's language is noise.
+  detectedLang String?
   readAt       DateTime?
   sentAt       DateTime?
   receivedAt   DateTime?
 
   createdAt DateTime @default(now())
 
-  attachments EmailAttachment[]
+  attachments  EmailAttachment[]
+  translations EmailMessageTranslation[]
 
   @@unique([connectionId, rfcMessageId])
   @@index([threadId, createdAt])
   @@index([tenantId, connectionId, folder])
   @@index([sentByUserId])
   @@map("email_messages")
+}
+
+/// Cached translation of one message into one language.
+///
+/// Cached because the same message gets opened many times and the inbox poller
+/// re-reads the thread every 12s. Only the PLAIN TEXT is translated, never the
+/// HTML: it is far cheaper, and it avoids re-introducing unsanitized markup into
+/// a module whose safety rests on sanitizing at ingest.
+model EmailMessageTranslation {
+  id        String       @id @default(cuid())
+  tenantId  String
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messageId String
+  message   EmailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  lang      String // ISO-639-1 target
+  text      String
+  model     String? // which model produced it, for cost/quality audits
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, lang])
+  @@index([tenantId, createdAt])
+  @@map("email_message_translations")
 }
 
 model EmailAttachment {

@@ -11,9 +11,76 @@
  */
 
 import { useState } from 'react';
-import { ChevronDown, Forward, Paperclip, Users } from 'lucide-react';
+import { ChevronDown, Forward, Languages, Paperclip, Users } from 'lucide-react';
 import { Avatar } from '@/components/ui/inbox-kit';
-import { authorshipOf, type Authorship, type AttachmentRow, type Msg } from './mail-types';
+import { apiFetch, ApiError } from '@/lib/api-client';
+import { authorshipOf, UI_LANG, type Authorship, type AttachmentRow, type Msg } from './mail-types';
+
+/**
+ * Per-message translation, shown BESIDE the original and never replacing it —
+ * the original has to stay auditable. Offered only when the detected language
+ * differs from the UI's (or is unknown); a "Traducir" button on a message
+ * already in your language is noise.
+ */
+function TranslateBlock({ msg }: { msg: Msg }) {
+  const [text, setText] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(true);
+
+  if (msg.detectedLang === UI_LANG) return null;
+
+  async function run() {
+    if (text) {
+      setOpen((v) => !v);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await apiFetch<{ text: string; sameLanguage: boolean }>(
+        `/mail/messages/${msg.id}/ai/translate`,
+        { method: 'POST', json: { lang: UI_LANG } },
+      );
+      setText(r.sameLanguage ? null : r.text);
+      if (r.sameLanguage) setError('Este mensaje ya está en español.');
+      setOpen(true);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.status === 503
+            ? 'La IA no está configurada en este entorno.'
+            : err.message
+          : 'No se pudo traducir',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 border-t border-ink-100 pt-2">
+      <button
+        type="button"
+        onClick={() => void run()}
+        disabled={loading}
+        className="inline-flex items-center gap-1 text-[11px] text-primary-700 hover:underline disabled:opacity-50"
+      >
+        <Languages size={11} />
+        {loading ? 'Traduciendo…' : text ? (open ? 'Ocultar traducción' : 'Ver traducción') : 'Traducir'}
+      </button>
+      {error && <p className="mt-1 text-[11px] text-red-700">{error}</p>}
+      {text && open && (
+        <div className="mt-1.5 rounded border border-primary-100 bg-primary-50/60 p-2">
+          <p className="mb-1 text-[10px] uppercase tracking-wide text-primary-700">
+            Traducción automática
+          </p>
+          <p className="whitespace-pre-wrap text-sm text-ink-800">{text}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** "Nombre Apellido" → "Nombre A." for compact headers. */
 function shortName(name: string): string {
@@ -230,6 +297,8 @@ export function MessageCard({
           ) : (
             <p className="whitespace-pre-wrap text-sm text-ink-800">{msg.text}</p>
           )}
+
+          <TranslateBlock msg={msg} />
 
           {msg.attachments.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1 border-t border-ink-100 pt-2">

@@ -196,6 +196,17 @@ export default function AiDisclosurePage() {
               <strong>Sugerencia de respuestas y resúmenes.</strong> Propone respuestas o
               resúmenes que el usuario revisa antes de enviar o aceptar.
             </li>
+            <li>
+              <strong>Resumen de hilos de correo.</strong> A petición expresa del usuario,
+              resume un hilo de correo del buzón conectado e indica el siguiente paso
+              sugerido. El resumen se muestra siempre identificado como generado por IA y
+              junto al hilo original, que permanece accesible sin alterar.
+            </li>
+            <li>
+              <strong>Traducción automática de correos.</strong> A petición expresa del
+              usuario, traduce el texto de un mensaje recibido. La traducción se muestra
+              identificada como automática y <em>junto</em> al original, nunca en su lugar.
+            </li>
           </ul>
           <p>
             CONVERFLOW SL no entrena modelos fundacionales propios. Actúa como{' '}
