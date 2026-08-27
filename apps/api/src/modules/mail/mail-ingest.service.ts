@@ -5,8 +5,38 @@ import type { ParsedEmail } from './drivers/index.js';
 import { MailAttachmentsService } from './mail-attachments.service.js';
 import { MailContactsService } from './mail-contacts.service.js';
 
+/** Reply/forward prefixes we recognise. Keep both helpers below in sync. */
+const REPLY_PREFIX_RE = /^((re|rv|fwd|fw)\s*:\s*)+/i;
+
 export function normalizeSubject(subject?: string): string {
-  return (subject ?? '').replace(/^((re|rv|fwd|fw)\s*:\s*)+/i, '').trim();
+  return (subject ?? '').replace(REPLY_PREFIX_RE, '').trim();
+}
+
+/**
+ * Does the raw subject carry a Re:/RV:/Fwd: prefix?
+ *
+ * Only such a message may be threaded by subject. A bare subject is a NEW
+ * conversation, even if it repeats one we have seen — see the guard in
+ * `resolveThreadBySubject`.
+ */
+export function looksLikeReply(subject?: string): boolean {
+  return REPLY_PREFIX_RE.test(subject ?? '');
+}
+
+/** Lowercased address set of everyone a message involved (from + to + cc). */
+function addressesOf(m: {
+  fromAddress?: string | null;
+  toAddresses?: unknown;
+  ccAddresses?: unknown;
+}): string[] {
+  const out: string[] = [];
+  if (m.fromAddress) out.push(m.fromAddress);
+  for (const field of [m.toAddresses, m.ccAddresses]) {
+    if (Array.isArray(field)) {
+      for (const a of field) if (typeof a === 'string') out.push(a);
+    }
+  }
+  return out.map((a) => a.trim().toLowerCase()).filter(Boolean);
 }
 
 /** Split RFC reference ids into a clean list of Message-IDs. */
@@ -50,14 +80,8 @@ export class MailIngestService {
         if (parent) threadId = parent.threadId;
       }
       const subject = normalizeSubject(email.subject);
-      if (!threadId && subject) {
-        const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const t = await tx.emailThread.findFirst({
-          where: { connectionId, subject, lastMessageAt: { gte: since } },
-          orderBy: { lastMessageAt: 'desc' },
-          select: { id: true },
-        });
-        if (t) threadId = t.id;
+      if (!threadId) {
+        threadId = await this.resolveThreadBySubject(tx, connectionId, subject, email);
       }
 
       const when = email.date ?? new Date();
@@ -146,5 +170,68 @@ export class MailIngestService {
       }
     }
     return result;
+  }
+
+  /**
+   * Last-resort threading by normalized subject, for clients that reply without
+   * In-Reply-To/References headers.
+   *
+   * This used to match ANY thread with the same subject on the connection within
+   * 30 days, which merged unrelated correspondence: two different customers both
+   * writing "Presupuesto" landed in one thread. That is not a display glitch —
+   * `MailComposeService.reply` defaults the recipient to the last inbound sender,
+   * so replying could send one customer's content to another, and anyone opening
+   * the thread saw both.
+   *
+   * Two guards now, and BOTH must hold:
+   *
+   *  1. The message must look like a reply (Re:/RV:/Fwd:). A bare subject starts
+   *     a new conversation — subject threading exists to rescue replies whose
+   *     headers were stripped, and those always carry a prefix.
+   *  2. The sender must already be involved in the candidate thread, as From, To
+   *     or Cc of one of its messages (or listed in its participants). This is
+   *     what kills the generic-subject collision.
+   *
+   * When in doubt we open a NEW thread: splitting a conversation is a nuisance,
+   * merging two is a data leak.
+   */
+  private async resolveThreadBySubject(
+    tx: Parameters<Parameters<PrismaService['withTenant']>[1]>[0],
+    connectionId: string,
+    subject: string,
+    email: ParsedEmail,
+  ): Promise<string | null> {
+    const sender = (email.fromAddress ?? '').trim().toLowerCase();
+    if (!subject || !sender || !looksLikeReply(email.subject)) return null;
+
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const candidates = await tx.emailThread.findMany({
+      where: { connectionId, subject, lastMessageAt: { gte: since } },
+      orderBy: { lastMessageAt: 'desc' },
+      take: 5,
+      select: { id: true, participants: true },
+    });
+    if (!candidates.length) return null;
+
+    const messages = await tx.emailMessage.findMany({
+      where: { threadId: { in: candidates.map((c) => c.id) } },
+      select: { threadId: true, fromAddress: true, toAddresses: true, ccAddresses: true },
+    });
+
+    // Newest candidate first — `candidates` is already ordered.
+    for (const c of candidates) {
+      const known = new Set<string>();
+      if (Array.isArray(c.participants)) {
+        for (const a of c.participants) {
+          if (typeof a === 'string') known.add(a.trim().toLowerCase());
+        }
+      }
+      for (const m of messages) {
+        if (m.threadId !== c.id) continue;
+        for (const a of addressesOf(m)) known.add(a);
+      }
+      if (known.has(sender)) return c.id;
+    }
+    return null;
   }
 }

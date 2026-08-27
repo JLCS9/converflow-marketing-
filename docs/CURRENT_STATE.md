@@ -255,6 +255,24 @@ separado de IM con modelos propios (`EmailThread`/`EmailMessage`) — Fase 2.
 8. **Internal webhooks must DERIVE the tenant from the resource, never trust the payload.** The bot-runner→API inbound webhook now resolves `tenantId` from the bot row (`bot.tenantId` via bypass) keyed by the `:botId` in the URL — it ignores any `tenantId` in the body. Same pattern for `/internal/email/inbound` (resolves the EMAIL bot by the recipient address, then derives tenantId from that bot). Trusting a caller-supplied tenantId is a cross-tenant routing risk. Tenant-facing routes already derive tenant from the session (TenantAuthGuard). RLS covers every tenant table (verified: only the 4 platform tables lack RLS, by design).
 9. **IMAP first sync must NOT import history.** When a tenant connects a new mailbox, the poller sets the UID cursor to the current `mailbox.uidNext - 1` and returns — subsequent ticks only fetch UIDs `> cursor`. If we ever fetched from UID 1 we'd flood `conversations` and `messages` with the entire inbox history (and rack up Claude classification cost). See `apps/workers/src/email-poller.ts`.
 
+10. **Threading por asunto: exige prefijo de respuesta Y coincidencia de
+    participante.** El fallback por asunto de `MailIngestService` emparejaba
+    CUALQUIER hilo con el mismo asunto normalizado en la misma conexión durante
+    30 días, sin mirar quién escribía. Resultado en producción: dos clientes
+    distintos que escriben «Presupuesto» acababan en el mismo hilo. **No es un
+    fallo visual** — `MailComposeService.reply` toma como destinatario por
+    defecto el último remitente entrante, así que responder podía enviarle a un
+    cliente contenido dirigido a otro, y quien abriera el hilo veía la
+    correspondencia de ambos. Ahora hacen falta las dos condiciones: (a) el
+    asunto entrante lleva prefijo `Re:`/`RV:`/`Fwd:` — un asunto pelado abre
+    conversación nueva siempre, porque el threading por asunto solo existe para
+    rescatar respuestas a las que el cliente de correo les quitó las cabeceras,
+    y esas siempre llevan prefijo; (b) el remitente ya aparece en el hilo
+    candidato como From, To o Cc de alguno de sus mensajes. **Ante la duda, hilo
+    nuevo: partir una conversación es una molestia, fusionar dos es una fuga de
+    datos.** El sistema de correo antiguo (`Conversation`) no está afectado:
+    agrupa por `(tenantId, channel, contactJid)`, nunca por asunto.
+
 ## Open known issues
 
 1. `score()` prompt enriched with notes but not yet with opportunities/tasks (analyze() has full context). Pending coherence pass.
