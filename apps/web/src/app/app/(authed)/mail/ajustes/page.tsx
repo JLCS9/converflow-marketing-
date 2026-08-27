@@ -28,7 +28,9 @@ export const metadata = { title: 'Correo · Buzones' };
 const STATUS: Record<string, { label: string; color: 'gray' | 'green' | 'red' | 'yellow' }> = {
   PENDING: { label: 'Pendiente', color: 'yellow' },
   CONNECTED: { label: 'Conectado', color: 'green' },
-  ERROR: { label: 'Error', color: 'red' },
+  // Fallo transitorio: se sigue sincronizando con reintentos, no requiere acción.
+  DEGRADED: { label: 'Reintentando', color: 'yellow' },
+  ERROR: { label: 'Requiere acción', color: 'red' },
 };
 
 export default async function MailConnectionsSettingsPage() {
@@ -86,7 +88,7 @@ export default async function MailConnectionsSettingsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <Badge color={st.color}>{st.label}</Badge>
-                      {c.status === 'ERROR' && c.lastError && (
+                      {(c.status === 'ERROR' || c.status === 'DEGRADED') && c.lastError && (
                         <div className="mt-0.5 max-w-xs truncate text-[11px] text-red-600" title={c.lastError}>
                           {c.lastError}
                         </div>

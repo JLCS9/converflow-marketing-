@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import nodemailer from 'nodemailer';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
+import { resolveSecure, pickSentMailbox, providerAutoSavesSent } from './mail-driver.js';
 import type {
   DriverConfig,
   MailDriver,
@@ -21,10 +23,15 @@ export class SmtpImapDriver implements MailDriver {
   constructor(private readonly cfg: DriverConfig) {}
 
   private transporter() {
+    const secure = resolveSecure(this.cfg.smtpSecure, this.cfg.smtpPort, this.cfg.secure);
     return nodemailer.createTransport({
       host: this.cfg.smtpHost ?? undefined,
       port: this.cfg.smtpPort ?? 465,
-      secure: this.cfg.secure ?? true,
+      secure,
+      // On a non-implicit-TLS port, demand STARTTLS instead of accepting it as
+      // optional — otherwise a server that omits the capability gets the
+      // mailbox password in cleartext.
+      requireTLS: !secure,
       auth: { user: this.cfg.username ?? this.cfg.fromAddress, pass: this.cfg.secret ?? '' },
     });
   }
@@ -33,7 +40,7 @@ export class SmtpImapDriver implements MailDriver {
     return new ImapFlow({
       host: this.cfg.imapHost ?? '',
       port: this.cfg.imapPort ?? 993,
-      secure: this.cfg.secure ?? true,
+      secure: resolveSecure(this.cfg.imapSecure, this.cfg.imapPort, this.cfg.secure),
       auth: { user: this.cfg.username ?? this.cfg.fromAddress, pass: this.cfg.secret ?? '' },
       logger: false,
     });
@@ -51,8 +58,10 @@ export class SmtpImapDriver implements MailDriver {
     }
   }
 
-  async send(input: MailSendInput): Promise<{ id?: string }> {
-    const info = await this.transporter().sendMail({
+  /** Shared message envelope, so the sent copy is byte-identical to what we send. */
+  private mailOptions(input: MailSendInput, messageId: string) {
+    return {
+      messageId,
       from: this.cfg.displayName
         ? { name: this.cfg.displayName, address: this.cfg.fromAddress }
         : this.cfg.fromAddress,
@@ -65,8 +74,54 @@ export class SmtpImapDriver implements MailDriver {
       inReplyTo: input.inReplyTo,
       references: input.references,
       attachments: input.attachments,
-    });
-    return { id: info.messageId };
+    };
+  }
+
+  async send(input: MailSendInput): Promise<{ id?: string }> {
+    // Stamp the Message-ID ourselves instead of letting nodemailer invent one
+    // per build: the copy we file in Sent must carry the same id as the message
+    // that actually went out, or the user's mail client shows two threads.
+    const domain = this.cfg.fromAddress.split('@')[1] ?? 'converflow.ai';
+    const messageId = input.messageId ?? `<${randomUUID()}@${domain}>`;
+    const options = this.mailOptions(input, messageId);
+
+    const info = await this.transporter().sendMail(options);
+
+    // File a copy in the mailbox's own Sent folder. Without this, nothing sent
+    // from Converflow ever appears in the customer's Gmail/Outlook. Deliberately
+    // NOT awaited: it is a second IMAP round-trip and must never delay or fail
+    // the send that already succeeded.
+    void this.appendToSent(options).catch(() => undefined);
+
+    return { id: info.messageId ?? messageId };
+  }
+
+  /**
+   * Build the same message again as raw MIME and APPEND it to the Sent mailbox.
+   * Skipped for providers that already do it (Gmail), which would otherwise
+   * show every sent message twice.
+   */
+  private async appendToSent(options: ReturnType<SmtpImapDriver['mailOptions']>): Promise<void> {
+    if (providerAutoSavesSent(this.cfg.smtpHost)) return;
+    if (!this.cfg.imapHost) return;
+
+    // streamTransport+buffer composes the MIME without sending anything.
+    const built = await nodemailer
+      .createTransport({ streamTransport: true, buffer: true })
+      .sendMail(options);
+    const raw = built.message as Buffer | undefined;
+    if (!raw?.length) return;
+
+    const client = this.imap();
+    await client.connect();
+    try {
+      const boxes = await client.list();
+      const sent = pickSentMailbox(boxes);
+      if (!sent) return; // no Sent folder we recognise — nothing to do
+      await client.append(sent, raw, ['\\Seen']);
+    } finally {
+      await client.logout().catch(() => undefined);
+    }
   }
 
   async fetchRecent(limit: number): Promise<ParsedMessageSummary[]> {

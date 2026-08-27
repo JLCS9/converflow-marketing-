@@ -27,7 +27,10 @@ export const createMailConnectionSchema = z
     smtpPort: z.number().int().min(1).max(65535).optional(),
     username: z.string().trim().max(255).optional(),
     secret: z.string().min(1).max(2000).optional(), // plaintext from the form; encrypted server-side
-    secure: z.boolean().optional(),
+    // Implicit TLS per transport — they genuinely differ (Outlook: SMTP 587
+    // STARTTLS + IMAP 993 TLS). Omit to let the server derive from the port.
+    smtpSecure: z.boolean().optional(),
+    imapSecure: z.boolean().optional(),
   })
   .superRefine((v, ctx) => {
     if (v.driver === 'SMTP_IMAP') {
@@ -53,7 +56,8 @@ export const updateMailConnectionSchema = z.object({
   smtpPort: z.number().int().min(1).max(65535).optional(),
   username: z.string().trim().max(255).optional(),
   secret: z.string().min(1).max(2000).optional(), // only re-encrypted when present
-  secure: z.boolean().optional(),
+  smtpSecure: z.boolean().optional(),
+  imapSecure: z.boolean().optional(),
 });
 
 export const mailTestSendSchema = z.object({ to: emailField });

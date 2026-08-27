@@ -20,6 +20,61 @@ function asFolder(v: string | undefined): Folder {
   return (FOLDERS as readonly string[]).includes(v ?? '') ? (v as Folder) : 'INBOX';
 }
 
+const PAGE_SIZE = 40;
+const MAX_PAGE_SIZE = 100;
+
+/** Thread fields the list/search views need. */
+const THREAD_ROW = {
+  id: true,
+  subject: true,
+  snippet: true,
+  participants: true,
+  unreadCount: true,
+  status: true,
+  assigneeUserId: true,
+  lastMessageAt: true,
+} as const;
+
+/**
+ * Keyset cursor: "<lastMessageAt ISO>|<id>". Keyset (not offset) so paging stays
+ * stable while new mail arrives — an OFFSET page 2 would skip or repeat threads
+ * every time something lands in the inbox.
+ */
+export function encodeThreadCursor(t: { lastMessageAt: Date | null; id: string }): string {
+  return `${(t.lastMessageAt ?? new Date(0)).toISOString()}|${t.id}`;
+}
+
+export function decodeThreadCursor(raw: string | undefined): { at: Date; id: string } | null {
+  if (!raw) return null;
+  // indexOf, not lastIndexOf: the ISO timestamp never contains a pipe, so the
+  // FIRST one is the separator and the id keeps whatever it contains.
+  const sep = raw.indexOf('|');
+  if (sep <= 0) return null;
+  const at = new Date(raw.slice(0, sep));
+  const id = raw.slice(sep + 1);
+  if (Number.isNaN(at.getTime()) || !id) return null;
+  return { at, id };
+}
+
+/**
+ * Everything strictly "older" than the cursor, under (lastMessageAt desc, id desc).
+ *
+ * Returned as an AND-clause array, never spread into `where`: the search query
+ * already owns the top-level `OR`, and a spread would overwrite one of the two
+ * silently — dropping the cursor and paging forever over the same rows.
+ */
+function afterCursor(cursor: { at: Date; id: string } | null) {
+  if (!cursor) return [];
+  return [
+    {
+      OR: [
+        { lastMessageAt: { lt: cursor.at } },
+        { lastMessageAt: cursor.at, id: { lt: cursor.id } },
+      ],
+    },
+  ];
+}
+
 @Injectable()
 export class MailInboxService {
   constructor(
@@ -28,35 +83,49 @@ export class MailInboxService {
     private readonly contacts: MailContactsService,
   ) {}
 
-  /** Threads in a folder of an accessible connection (bucket folders for now). */
-  async listThreads(tenantId: string, connectionId: string, actor: Actor, folderRaw?: string) {
+  /**
+   * Threads in a folder of an accessible connection, newest activity first and
+   * paged by keyset cursor. Previously capped at a hard 50 with no cursor, so a
+   * real mailbox lost access to anything older within days.
+   */
+  async listThreads(
+    tenantId: string,
+    connectionId: string,
+    actor: Actor,
+    folderRaw?: string,
+    opts: { cursor?: string; limit?: number } = {},
+  ): Promise<{ items: unknown[]; nextCursor: string | null }> {
     await this.connections.assertAccess(tenantId, connectionId, actor);
     const folder = asFolder(folderRaw);
     // INBOX/ARCHIVE/SPAM/TRASH are thread buckets. SENT/DRAFTS are message-level
     // (a thread "appears" in them if it has a matching message).
-    const where =
+    const scope =
       folder === 'SENT'
         ? { connectionId, messages: { some: { direction: 'OUT' as const, isDraft: false } } }
         : folder === 'DRAFTS'
           ? { connectionId, messages: { some: { isDraft: true } } }
           : { connectionId, folder };
-    return this.prisma.withTenant(tenantId, (tx) =>
+    const cursor = decodeThreadCursor(opts.cursor);
+    const take = Math.min(Math.max(opts.limit ?? PAGE_SIZE, 1), MAX_PAGE_SIZE);
+
+    const rows = await this.prisma.withTenant(tenantId, (tx) =>
       tx.emailThread.findMany({
-        where,
-        orderBy: { lastMessageAt: 'desc' },
-        take: 50,
-        select: {
-          id: true,
-          subject: true,
-          snippet: true,
-          participants: true,
-          unreadCount: true,
-          status: true,
-          assigneeUserId: true,
-          lastMessageAt: true,
-        },
+        where: { ...scope, AND: afterCursor(cursor) },
+        orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
+        // One extra row tells us whether another page exists without a count().
+        take: take + 1,
+        select: THREAD_ROW,
       }),
     );
+    return this.page(rows, take);
+  }
+
+  /** Trim the sentinel row and derive the next cursor from the last kept item. */
+  private page<T extends { id: string; lastMessageAt: Date | null }>(rows: T[], take: number) {
+    const hasMore = rows.length > take;
+    const items = hasMore ? rows.slice(0, take) : rows;
+    const last = items[items.length - 1];
+    return { items, nextCursor: hasMore && last ? encodeThreadCursor(last) : null };
   }
 
   /** Total unread INBOX threads across all mailboxes the actor can access (for the navbar badge). */
@@ -112,14 +181,23 @@ export class MailInboxService {
   }
 
   /** Full-text-ish search across all folders of a connection (subject/snippet/body/sender). */
-  async search(tenantId: string, connectionId: string, actor: Actor, q: string) {
+  async search(
+    tenantId: string,
+    connectionId: string,
+    actor: Actor,
+    q: string,
+    opts: { cursor?: string; limit?: number } = {},
+  ): Promise<{ items: unknown[]; nextCursor: string | null }> {
     await this.connections.assertAccess(tenantId, connectionId, actor);
     const term = (q ?? '').trim();
-    if (term.length < 2) return [];
-    return this.prisma.withTenant(tenantId, (tx) =>
+    if (term.length < 2) return { items: [], nextCursor: null };
+    const cursor = decodeThreadCursor(opts.cursor);
+    const take = Math.min(Math.max(opts.limit ?? PAGE_SIZE, 1), MAX_PAGE_SIZE);
+    const rows = await this.prisma.withTenant(tenantId, (tx) =>
       tx.emailThread.findMany({
         where: {
           connectionId,
+          AND: afterCursor(cursor),
           OR: [
             { subject: { contains: term, mode: 'insensitive' } },
             { snippet: { contains: term, mode: 'insensitive' } },
@@ -136,20 +214,12 @@ export class MailInboxService {
             },
           ],
         },
-        orderBy: { lastMessageAt: 'desc' },
-        take: 50,
-        select: {
-          id: true,
-          subject: true,
-          snippet: true,
-          participants: true,
-          unreadCount: true,
-          status: true,
-          assigneeUserId: true,
-          lastMessageAt: true,
-        },
+        orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
+        take: take + 1,
+        select: THREAD_ROW,
       }),
     );
+    return this.page(rows, take);
   }
 
   /** Unread counts per bucket folder, for the sidebar badges. */
@@ -181,6 +251,9 @@ export class MailInboxService {
           attachments: {
             select: { id: true, filename: true, mimeType: true, sizeBytes: true, storageKey: true },
           },
+          // So the header can say "María García vía ventas@empresa.com" instead
+          // of a bare "Tú" that hides which colleague replied.
+          sentBy: { select: { id: true, name: true } },
         },
       }),
     );
@@ -210,10 +283,25 @@ export class MailInboxService {
           where: { threadId, readAt: null },
           data: { readAt: new Date() },
         });
+        return tx.emailThread.update({
+          where: { id: threadId },
+          data: { unreadCount: 0 },
+          select: { id: true, unreadCount: true },
+        });
       }
+      // Marking unread means "treat the whole thread as new" (Gmail semantics):
+      // clear readAt on every inbound message and derive the counter from them,
+      // instead of hardcoding 1 and losing the real count.
+      await tx.emailMessage.updateMany({
+        where: { threadId, direction: 'IN' },
+        data: { readAt: null },
+      });
+      const unread = await tx.emailMessage.count({
+        where: { threadId, direction: 'IN', isDraft: false },
+      });
       return tx.emailThread.update({
         where: { id: threadId },
-        data: { unreadCount: read ? 0 : 1 },
+        data: { unreadCount: Math.max(1, unread) },
         select: { id: true, unreadCount: true },
       });
     });

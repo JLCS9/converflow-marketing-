@@ -6,6 +6,12 @@
 
 export interface MailSendInput {
   to: string | string[];
+  /**
+   * RFC Message-ID to stamp on the message. Provide one so the copy appended to
+   * the mailbox's Sent folder carries the SAME id as the message that went out
+   * (otherwise the user's mail client sees two unrelated messages).
+   */
+  messageId?: string;
   cc?: string | string[];
   bcc?: string | string[];
   subject: string;
@@ -77,5 +83,65 @@ export interface DriverConfig {
   smtpPort?: number | null;
   username?: string | null;
   secret?: string | null; // decrypted password / token
-  secure?: boolean;
+  /** Implicit TLS for SMTP. Null/undefined → derived from smtpPort. */
+  smtpSecure?: boolean | null;
+  /** Implicit TLS for IMAP. Null/undefined → derived from imapPort. */
+  imapSecure?: boolean | null;
+  /** @deprecated Legacy single flag; last-resort fallback for both transports. */
+  secure?: boolean | null;
+}
+
+/**
+ * Providers that already file SMTP-sent mail into Sent by themselves. Appending
+ * our own copy there would show every sent message twice.
+ */
+const AUTO_SAVES_SENT_RE = /(^|\.)(gmail|googlemail)\.com$/i;
+
+export function providerAutoSavesSent(smtpHost: string | null | undefined): boolean {
+  return AUTO_SAVES_SENT_RE.test((smtpHost ?? '').trim().toLowerCase());
+}
+
+/** Mailbox names used for "Sent" when the server advertises no \Sent flag. */
+const SENT_NAME_RE =
+  /^(sent|sent[\s_-]?(items|messages|mail)|enviados|elementos enviados|correo enviado|gesendet|envoy[ée]s?|posta inviata)$/i;
+
+/**
+ * Pick the mailbox to append sent messages to. Prefers the RFC 6154 \Sent
+ * special-use flag (works regardless of the server's language) and falls back
+ * to well-known names — IONOS, older Dovecot and Exchange setups don't always
+ * advertise special-use.
+ */
+export function pickSentMailbox(
+  boxes: { path: string; name?: string; specialUse?: string }[],
+): string | null {
+  const flagged = boxes.find((b) => b.specialUse === '\\Sent');
+  if (flagged) return flagged.path;
+  const named = boxes.find((b) => SENT_NAME_RE.test((b.name ?? b.path).trim()));
+  return named?.path ?? null;
+}
+
+/** Ports that speak TLS from the first byte (SMTPS / IMAPS). */
+const IMPLICIT_TLS_PORTS = new Set([465, 993]);
+/** Ports that start in the clear and upgrade via STARTTLS (or stay plain). */
+const STARTTLS_PORTS = new Set([25, 143, 587]);
+
+/**
+ * Decide whether a transport uses implicit TLS on connect.
+ *
+ * Order: explicit per-transport setting → the port's standard behaviour → the
+ * legacy shared flag. Port derivation beats the legacy flag because the legacy
+ * flag was necessarily wrong for one of the two transports whenever they
+ * disagreed (the Outlook case: SMTP 587 + IMAP 993).
+ */
+export function resolveSecure(
+  explicit: boolean | null | undefined,
+  port: number | null | undefined,
+  legacy: boolean | null | undefined,
+): boolean {
+  if (explicit != null) return explicit;
+  if (port != null) {
+    if (IMPLICIT_TLS_PORTS.has(port)) return true;
+    if (STARTTLS_PORTS.has(port)) return false;
+  }
+  return legacy ?? true;
 }

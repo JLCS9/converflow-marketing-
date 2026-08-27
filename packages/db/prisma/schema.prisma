@@ -190,6 +190,7 @@ model User {
   sessions UserSession[]
   calendarConnection CalendarConnection?
   assignedTasks Task[]
+  sentEmails    EmailMessage[] @relation("EmailMessageSender")
 
   @@index([tenantId])
   @@map("users")
@@ -1175,6 +1176,15 @@ model MailConnection {
   smtpPort  Int?    @default(465)
   username  String?
   secretEnc String? // encrypted: SMTP/IMAP password OR OAuth refresh token
+
+  /// Implicit TLS on connect, PER TRANSPORT. They differ in the real world:
+  /// Outlook/365 is SMTP 587 (STARTTLS, false) + IMAP 993 (implicit TLS, true).
+  /// A single flag for both made every Outlook mailbox unconnectable.
+  /// NULL = not configured explicitly → derived from the port (see resolveSecure).
+  smtpSecure Boolean?
+  imapSecure Boolean?
+  /// @deprecated Legacy single flag, kept only as the last-resort fallback for
+  /// rows created before the split (and for non-standard ports). Do not write it.
   secure    Boolean @default(true)
 
   visibility  MailVisibility @default(SHARED)
@@ -1184,6 +1194,13 @@ model MailConnection {
   lastError    String?
   lastSyncedAt DateTime?
   syncCursor   Int? // IMAP UID cursor (Fase 2)
+
+  /// Sync health. A single transient IMAP error used to set status=ERROR, and
+  /// the scheduler only ever selected CONNECTED — so one network blip killed
+  /// the mailbox silently and forever. These drive the retry/backoff instead.
+  consecutiveFailures Int       @default(0)
+  nextRetryAt         DateTime? // NULL = eligible now
+  errorNotifiedAt     DateTime? // so the owner is emailed once, not every tick
 
   createdByUserId String?
   createdAt       DateTime @default(now())
@@ -1212,6 +1229,11 @@ enum MailVisibility {
 enum MailConnStatus {
   PENDING
   CONNECTED
+  /// Transient trouble (network blip, provider hiccup). STILL synced, with
+  /// exponential backoff. Only escalates to ERROR after repeated failures.
+  DEGRADED
+  /// Needs a human: bad credentials, or too many consecutive failures. NOT
+  /// picked up by the scheduler until someone fixes and re-tests the mailbox.
   ERROR
 }
 
@@ -1289,6 +1311,11 @@ model EmailMessage {
 
   fromAddress  String?
   fromName     String?
+  /// Which team member sent this (OUT messages only). Without it a shared
+  /// mailbox can only ever say "Tú" — you cannot tell whether María or Juan
+  /// replied. NULL for inbound mail and for anything sent before this existed.
+  sentByUserId String?
+  sentBy       User?          @relation("EmailMessageSender", fields: [sentByUserId], references: [id], onDelete: SetNull)
   toAddresses  Json?          // string[]
   ccAddresses  Json?
   bccAddresses Json?
@@ -1308,6 +1335,7 @@ model EmailMessage {
   @@unique([connectionId, rfcMessageId])
   @@index([threadId, createdAt])
   @@index([tenantId, connectionId, folder])
+  @@index([sentByUserId])
   @@map("email_messages")
 }
 

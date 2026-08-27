@@ -15,14 +15,29 @@ export interface MailConnectionData {
   smtpHost: string | null;
   smtpPort: number | null;
   username: string | null;
+  smtpSecure: boolean | null;
+  imapSecure: boolean | null;
   secure: boolean;
   visibility: string;
 }
 
-const PRESETS: Record<string, { imapHost: string; imapPort: number; smtpHost: string; smtpPort: number; secure: boolean; note?: string }> = {
-  gmail: { imapHost: 'imap.gmail.com', imapPort: 993, smtpHost: 'smtp.gmail.com', smtpPort: 465, secure: true, note: 'Gmail/Workspace: activa 2FA y usa una "Contraseña de aplicación" (16 caracteres), no tu contraseña normal.' },
-  outlook: { imapHost: 'outlook.office365.com', imapPort: 993, smtpHost: 'smtp.office365.com', smtpPort: 587, secure: false, note: 'Outlook/365: puerto SMTP 587 (STARTTLS).' },
-  ionos: { imapHost: 'imap.ionos.es', imapPort: 993, smtpHost: 'smtp.ionos.es', smtpPort: 465, secure: true },
+/**
+ * Mirror of the server's `resolveSecure`: implicit TLS on 465/993, STARTTLS or
+ * plain on 25/143/587. Keeps the checkbox showing what will actually happen so
+ * the user never has to reason about TLS unless they have a weird port.
+ */
+function deriveSecure(port: number): boolean {
+  if (port === 465 || port === 993) return true;
+  if (port === 25 || port === 143 || port === 587) return false;
+  return true;
+}
+
+const PRESETS: Record<string, { imapHost: string; imapPort: number; smtpHost: string; smtpPort: number; note?: string }> = {
+  gmail: { imapHost: 'imap.gmail.com', imapPort: 993, smtpHost: 'smtp.gmail.com', smtpPort: 465, note: 'Gmail/Workspace: activa 2FA y usa una "Contraseña de aplicación" (16 caracteres), no tu contraseña normal.' },
+  // SMTP 587 (STARTTLS) + IMAP 993 (TLS): los dos transportes NO coinciden, que
+  // es justo lo que rompía este preset cuando había un solo flag para ambos.
+  outlook: { imapHost: 'outlook.office365.com', imapPort: 993, smtpHost: 'smtp.office365.com', smtpPort: 587, note: 'Outlook/365: SMTP 587 con STARTTLS e IMAP 993 con TLS. Converflow lo configura solo.' },
+  ionos: { imapHost: 'imap.ionos.es', imapPort: 993, smtpHost: 'smtp.ionos.es', smtpPort: 465 },
 };
 
 export function MailConnectionForm({ connection }: { connection?: MailConnectionData }) {
@@ -36,7 +51,11 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
   const [smtpPort, setSmtpPort] = useState(String(c?.smtpPort ?? 465));
   const [username, setUsername] = useState(c?.username ?? '');
   const [secret, setSecret] = useState('');
-  const [secure, setSecure] = useState(c?.secure ?? true);
+  // null = «deriva del puerto». Solo pasa a explícito si el usuario lo fuerza
+  // en los ajustes avanzados, para puertos no estándar.
+  const [smtpSecure, setSmtpSecure] = useState<boolean | null>(c?.smtpSecure ?? null);
+  const [imapSecure, setImapSecure] = useState<boolean | null>(c?.imapSecure ?? null);
+  const [showTls, setShowTls] = useState(false);
   const [visibility, setVisibility] = useState(c?.visibility ?? 'SHARED');
   const [signature, setSignature] = useState(c?.signature ?? '');
   const [presetNote, setPresetNote] = useState<string | null>(null);
@@ -53,7 +72,9 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
     setImapPort(String(p.imapPort));
     setSmtpHost(p.smtpHost);
     setSmtpPort(String(p.smtpPort));
-    setSecure(p.secure);
+    // Los presets usan puertos estándar → dejar que el servidor derive el TLS.
+    setSmtpSecure(null);
+    setImapSecure(null);
     setPresetNote(p.note ?? null);
   }
 
@@ -70,7 +91,9 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
           smtpHost: smtpHost.trim(),
           smtpPort: Number(smtpPort) || 465,
           username: (username.trim() || fromAddress.trim()),
-          secure,
+          // Omitidos = el servidor los deriva del puerto.
+          ...(smtpSecure === null ? {} : { smtpSecure }),
+          ...(imapSecure === null ? {} : { imapSecure }),
           visibility,
           signature: signature.trim(),
           ...(secret ? { secret } : {}),
@@ -87,6 +110,9 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
       }
     });
   }
+
+  const effectiveImapSecure = imapSecure ?? deriveSecure(Number(imapPort) || 993);
+  const effectiveSmtpSecure = smtpSecure ?? deriveSecure(Number(smtpPort) || 465);
 
   return (
     <Card>
@@ -131,10 +157,46 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
           </Field>
         </div>
 
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={secure} onChange={(e) => setSecure(e.target.checked)} />
-          Conexión segura (SSL/TLS) — desmárcalo solo para SMTP 587 (STARTTLS)
-        </label>
+        <div className="rounded-md border border-ink-100 bg-ink-100/30 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-xs text-ink-600">
+              <span className="font-medium text-ink-800">Cifrado:</span>{' '}
+              IMAP {effectiveImapSecure ? 'TLS directo' : 'STARTTLS'} (puerto {imapPort || '—'}) ·{' '}
+              SMTP {effectiveSmtpSecure ? 'TLS directo' : 'STARTTLS'} (puerto {smtpPort || '—'}).
+              {' '}Se ajusta automáticamente al puerto de cada servidor.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowTls((v) => !v)}
+              className="shrink-0 text-xs text-primary-700 hover:underline"
+            >
+              {showTls ? 'Ocultar' : 'Avanzado'}
+            </button>
+          </div>
+          {showTls && (
+            <div className="mt-3 space-y-2 border-t border-ink-200 pt-3">
+              <p className="text-xs text-ink-500">
+                Cámbialo solo si tu proveedor usa puertos no estándar y la verificación falla.
+              </p>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={effectiveImapSecure}
+                  onChange={(e) => setImapSecure(e.target.checked)}
+                />
+                IMAP con TLS directo (implícito)
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={effectiveSmtpSecure}
+                  onChange={(e) => setSmtpSecure(e.target.checked)}
+                />
+                SMTP con TLS directo (implícito)
+              </label>
+            </div>
+          )}
+        </div>
 
         <Field label="Visibilidad" help="Compartido: todo el equipo con permiso lo usa. Privado: solo tú.">
           <Select value={visibility} onChange={(e) => setVisibility(e.target.value)}>

@@ -40,9 +40,14 @@ export class MailInboxController {
   threads(
     @Param('id') id: string,
     @Query('folder') folder: string | undefined,
+    @Query('cursor') cursor: string | undefined,
+    @Query('limit') limit: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.inbox.listThreads(user.tenantId, id, this.actor(user), folder);
+    return this.inbox.listThreads(user.tenantId, id, this.actor(user), folder, {
+      cursor,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Get('unread-count')
@@ -69,9 +74,14 @@ export class MailInboxController {
   search(
     @Param('id') id: string,
     @Query('q') q: string | undefined,
+    @Query('cursor') cursor: string | undefined,
+    @Query('limit') limit: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.inbox.search(user.tenantId, id, this.actor(user), q ?? '');
+    return this.inbox.search(user.tenantId, id, this.actor(user), q ?? '', {
+      cursor,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Get('threads/:id')

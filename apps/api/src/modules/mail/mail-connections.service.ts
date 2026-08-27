@@ -28,6 +28,8 @@ const SAFE_SELECT = {
   smtpHost: true,
   smtpPort: true,
   username: true,
+  smtpSecure: true,
+  imapSecure: true,
   secure: true,
   visibility: true,
   ownerUserId: true,
@@ -77,7 +79,8 @@ export class MailConnectionsService {
           smtpHost: data.smtpHost,
           smtpPort: data.smtpPort,
           username: data.username,
-          secure: data.secure ?? true,
+          smtpSecure: data.smtpSecure ?? null,
+          imapSecure: data.imapSecure ?? null,
           secretEnc: data.secret ? encryptSecret(data.secret) : null,
           visibility: data.visibility,
           // PRIVATE is always owned by its creator — enforced server-side.
@@ -109,7 +112,8 @@ export class MailConnectionsService {
           smtpHost: data.smtpHost,
           smtpPort: data.smtpPort,
           username: data.username,
-          secure: data.secure,
+          smtpSecure: data.smtpSecure,
+          imapSecure: data.imapSecure,
           // Only re-encrypt the secret when a new one is provided.
           secretEnc: data.secret ? encryptSecret(data.secret) : undefined,
         },
@@ -154,7 +158,14 @@ export class MailConnectionsService {
       await this.prisma.withTenant(tenantId, (tx) =>
         tx.mailConnection.update({
           where: { id },
-          data: { status: 'CONNECTED', lastError: null, lastSyncedAt: new Date() },
+          data: {
+            status: 'CONNECTED',
+            lastError: null,
+            lastSyncedAt: new Date(),
+            consecutiveFailures: 0,
+            nextRetryAt: null,
+            errorNotifiedAt: null,
+          },
         }),
       );
       return { ok: true, recent };
@@ -199,6 +210,8 @@ export class MailConnectionsService {
       smtpPort: c.smtpPort,
       username: c.username,
       secret: c.secretEnc ? decryptSecret(c.secretEnc) : null,
+      smtpSecure: c.smtpSecure,
+      imapSecure: c.imapSecure,
       secure: c.secure,
     };
   }
@@ -219,6 +232,8 @@ export class MailConnectionsService {
         smtpPort: conn.smtpPort,
         username: conn.username,
         secret: conn.secretEnc ? decryptSecret(conn.secretEnc) : null,
+        smtpSecure: conn.smtpSecure,
+        imapSecure: conn.imapSecure,
         secure: conn.secure,
       }).verify();
       await this.setStatus(tenantId, id, 'CONNECTED', null);
@@ -229,7 +244,18 @@ export class MailConnectionsService {
 
   private setStatus(tenantId: string, id: string, status: 'CONNECTED' | 'ERROR', lastError: string | null) {
     return this.prisma.withTenant(tenantId, (tx) =>
-      tx.mailConnection.update({ where: { id }, data: { status, lastError } }),
+      tx.mailConnection.update({
+        where: { id },
+        data: {
+          status,
+          lastError,
+          // A successful manual verify clears the backoff state so a mailbox
+          // parked in ERROR becomes eligible for the scheduler again.
+          ...(status === 'CONNECTED'
+            ? { consecutiveFailures: 0, nextRetryAt: null, errorNotifiedAt: null }
+            : {}),
+        },
+      }),
     );
   }
 

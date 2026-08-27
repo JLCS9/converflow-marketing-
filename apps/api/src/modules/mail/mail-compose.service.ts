@@ -123,6 +123,7 @@ export class MailComposeService {
       references,
       attachments: input.attachments,
       bumpThread: true,
+      sentByUserId: actor.userId,
     });
   }
 
@@ -165,6 +166,7 @@ export class MailComposeService {
       html: safeHtml,
       attachments: input.attachments,
       bumpThread: false,
+      sentByUserId: actor.userId,
     });
   }
 
@@ -218,6 +220,7 @@ export class MailComposeService {
       html: body,
       attachments: input.attachments,
       bumpThread: false,
+      sentByUserId: actor.userId,
     });
   }
 
@@ -290,7 +293,7 @@ export class MailComposeService {
       );
       if (!thread) throw new NotFoundError('Hilo no encontrado');
       await this.connections.assertAccess(tenantId, thread.connectionId, actor);
-      const id = await this.createDraftMessage(tenantId, thread.connectionId, thread.id, { to, cc, bcc, subject, html, snippet });
+      const id = await this.createDraftMessage(tenantId, thread.connectionId, thread.id, { to, cc, bcc, subject, html, snippet }, actor.userId);
       await this.reconcileDraftAttachments(tenantId, id, input.attachments);
       return { draftId: id, threadId: thread.id };
     }
@@ -313,7 +316,7 @@ export class MailComposeService {
         select: { id: true },
       }),
     );
-    const id = await this.createDraftMessage(tenantId, input.connectionId, thread.id, { to, cc, bcc, subject, html, snippet });
+    const id = await this.createDraftMessage(tenantId, input.connectionId, thread.id, { to, cc, bcc, subject, html, snippet }, actor.userId);
     await this.reconcileDraftAttachments(tenantId, id, input.attachments);
     return { draftId: id, threadId: thread.id };
   }
@@ -379,6 +382,7 @@ export class MailComposeService {
           isDraft: false,
           folder: 'SENT',
           direction: 'OUT',
+          sentByUserId: actor.userId,
           rfcMessageId: sentId,
           inReplyTo,
           references,
@@ -395,8 +399,10 @@ export class MailComposeService {
           lastMessageAt: now,
           snippet: htmlToText(html).slice(0, 200),
           status: 'OPEN',
+          // A sent draft leaves DRAFTS for SENT (never INBOX — it is not
+          // incoming mail).
           ...(thread?.folder === 'DRAFTS'
-            ? { folder: 'INBOX', subject: normalizeSubject(subject) || subject }
+            ? { folder: 'SENT' as const, subject: normalizeSubject(subject) || subject }
             : {}),
         },
       });
@@ -414,7 +420,10 @@ export class MailComposeService {
           connectionId,
           subject: normalizeSubject(subject) || subject,
           participants,
-          folder: 'INBOX',
+          // A thread WE start belongs in Enviados, not Recibidos. When the
+          // contact replies, `MailIngestService` bumps it back to INBOX — same
+          // behaviour as Gmail.
+          folder: 'SENT',
           status: 'OPEN',
           snippet: htmlToText(html).slice(0, 200),
           lastMessageAt: new Date(),
@@ -429,6 +438,7 @@ export class MailComposeService {
     connectionId: string,
     threadId: string,
     d: { to: string[]; cc: string[]; bcc: string[]; subject: string; html: string; snippet: string },
+    sentByUserId?: string,
   ): Promise<string> {
     const msg = await this.prisma.withTenant(tenantId, (tx) =>
       tx.emailMessage.create({
@@ -439,6 +449,7 @@ export class MailComposeService {
           direction: 'OUT',
           isDraft: true,
           folder: 'DRAFTS',
+          sentByUserId,
           toAddresses: d.to,
           ccAddresses: d.cc,
           bccAddresses: d.bcc,
@@ -455,7 +466,7 @@ export class MailComposeService {
 
   private async send(
     tenantId: string,
-    conn: { driver: string; fromAddress: string; displayName: string | null; smtpHost: string | null; smtpPort: number | null; imapHost: string | null; imapPort: number | null; username: string | null; secretEnc: string | null; secure: boolean },
+    conn: { driver: string; fromAddress: string; displayName: string | null; smtpHost: string | null; smtpPort: number | null; imapHost: string | null; imapPort: number | null; username: string | null; secretEnc: string | null; smtpSecure: boolean | null; imapSecure: boolean | null; secure: boolean },
     msg: { to: string[]; cc?: string[]; bcc?: string[]; subject: string; html: string; inReplyTo?: string; references?: string; attachments?: { filename: string; path: string }[] },
   ): Promise<string | undefined> {
     const cfg: DriverConfig = {
@@ -468,6 +479,8 @@ export class MailComposeService {
       smtpPort: conn.smtpPort,
       username: conn.username,
       secret: conn.secretEnc ? decryptSecret(conn.secretEnc) : null,
+      smtpSecure: conn.smtpSecure,
+      imapSecure: conn.imapSecure,
       secure: conn.secure,
     };
     try {
@@ -503,6 +516,8 @@ export class MailComposeService {
       references?: string;
       attachments?: StagedAttachment[];
       bumpThread: boolean;
+      /** Team member who pressed send — shown as "<name> vía <mailbox>". */
+      sentByUserId?: string;
     },
   ) {
     return this.prisma.withTenant(tenantId, async (tx) => {
@@ -517,6 +532,7 @@ export class MailComposeService {
           references: m.references,
           direction: 'OUT',
           folder: 'SENT',
+          sentByUserId: m.sentByUserId,
           toAddresses: m.to,
           ccAddresses: m.cc ?? [],
           bccAddresses: m.bcc ?? [],

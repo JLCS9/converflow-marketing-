@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import Link from 'next/link';
 import {
   Inbox,
@@ -9,28 +9,39 @@ import {
   Ban,
   Archive,
   Trash2,
-  Mail,
-  Search,
   X,
   ArrowLeft,
   Forward,
-  Paperclip,
   AlertTriangle,
   Loader2,
   Settings,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
+import { useSession } from '@/lib/session-context';
 import { useFeedback } from '@/components/ui/feedback';
 import { buttonClass } from '@/components/ui/primitives';
 import {
   InboxShell,
   InboxSwitch,
-  Avatar,
-  DateSeparator,
   ContactPanel,
   ReplyNoteTabs,
 } from '@/components/ui/inbox-kit';
 import { MailComposer, type ComposerInitial, type ComposerMode } from './mail-composer';
+import { ThreadMessages, type AddressLabeller } from './mail-message-card';
+import { MailThreadList } from './mail-thread-list';
+import type {
+  ContactInfo,
+  Detail,
+  LockState,
+  MailboxOption,
+  NoteRow,
+  TeamMember,
+  ThreadPage,
+  ThreadRow,
+} from './mail-types';
+
+// Re-exported so `page.tsx` keeps importing the mailbox shape from here.
+export type { MailboxOption } from './mail-types';
 
 type IconType = ComponentType<{ size?: number; className?: string }>;
 const FOLDER_ICON: Record<string, IconType> = {
@@ -41,22 +52,6 @@ const FOLDER_ICON: Record<string, IconType> = {
   ARCHIVE: Archive,
   TRASH: Trash2,
 };
-
-interface AttachmentRow {
-  id: string;
-  filename: string;
-  mimeType: string;
-  sizeBytes: number;
-  storageKey: string;
-}
-
-export interface MailboxOption {
-  id: string;
-  fromAddress: string;
-  displayName: string | null;
-  signature: string | null;
-  visibility: string;
-}
 
 /** Build the signature block appended to a fresh composer (plain text → safe html). */
 function signatureHtml(sig: string | null | undefined): string {
@@ -76,75 +71,11 @@ function fwdSubject(original: string | null | undefined): string {
   return base ? `Fwd: ${base}` : '';
 }
 
-interface ThreadRow {
-  id: string;
-  subject: string | null;
-  snippet: string | null;
-  participants: string[] | null;
-  unreadCount: number;
-  lastMessageAt: string | null;
-  status: string;
-  assigneeUserId: string | null;
-}
-interface Msg {
-  id: string;
-  direction: 'IN' | 'OUT';
-  isDraft: boolean;
-  fromAddress: string | null;
-  fromName: string | null;
-  toAddresses: string[] | null;
-  ccAddresses: string[] | null;
-  bccAddresses: string[] | null;
-  subject: string | null;
-  html: string | null;
-  text: string | null;
-  receivedAt: string | null;
-  createdAt: string;
-  attachments: AttachmentRow[];
-}
-interface ContactInfo {
-  type: 'lead' | 'client';
-  id: string;
-  name: string;
-}
-interface Detail {
-  thread: {
-    id: string;
-    subject: string | null;
-    folder: string;
-    participants: string[] | null;
-    status: string;
-    assigneeUserId: string | null;
-  };
-  messages: Msg[];
-  contact: ContactInfo | null;
-}
-interface TeamMember {
-  id: string;
-  name: string;
-}
-interface NoteRow {
-  id: string;
-  body: string;
-  authorName: string;
-  authorUserId: string;
-  createdAt: string;
-}
-interface LockState {
-  byMe: boolean;
-  byName: string | null;
-}
-
 const STATUS_LABEL: Record<string, string> = { OPEN: 'Abierto', PENDING: 'Pendiente', CLOSED: 'Cerrado' };
 const STATUS_BADGE: Record<string, string> = {
   OPEN: 'bg-green-100 text-green-700',
   PENDING: 'bg-amber-100 text-amber-700',
   CLOSED: 'bg-ink-200 text-ink-600',
-};
-const STATUS_DOT: Record<string, string> = {
-  OPEN: 'bg-green-400',
-  PENDING: 'bg-amber-400',
-  CLOSED: 'bg-ink-300',
 };
 
 const FOLDERS = [
@@ -173,32 +104,6 @@ const MOVES: Record<string, { folder: string; label: string }[]> = {
   TRASH: [{ folder: 'INBOX', label: 'Restaurar' }],
 };
 
-function fmt(iso: string | null): string {
-  if (!iso) return '';
-  return new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-}
-function timeShort(iso: string | null): string {
-  if (!iso) return '';
-  return new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-}
-function startOfDay(d: Date): number {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
-function dayKey(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-}
-function dayLabel(iso: string): string {
-  const d = new Date(iso);
-  const diff = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
-  if (diff === 0) return 'Hoy';
-  if (diff === 1) return 'Ayer';
-  return d.toLocaleDateString('es-ES', {
-    day: '2-digit',
-    month: 'long',
-    ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' as const } : {}),
-  });
-}
 
 const list = (v: string[] | null | undefined): string => (Array.isArray(v) ? v.join(', ') : '');
 
@@ -211,7 +116,12 @@ export function MailWorkspace({
   mailUnread: number;
   imPending: number;
 }) {
+  const { userId } = useSession();
   const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '');
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  /** True once the user loaded extra pages, so the poller stops truncating. */
+  const pagedRef = useRef(false);
   const [folder, setFolder] = useState('INBOX');
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -244,14 +154,49 @@ export function MailWorkspace({
   const nameOf = (userId: string | null): string =>
     userId ? team.find((m) => m.id === userId)?.name ?? 'Asignado' : '';
 
+  /**
+   * Human label for an address in a header: the CRM contact's name, "yo" for the
+   * mailbox itself, else nothing (the raw address is shown).
+   */
+  const labelFor: AddressLabeller = useCallback(
+    (address: string) => {
+      const a = address.trim().toLowerCase();
+      if (a === selfAddress) return currentConn?.displayName || 'este buzón';
+      const other = connections.find((c) => c.fromAddress.toLowerCase() === a);
+      if (other) return other.displayName || 'otro buzón del equipo';
+      // ONLY the address the contact was resolved from. Matching any thread
+      // participant labelled every Cc with the same CRM name — the header
+      // claimed compras@acme.test was "Ana Ruiz".
+      const contactAddress = (detail?.thread.participants ?? [])[0]?.toLowerCase();
+      if (detail?.contact && contactAddress && contactAddress === a) return detail.contact.name;
+      return null;
+    },
+    [selfAddress, currentConn, connections, detail],
+  );
+
+  /**
+   * Load the first page of a folder.
+   *
+   * The 15s poller calls this too, so it MERGES instead of replacing: a plain
+   * `setThreads(items)` threw away every extra page the user had loaded with
+   * "Cargar más" — the list snapped back to 40 rows a few seconds later. Fresh
+   * items win and come first (a thread with new mail moves to the top and its
+   * stale copy in the tail is dropped); older loaded pages are kept below.
+   */
   const loadThreads = useCallback(async (conn: string, f: string) => {
     if (!conn) return;
     try {
       const [t, c] = await Promise.all([
-        apiFetch<ThreadRow[]>(`/mail/connections/${conn}/threads?folder=${f}`),
+        apiFetch<ThreadPage>(`/mail/connections/${conn}/threads?folder=${f}`),
         apiFetch<Record<string, number>>(`/mail/connections/${conn}/folder-counts`).catch(() => ({})),
       ]);
-      setThreads(t);
+      setThreads((prev) => {
+        if (!pagedRef.current) return t.items;
+        const fresh = new Set(t.items.map((x) => x.id));
+        return [...t.items, ...prev.filter((x) => !fresh.has(x.id))];
+      });
+      // Once paginated, the meaningful cursor is the last page's, not page 1's.
+      if (!pagedRef.current) setNextCursor(t.nextCursor);
       setCounts(c);
     } catch {
       /* keep last */
@@ -262,10 +207,34 @@ export function MailWorkspace({
 
   useEffect(() => {
     if (searching) return; // pause folder polling while searching
+    pagedRef.current = false; // new scope → back to a single page
     void loadThreads(connectionId, folder);
     const t = setInterval(() => void loadThreads(connectionId, folder), 15000);
     return () => clearInterval(t);
   }, [connectionId, folder, loadThreads, searching]);
+
+  /** Append the next page (keyset cursor) for the current folder or search. */
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const base = searching
+        ? `/mail/connections/${connectionId}/search?q=${encodeURIComponent(query.trim())}`
+        : `/mail/connections/${connectionId}/threads?folder=${folder}`;
+      const r = await apiFetch<ThreadPage>(`${base}&cursor=${encodeURIComponent(nextCursor)}`);
+      // De-dupe by id: a thread can jump pages if new mail lands mid-scroll.
+      setThreads((prev) => {
+        const seen = new Set(prev.map((x) => x.id));
+        return [...prev, ...r.items.filter((x) => !seen.has(x.id))];
+      });
+      setNextCursor(r.nextCursor);
+      pagedRef.current = true;
+    } catch {
+      /* keep what we have */
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextCursor, loadingMore, searching, connectionId, query, folder]);
 
   // Team list (assignee picker + name resolution), loaded once.
   useEffect(() => {
@@ -318,10 +287,12 @@ export function MailWorkspace({
     if (!searching) return;
     const t = setTimeout(async () => {
       try {
-        const r = await apiFetch<ThreadRow[]>(
+        const r = await apiFetch<ThreadPage>(
           `/mail/connections/${connectionId}/search?q=${encodeURIComponent(query.trim())}`,
         );
-        setThreads(r);
+        pagedRef.current = false;
+        setThreads(r.items);
+        setNextCursor(r.nextCursor);
       } catch {
         /* keep last */
       }
@@ -582,97 +553,28 @@ export function MailWorkspace({
 
   // ---- column: thread list ----
   const listNode = (
-    <div className="flex h-full flex-col">
-      <div className="space-y-2 border-b border-ink-100 p-2">
-        <button
-          type="button"
-          onClick={() => setModal({ mode: 'new', initial: { html: sigHtml } })}
-          className={buttonClass('primary', 'flex w-full items-center justify-center gap-1.5 text-xs')}
-        >
-          <Mail size={14} /> Nuevo correo
-        </button>
-        <div className="relative">
-          <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-400" />
-          <input
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); setSelectedId(null); setDetail(null); }}
-            placeholder="Buscar en el correo…"
-            className="w-full rounded border border-ink-200 bg-white px-2 py-1 pl-7 pr-6 text-xs focus:border-ink-700 focus:outline-none"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery('')}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700"
-              aria-label="Limpiar búsqueda"
-            >
-              <X size={13} />
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        {loadingList && threads.length === 0 ? (
-          <div className="space-y-3 p-3">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="flex animate-pulse gap-2.5">
-                <div className="h-8 w-8 shrink-0 rounded-full bg-ink-100" />
-                <div className="flex-1 space-y-1.5 py-0.5">
-                  <div className="h-3 w-2/3 rounded bg-ink-100" />
-                  <div className="h-2.5 w-1/2 rounded bg-ink-100" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : threads.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-ink-500">
-            <Inbox size={28} className="text-ink-300" />
-            {searching ? 'Sin resultados.' : 'Sin mensajes en esta carpeta.'}
-          </div>
-        ) : (
-          threads.map((t) => {
-            const who = (t.participants && t.participants[0]) || 'Contacto';
-            return (
-              <button
-                key={t.id}
-                onClick={() => void openThread(t.id)}
-                className={`flex w-full gap-2.5 border-b border-ink-100 p-2.5 text-left hover:bg-ink-100/50 ${selectedId === t.id ? 'bg-primary-50' : ''}`}
-              >
-                <Avatar name={who} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[t.status] ?? 'bg-ink-300'}`} title={`Estado: ${STATUS_LABEL[t.status] ?? t.status}`} />
-                      <span className={`truncate text-sm ${t.unreadCount > 0 ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>{who}</span>
-                    </span>
-                    <span className="shrink-0 text-[10px] text-ink-400">{timeShort(t.lastMessageAt)}</span>
-                  </div>
-                  <div className={`truncate text-xs ${t.unreadCount > 0 ? 'font-medium text-ink-800' : 'text-ink-500'}`}>{t.subject || '(sin asunto)'}</div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-xs text-ink-400">{t.snippet}</span>
-                    <span className="flex shrink-0 items-center gap-1">
-                      {t.unreadCount > 0 && (
-                        <span className="inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-semibold text-white">{t.unreadCount}</span>
-                      )}
-                      {!isPrivate &&
-                        (t.assigneeUserId ? (
-                          <Avatar name={nameOf(t.assigneeUserId)} size="sm" />
-                        ) : (
-                          <span className="h-4 w-4 rounded-full border border-dashed border-ink-300" title="Sin asignar" />
-                        ))}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            );
-          })
-        )}
-      </div>
-    </div>
+    <MailThreadList
+      threads={threads}
+      selectedId={selectedId}
+      onSelect={(id) => void openThread(id)}
+      query={query}
+      onQuery={(v) => {
+        setQuery(v);
+        setSelectedId(null);
+        setDetail(null);
+      }}
+      searching={searching}
+      loading={loadingList}
+      isPrivate={isPrivate}
+      nameOf={nameOf}
+      nextCursor={nextCursor}
+      loadingMore={loadingMore}
+      onLoadMore={() => void loadMore()}
+      onNewMail={() => setModal({ mode: 'new', initial: { html: sigHtml } })}
+    />
   );
 
   // ---- column: thread ----
-  let lastDay = '';
   const threadNode = !detail ? (
     <div className="flex flex-1 items-center justify-center text-sm text-ink-500">
       {selectedId ? <Loader2 size={22} className="animate-spin text-ink-300" /> : 'Selecciona un hilo.'}
@@ -729,62 +631,21 @@ export function MailWorkspace({
         </div>
       )}
 
-      <div ref={msgScrollRef} className="flex-1 space-y-1 overflow-y-auto bg-ink-100/20 p-4">
-        {visibleMessages.map((m) => {
-          const ts = m.receivedAt || m.createdAt;
-          const k = dayKey(ts);
-          const sep = k !== lastDay ? <DateSeparator label={dayLabel(ts)} /> : null;
-          lastDay = k;
-          const out = m.direction === 'OUT';
-          const who = out ? 'Tú' : m.fromName || m.fromAddress || 'Contacto';
-          return (
-            <Fragment key={m.id}>
-              {sep}
-              <div className={`flex gap-2 py-1 ${out ? 'flex-row-reverse' : ''}`}>
-                <Avatar name={who} size="sm" />
-                <div className={`min-w-0 max-w-[85%] rounded-lg border p-3 ${out ? 'border-primary-100 bg-primary-50' : 'border-ink-100 bg-white'}`}>
-                  <div className="mb-2 flex items-baseline justify-between gap-2 text-xs text-ink-500">
-                    <span className={`truncate font-medium ${out ? 'text-primary-800' : 'text-ink-700'}`}>{who}</span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <span>{fmt(ts)}</span>
-                      <button
-                        type="button"
-                        onClick={() => setModal({ mode: 'forward', forwardMessageId: m.id, initial: { subject: fwdSubject(m.subject || detail.thread.subject), html: sigHtml } })}
-                        className="inline-flex items-center gap-1 text-primary-700 hover:underline"
-                        title="Reenviar este mensaje"
-                      >
-                        <Forward size={11} /> Reenviar
-                      </button>
-                    </span>
-                  </div>
-                  {m.html ? (
-                    <div
-                      className="text-sm [&_a]:text-primary-700 [&_a]:underline [&_img]:max-w-full [&_ul]:list-disc [&_ul]:pl-5 [&_p]:my-1"
-                      dangerouslySetInnerHTML={{ __html: m.html }}
-                    />
-                  ) : (
-                    <p className="whitespace-pre-wrap text-sm text-ink-800">{m.text}</p>
-                  )}
-                  {m.attachments.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1 border-t border-ink-100 pt-2 text-xs text-ink-500">
-                      {m.attachments.map((a) => (
-                        <button
-                          key={a.id}
-                          type="button"
-                          onClick={() => void downloadAttachment(a.id)}
-                          className="inline-flex items-center gap-1 rounded bg-ink-100 px-2 py-0.5 hover:bg-ink-200 hover:text-ink-800"
-                          title="Descargar"
-                        >
-                          <Paperclip size={11} /> {a.filename}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Fragment>
-          );
-        })}
+      <div ref={msgScrollRef} className="flex-1 overflow-y-auto bg-ink-100/20 p-3 md:p-4">
+        <ThreadMessages
+          messages={visibleMessages}
+          mailboxAddress={currentConn?.fromAddress ?? ''}
+          currentUserId={userId}
+          labelFor={labelFor}
+          onForward={(m) =>
+            setModal({
+              mode: 'forward',
+              forwardMessageId: m.id,
+              initial: { subject: fwdSubject(m.subject || detail.thread.subject), html: sigHtml },
+            })
+          }
+          onDownloadAttachment={(a) => void downloadAttachment(a.id)}
+        />
       </div>
 
       <ReplyNoteTabs
