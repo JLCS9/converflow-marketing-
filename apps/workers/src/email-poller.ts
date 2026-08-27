@@ -144,12 +144,29 @@ async function pollConnection(conn: Conn): Promise<void> {
   }
 }
 
-async function tick(): Promise<void> {
-  const conns = (await withRlsBypass(prisma, (tx) =>
+/**
+ * Legacy connections this poller must leave alone.
+ *
+ * Two reasons, both seen in production:
+ *
+ *  1. SUPERSEDED — the same address is already connected in the mail module
+ *     (`MailConnection`), which polls it too. Two pollers on one mailbox means
+ *     the same email ingested twice: once as a Conversation/Message and once as
+ *     an EmailThread/EmailMessage.
+ *  2. ERROR — this poller had NO status filter, so a failing connection was
+ *     retried every 60s forever, with no backoff. Against a mailbox whose app
+ *     password was revoked that is a login-failure loop, and providers respond
+ *     to those by locking the account. An ERROR connection needs a human, the
+ *     same rule the mail module's sync already follows.
+ */
+async function loadPollable(): Promise<Conn[]> {
+  const rows = await withRlsBypass(prisma, (tx) =>
     tx.emailConnection.findMany({
       select: {
         botId: true,
+        tenantId: true,
         email: true,
+        status: true,
         imapHost: true,
         imapPort: true,
         username: true,
@@ -158,7 +175,50 @@ async function tick(): Promise<void> {
         lastSeenUid: true,
       },
     }),
-  )) as Conn[];
+  );
+  if (!rows.length) return [];
+
+  const migrated = await withRlsBypass(prisma, (tx) =>
+    tx.mailConnection.findMany({ select: { tenantId: true, fromAddress: true } }),
+  );
+  const superseded = new Set(migrated.map((m) => mailboxKey(m.tenantId, m.fromAddress)));
+
+  const out: Conn[] = [];
+  for (const r of rows) {
+    const verdict = pollVerdict(r, superseded);
+    if (verdict === 'superseded') {
+      logger.info({ email: r.email }, 'skipping legacy connection: already in the mail module');
+      continue;
+    }
+    if (verdict === 'errored') {
+      logger.warn(
+        { email: r.email },
+        'skipping legacy connection in ERROR — needs reconnecting, retrying would just hammer the provider',
+      );
+      continue;
+    }
+    out.push(r as unknown as Conn);
+  }
+  return out;
+}
+
+/** Key used to match a legacy connection against the mail module's mailboxes. */
+export function mailboxKey(tenantId: string, email: string): string {
+  return `${tenantId}:${email.trim().toLowerCase()}`;
+}
+
+/** Pure decision, extracted so it can be tested without a database. */
+export function pollVerdict(
+  row: { tenantId: string; email: string; status: string },
+  superseded: Set<string>,
+): 'poll' | 'superseded' | 'errored' {
+  if (superseded.has(mailboxKey(row.tenantId, row.email))) return 'superseded';
+  if (row.status === 'ERROR') return 'errored';
+  return 'poll';
+}
+
+async function tick(): Promise<void> {
+  const conns = await loadPollable();
 
   for (const conn of conns) {
     try {
