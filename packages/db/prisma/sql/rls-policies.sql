@@ -319,3 +319,59 @@ CREATE POLICY tenant_isolation ON email_thread_notes
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- =====================================================================
+-- P0 GAP — tenant tables that shipped WITHOUT a policy.
+--
+-- These five are tenant-scoped but were never added to this file, while the
+-- services query them inside `withTenant()` with NO explicit tenantId filter
+-- (e.g. `CampaignsService.list` is a bare `campaign.findMany({orderBy})`).
+-- With RLS absent, `converflow_app` saw EVERY tenant's rows: listing campaigns,
+-- email templates or API keys leaked across tenants, and `findUnique({id})`
+-- let one tenant read — or launch/cancel — another tenant's campaign.
+--
+-- Same failure as lesson #0, just in the tables added after it was fixed.
+-- Verify with: SELECT relname FROM pg_class c JOIN pg_namespace n
+--   ON n.oid = c.relnamespace WHERE n.nspname='public' AND c.relkind='r'
+--   AND NOT c.relrowsecurity;  -- must list ONLY the 4 platform_* tables
+-- =====================================================================
+
+ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_keys FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON api_keys;
+CREATE POLICY tenant_isolation ON api_keys
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE campaigns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campaigns FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON campaigns;
+CREATE POLICY tenant_isolation ON campaigns
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE campaign_recipients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campaign_recipients FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON campaign_recipients;
+CREATE POLICY tenant_isolation ON campaign_recipients
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE suppressions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE suppressions FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON suppressions;
+CREATE POLICY tenant_isolation ON suppressions
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+ALTER TABLE email_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_templates FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON email_templates;
+CREATE POLICY tenant_isolation ON email_templates
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
