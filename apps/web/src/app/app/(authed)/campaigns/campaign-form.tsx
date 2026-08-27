@@ -237,7 +237,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
           required
           help={
             channel === 'EMAIL'
-              ? 'Se envía desde el buzón conectado de este bot (tu propio correo). Si no aparece ninguno, conecta el buzón en IA → Bots.'
+              ? 'Se envía desde tu propio correo: el buzón cuya dirección coincida con la del bot, o el buzón compartido del equipo si no hay coincidencia. Conéctalos en Correo → Ajustes → Buzones.'
               : 'El número de WhatsApp conectado desde el que se enviará.'
           }
         >

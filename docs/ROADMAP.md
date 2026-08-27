@@ -372,7 +372,49 @@ por hilo abierto y su interacción con el poller.
 
 ---
 
-## Sprint E — deuda: una sola verdad (~3 días)
+## Sprint E — deuda: una sola verdad · ⏳ PASO 1 HECHO, PASO 2 BLOQUEADO
+
+`typecheck` 8/8 · `lint` 6/6 · `test` **142/142** (8 nuevos). Sin cambios de schema.
+
+> ### ⚠️ Corrección al plan original
+> La entrada anterior decía «eliminar `email-templates`». **Es incorrecto**: las
+> plantillas las usa la pantalla de **campañas**, que es una feature viva de Kit
+> Digital, y borrarlas rompería funcionalidad en uso. Y las campañas **enviaban
+> a través de `EmailConnection`**, el sistema viejo, así que borrarlo sin más
+> habría dejado las campañas sin poder enviar.
+>
+> El Sprint E correcto es: **migrar lo que envía, y solo después borrar.** Y como
+> las campañas sobreviven, `Suppression` no necesita migración — desaparece el
+> riesgo legal que había marcado.
+
+**Paso 1 — quitar al sistema viejo su último escritor (HECHO)**
+- `CampaignsService` envía ahora por `MailConnection` a través del driver del
+  módulo `mail`, con respaldo al `EmailConnection` heredado mientras coexistan
+  (y un `warn` en logs cada vez que usa el respaldo, para verlo venir).
+- Resuelve **primero el buzón cuya dirección coincide con la del bot**, porque el
+  formulario le dice al usuario que enviará desde ahí y muestra esa dirección:
+  resolver otro sería mentirle sobre el remitente de un envío masivo. Solo si no
+  hay coincidencia cae al buzón **compartido** del equipo — nunca a uno privado,
+  que pertenece a su dueño. Copy del formulario corregido para describir esto.
+- Acepta un buzón `DEGRADED`: un fallo transitorio de IMAP no debe impedir enviar
+  por SMTP.
+- 8 tests sobre la resolución del buzón, que es donde está el riesgo real.
+
+**Paso 2 — borrar (BLOQUEADO: necesita datos de producción)**
+Queda por eliminar `EmailConnection`, el poller IMAP de `workers` y la rama EMAIL
+dentro de `Conversation`. **No lo hago a ciegas**: si un tenant recibe hoy correo
+por el camino viejo, borrarlo lo deja sin recibir hasta que reconecte el buzón en
+el módulo nuevo. Eso es una migración con impacto para el usuario, no un refactor.
+
+Ejecuta `docs/auditoria-correo-viejo.sql` en producción y pásame el resultado. Las
+consultas 3 y 4 son las que deciden:
+- **(3)** el mismo buzón conectado por ambos caminos → doble ingesta activa, hay
+  que desconectar uno **ya**.
+- **(4)** tenants que solo tienen el viejo → hay que migrarlos antes de borrar.
+
+Con esos números escribo el borrado y, si hace falta, el script de migración.
+
+## Sprint E — diseño original (~3 días)
 
 **E14** — conviven **dos sistemas de correo completos**: `email_connections`
 por-bot con poller en `workers`, y `mail_connections` con sync en la API. Si un

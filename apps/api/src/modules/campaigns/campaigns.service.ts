@@ -15,6 +15,8 @@ import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
 import { BotRunnerService } from '../bots/bot-runner.service.js';
 import { sanitizeEmailHtml, htmlToText } from '../../common/utils/email-html.js';
+import { decryptSecret } from '../../common/utils/crypto.js';
+import { createMailDriver } from '../mail/drivers/index.js';
 import { env } from '../../config/env.js';
 
 // Prisma transaction client type, matching withTenant's callback param.
@@ -25,6 +27,25 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Per-channel pacing between sends (ms). WhatsApp is deliberately slow — Baileys
 // is an unofficial client and bulk sending risks a ban (see ADR #7 / Cloud API).
 const SEND_DELAY_MS: Record<string, number> = { EMAIL: 600, WHATSAPP: 4000 };
+
+/**
+ * Mailbox descriptor, normalized across the new `MailConnection` and the legacy
+ * `EmailConnection` so the send path does not care which one it got.
+ */
+interface CampaignMailbox {
+  source: 'mail' | 'legacy';
+  fromAddress: string;
+  displayName: string | null;
+  smtpHost: string | null;
+  smtpPort: number | null;
+  imapHost: string | null;
+  imapPort: number | null;
+  username: string | null;
+  secretEnc: string | null;
+  smtpSecure: boolean | null;
+  imapSecure: boolean | null;
+  secure: boolean;
+}
 
 interface Contact {
   leadId?: string;
@@ -253,7 +274,9 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
       if (!conn) {
         throw new AppError(
           'BAD_REQUEST',
-          'Selecciona un bot de email con buzón conectado antes de enviar. Las campañas se envían desde tu propio correo (no usamos Resend).',
+          'No hay buzón desde el que enviar. Conecta uno en Correo → Ajustes → Buzones ' +
+            '(compartido) o en el bot de email. Las campañas salen siempre desde tu propio ' +
+            'correo, nunca desde el de Converflow.',
           400,
         );
       }
@@ -354,7 +377,7 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
             const text = htmlToText(renderedBody) + this.unsubscribeFooter(tenantId, r.address);
             const html = this.buildHtml(tenantId, r.id, renderedBody, r.address);
             // SMTP only (tenant's own mailbox) — never Resend for campaigns.
-            const res = await this.email.sendSmtp(emailConn!, {
+            const res = await this.sendCampaignEmail(emailConn!, {
               to: r.address,
               // The subject takes the same {variables} as the body — without
               // rendering it, recipients literally read "Hola {nombre}".
@@ -480,11 +503,113 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** The tenant's CONNECTED mailbox for a bot, or null. No Resend fallback. */
-  private resolveEmailConn(tenantId: string, botId: string | null) {
-    if (!botId) return Promise.resolve(null);
-    return this.prisma.withTenant(tenantId, (tx) =>
+  /**
+   * Mailbox a campaign sends from.
+   *
+   * Prefers the mail module (`MailConnection`) and falls back to the legacy
+   * per-bot `EmailConnection` while both exist. Campaigns were the last writer
+   * on the legacy path; once every tenant has a MailConnection the fallback and
+   * the whole legacy model can go (see Sprint E in docs/ROADMAP.md).
+   *
+   * Never Resend: campaigns always leave from the tenant's own mailbox.
+   */
+  private async resolveEmailConn(tenantId: string, botId: string | null): Promise<CampaignMailbox | null> {
+    // The campaign form tells the user it sends "from this bot's mailbox" and
+    // shows the bot's address, so match THAT address first — otherwise the UI
+    // would promise one sender and we would use another.
+    const botAddress = botId
+      ? (
+          await this.prisma.withTenant(tenantId, (tx) =>
+            tx.bot.findUnique({ where: { id: botId }, select: { phoneNumber: true } }),
+          )
+        )?.phoneNumber?.trim().toLowerCase() ?? null
+      : null;
+
+    const mail =
+      (botAddress
+        ? await this.prisma.withTenant(tenantId, (tx) =>
+            tx.mailConnection.findFirst({
+              where: {
+                driver: 'SMTP_IMAP',
+                status: { in: ['CONNECTED', 'DEGRADED'] },
+                fromAddress: { equals: botAddress, mode: 'insensitive' },
+              },
+            }),
+          )
+        : null) ??
+      // No mailbox matching the bot: fall back to a SHARED one. Never a PRIVATE
+      // box — that belongs to its owner, and a campaign is not their mail.
+      (await this.prisma.withTenant(tenantId, (tx) =>
+        tx.mailConnection.findFirst({
+          where: {
+            driver: 'SMTP_IMAP',
+            status: { in: ['CONNECTED', 'DEGRADED'] },
+            visibility: 'SHARED',
+          },
+          orderBy: { updatedAt: 'desc' },
+        }),
+      ));
+    if (mail) {
+      return {
+        source: 'mail',
+        fromAddress: mail.fromAddress,
+        displayName: mail.displayName,
+        smtpHost: mail.smtpHost,
+        smtpPort: mail.smtpPort,
+        imapHost: mail.imapHost,
+        imapPort: mail.imapPort,
+        username: mail.username,
+        secretEnc: mail.secretEnc,
+        smtpSecure: mail.smtpSecure,
+        imapSecure: mail.imapSecure,
+        secure: mail.secure,
+      };
+    }
+
+    if (!botId) return null;
+    const legacy = await this.prisma.withTenant(tenantId, (tx) =>
       tx.emailConnection.findFirst({ where: { botId, status: 'CONNECTED' } }),
     );
+    if (!legacy) return null;
+    this.logger.warn(
+      { tenantId, botId },
+      'campaign falling back to the legacy EmailConnection — this tenant has no shared MailConnection yet',
+    );
+    return {
+      source: 'legacy',
+      fromAddress: legacy.email,
+      displayName: null,
+      smtpHost: legacy.smtpHost,
+      smtpPort: legacy.smtpPort,
+      imapHost: legacy.imapHost,
+      imapPort: legacy.imapPort,
+      username: legacy.username,
+      secretEnc: legacy.passwordEnc,
+      smtpSecure: null,
+      imapSecure: null,
+      secure: legacy.secure,
+    };
+  }
+
+  /** One campaign email, through whichever mailbox we resolved. */
+  private async sendCampaignEmail(
+    box: CampaignMailbox,
+    msg: { to: string; subject: string; text: string; html: string },
+  ): Promise<{ id?: string }> {
+    return createMailDriver({
+      driver: 'SMTP_IMAP',
+      fromAddress: box.fromAddress,
+      displayName: box.displayName,
+      imapHost: box.imapHost,
+      imapPort: box.imapPort,
+      smtpHost: box.smtpHost,
+      smtpPort: box.smtpPort,
+      username: box.username,
+      secret: box.secretEnc ? decryptSecret(box.secretEnc) : null,
+      smtpSecure: box.smtpSecure,
+      imapSecure: box.imapSecure,
+      secure: box.secure,
+    }).send({ to: msg.to, subject: msg.subject, text: msg.text, html: msg.html });
   }
 
   private dedupe(contacts: Contact[]): Contact[] {
