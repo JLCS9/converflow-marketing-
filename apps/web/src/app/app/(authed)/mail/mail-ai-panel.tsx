@@ -10,7 +10,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Sparkles, RefreshCw, AlertTriangle, ChevronDown } from 'lucide-react';
-import { apiFetch, ApiError } from '@/lib/api-client';
+import { apiFetch } from '@/lib/api-client';
+import { aiErrorMessage } from './ai-error';
 import type { ThreadState, ThreadSummary } from './mail-types';
 
 const STATE_LABEL: Record<ThreadState, string> = {
@@ -58,13 +59,7 @@ export function MailAiPanel({ threadId, messageCount }: { threadId: string; mess
         setData(r);
         setOpen(true);
       } catch (err) {
-        setError(
-          err instanceof ApiError
-            ? err.status === 503
-              ? 'La IA no está configurada en este entorno.'
-              : err.message
-            : 'No se pudo generar el resumen',
-        );
+        setError(aiErrorMessage(err));
       } finally {
         setLoading(false);
       }

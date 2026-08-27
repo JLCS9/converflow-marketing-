@@ -13,7 +13,8 @@
 import { useState } from 'react';
 import { ChevronDown, Forward, Languages, Paperclip, Users } from 'lucide-react';
 import { Avatar } from '@/components/ui/inbox-kit';
-import { apiFetch, ApiError } from '@/lib/api-client';
+import { apiFetch } from '@/lib/api-client';
+import { aiErrorMessage } from './ai-error';
 import { authorshipOf, UI_LANG, type Authorship, type AttachmentRow, type Msg } from './mail-types';
 
 /**
@@ -46,13 +47,7 @@ function TranslateBlock({ msg }: { msg: Msg }) {
       if (r.sameLanguage) setError('Este mensaje ya está en español.');
       setOpen(true);
     } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.status === 503
-            ? 'La IA no está configurada en este entorno.'
-            : err.message
-          : 'No se pudo traducir',
-      );
+      setError(aiErrorMessage(err));
     } finally {
       setLoading(false);
     }

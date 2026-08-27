@@ -10,7 +10,8 @@
 
 import { useState } from 'react';
 import { Sparkles, Wand2, Scissors, Languages, X, AlertTriangle } from 'lucide-react';
-import { apiFetch, ApiError } from '@/lib/api-client';
+import { apiFetch } from '@/lib/api-client';
+import { aiErrorMessage } from './ai-error';
 
 interface Variant {
   label: string;
@@ -28,14 +29,6 @@ const LENGTHS = [
   { key: 'medio', label: 'Medio' },
   { key: 'largo', label: 'Largo' },
 ];
-
-function messageFor(err: unknown): string {
-  if (err instanceof ApiError) {
-    if (err.status === 503) return 'La IA no está configurada en este entorno.';
-    return err.message;
-  }
-  return 'No se pudo completar la petición';
-}
 
 export function MailAssistant({
   threadId,
@@ -88,7 +81,7 @@ export function MailAssistant({
       setVariants(r.variants);
       if (r.subject && onSubject) onSubject(r.subject);
     } catch (err) {
-      setError(messageFor(err));
+      setError(aiErrorMessage(err));
     } finally {
       setBusy(null);
     }
@@ -104,7 +97,7 @@ export function MailAssistant({
       });
       onApply(r.html);
     } catch (err) {
-      setError(messageFor(err));
+      setError(aiErrorMessage(err));
     } finally {
       setBusy(null);
     }
