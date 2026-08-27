@@ -20,10 +20,83 @@ export interface AiCallResult<T> {
   model: string;
 }
 
+/**
+ * Turn a raw Anthropic SDK failure into something a user can act on.
+ *
+ * Without this every provider problem reached the client as a bare
+ * 500 "Internal server error" (AllExceptionsFilter's fallback), so a spent
+ * credit balance, a revoked key and a typo in the model id were
+ * indistinguishable from a bug in our code. This is exactly the failure mode
+ * recorded as known issue #16: in June 2026 the Anthropic balance ran out and
+ * the only symptom anywhere was a WARN in the logs, so the product just
+ * appeared to do nothing.
+ */
+export function describeAiFailure(err: unknown): AppError {
+  const status = (err as { status?: number })?.status;
+  const raw = String((err as Error)?.message ?? err ?? '');
+  const lower = raw.toLowerCase();
+
+  if (lower.includes('credit balance') || lower.includes('billing')) {
+    return new AppError(
+      'INTERNAL',
+      'La IA no está disponible: la cuenta de Anthropic se ha quedado sin saldo. ' +
+        'Recarga el saldo (o activa la recarga automática) y vuelve a intentarlo.',
+      503,
+    );
+  }
+  if (status === 401 || status === 403 || lower.includes('invalid x-api-key') || lower.includes('authentication')) {
+    return new AppError(
+      'INTERNAL',
+      'La IA no está disponible: la clave de API de Anthropic no es válida o ha sido revocada. ' +
+        'Revisa ANTHROPIC_API_KEY en el servidor.',
+      503,
+    );
+  }
+  if (status === 404 || lower.includes('not_found_error') || lower.includes('model:')) {
+    return new AppError(
+      'INTERNAL',
+      `La IA no está disponible: el modelo configurado no existe o no está habilitado para esta cuenta (${raw.slice(0, 120)}). ` +
+        'Revisa ANTHROPIC_DEFAULT_MODEL / ANTHROPIC_FAST_MODEL.',
+      503,
+    );
+  }
+  if (status === 429 || lower.includes('rate_limit')) {
+    return new AppError(
+      'CONFLICT',
+      'La IA está saturada ahora mismo (límite de peticiones del proveedor). Espera unos segundos y reinténtalo.',
+      429,
+    );
+  }
+  if (status === 529 || (status ?? 0) >= 500) {
+    return new AppError(
+      'INTERNAL',
+      'La IA del proveedor está caída o sobrecargada temporalmente. Vuelve a intentarlo en un momento.',
+      503,
+    );
+  }
+  return new AppError('INTERNAL', `Fallo al llamar a la IA: ${raw.slice(0, 200)}`, 502);
+}
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
   private client: Anthropic | null = null;
+
+  /**
+   * Single funnel for every model call, so provider failures are reported the
+   * same way no matter which feature triggered them.
+   */
+  private async invoke(
+    params: Anthropic.MessageCreateParamsNonStreaming,
+  ): Promise<Anthropic.Message> {
+    try {
+      return await this.getClient().messages.create(params);
+    } catch (err) {
+      const mapped = describeAiFailure(err);
+      this.logger.warn({ err, model: params.model }, `AI call failed: ${mapped.message}`);
+      throw mapped;
+    }
+  }
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -56,11 +129,10 @@ export class AiService {
     toolInputSchema: Record<string, unknown>;
     maxTokens?: number;
   }): Promise<AiCallResult<T>> {
-    const client = this.getClient();
     const model = opts.model ?? env.ANTHROPIC_DEFAULT_MODEL;
     const start = Date.now();
 
-    const response = await client.messages.create({
+    const response = await this.invoke({
       model,
       max_tokens: opts.maxTokens ?? 1024,
       system: opts.system,
@@ -108,11 +180,10 @@ export class AiService {
     userPrompt: string;
     maxTokens?: number;
   }): Promise<AiCallResult<string>> {
-    const client = this.getClient();
     const model = opts.model ?? env.ANTHROPIC_DEFAULT_MODEL;
     const start = Date.now();
 
-    const response = await client.messages.create({
+    const response = await this.invoke({
       model,
       max_tokens: opts.maxTokens ?? 600,
       system: opts.system,
@@ -150,7 +221,6 @@ export class AiService {
     maxIterations?: number;
     maxTokens?: number;
   }): Promise<AiCallResult<string> & { actions: { name: string; input: unknown; result: string }[] }> {
-    const client = this.getClient();
     const model = opts.model ?? env.ANTHROPIC_DEFAULT_MODEL;
     const start = Date.now();
     const messages: Anthropic.MessageParam[] = [{ role: 'user', content: opts.userPrompt }];
@@ -161,7 +231,7 @@ export class AiService {
     const maxIter = opts.maxIterations ?? 4;
 
     for (let i = 0; i < maxIter; i++) {
-      const res = await client.messages.create({
+      const res = await this.invoke({
         model,
         max_tokens: opts.maxTokens ?? 800,
         system: opts.system,
