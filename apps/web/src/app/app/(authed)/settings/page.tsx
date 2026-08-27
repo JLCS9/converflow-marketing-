@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { TabBar, SETTINGS_TABS } from '@/components/ui/tab-bar';
 import { GoogleCalendarCard } from './google-calendar-card';
+import { AutomationCard } from './automation-card';
 
 interface TenantDetail {
   id: string;
@@ -112,6 +113,8 @@ export default async function SettingsPage({
           </p>
         )}
       </Card>
+
+      <AutomationCard />
 
       <GoogleCalendarCard status={googleStatus} flash={google} />
     </div>

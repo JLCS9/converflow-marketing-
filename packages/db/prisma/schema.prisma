@@ -109,6 +109,17 @@ model Tenant {
   maxConversationsPerMonth Int      @default(5000)
   maxStorageGb             Int      @default(5)
 
+  /// --- Controles de automatización e IA (el tenant manda, no nosotros) ---
+  /// Análisis automático de cada mensaje entrante (clasificación + sugerencia).
+  /// Es el mayor consumidor de tokens del producto: se dispara en CADA mensaje.
+  aiInboundAnalysis Boolean @default(true)
+  /// Tope duro de tokens de IA por mes natural. NULL = sin tope. Al superarlo
+  /// las funciones de IA se paran en seco en lugar de seguir gastando.
+  aiMonthlyTokenCap Int?
+  /// Configuración del motor de alertas: por regla, activada y umbrales.
+  /// NULL = todas activas con los valores por defecto (comportamiento previo).
+  alertRules        Json?
+
   // Kit Digital tracking
   kitDigitalSegment     String?
   kitDigitalActivatedAt DateTime?

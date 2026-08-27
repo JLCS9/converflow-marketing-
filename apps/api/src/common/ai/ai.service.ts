@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { AppError } from '@converflow/shared';
 import { env } from '../../config/env.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { AiBudgetService } from './ai-budget.service.js';
 
 // Rough per-1M-token pricing in USD (update when Anthropic publishes new rates).
 const PRICING: Record<string, { input: number; output: number }> = {
@@ -39,42 +40,43 @@ export function describeAiFailure(err: unknown): AppError {
   if (lower.includes('credit balance') || lower.includes('billing')) {
     return new AppError(
       'INTERNAL',
-      'La IA no está disponible: la cuenta de Anthropic se ha quedado sin saldo. ' +
-        'Recarga el saldo (o activa la recarga automática) y vuelve a intentarlo.',
+      'Las funciones de IA están temporalmente agotadas. Hemos avisado a soporte; ' +
+        'vuelve a intentarlo más tarde.',
       503,
     );
   }
   if (status === 401 || status === 403 || lower.includes('invalid x-api-key') || lower.includes('authentication')) {
     return new AppError(
       'INTERNAL',
-      'La IA no está disponible: la clave de API de Anthropic no es válida o ha sido revocada. ' +
-        'Revisa ANTHROPIC_API_KEY en el servidor.',
+      'Las funciones de IA no están disponibles por un problema de configuración. ' +
+        'Hemos avisado a soporte.',
       503,
     );
   }
   if (status === 404 || lower.includes('not_found_error') || lower.includes('model:')) {
     return new AppError(
       'INTERNAL',
-      `La IA no está disponible: el modelo configurado no existe o no está habilitado para esta cuenta (${raw.slice(0, 120)}). ` +
-        'Revisa ANTHROPIC_DEFAULT_MODEL / ANTHROPIC_FAST_MODEL.',
+      'Las funciones de IA no están disponibles por un problema de configuración. ' +
+        'Hemos avisado a soporte.',
       503,
     );
   }
   if (status === 429 || lower.includes('rate_limit')) {
     return new AppError(
       'CONFLICT',
-      'La IA está saturada ahora mismo (límite de peticiones del proveedor). Espera unos segundos y reinténtalo.',
+      'Hay demasiadas peticiones de IA ahora mismo. Espera unos segundos y reinténtalo.',
       429,
     );
   }
   if (status === 529 || (status ?? 0) >= 500) {
     return new AppError(
       'INTERNAL',
-      'La IA del proveedor está caída o sobrecargada temporalmente. Vuelve a intentarlo en un momento.',
+      'Las funciones de IA están temporalmente sobrecargadas. Vuelve a intentarlo en un momento.',
       503,
     );
   }
-  return new AppError('INTERNAL', `Fallo al llamar a la IA: ${raw.slice(0, 200)}`, 502);
+  // El detalle técnico va SOLO al log del servidor, nunca al cliente.
+  return new AppError('INTERNAL', 'No se pudo completar la operación de IA. Inténtalo de nuevo.', 502);
 }
 
 @Injectable()
@@ -93,19 +95,30 @@ export class AiService {
       return await this.getClient().messages.create(params);
     } catch (err) {
       const mapped = describeAiFailure(err);
-      this.logger.warn({ err, model: params.model }, `AI call failed: ${mapped.message}`);
+      // El motivo técnico completo (proveedor, modelo, mensaje del SDK) queda
+      // aquí, en el log del servidor. El error que viaja al cliente es genérico
+      // a propósito: no revela qué proveedor de IA usamos.
+      this.logger.warn(
+        { err, model: params.model, provider: 'anthropic' },
+        `AI call failed: ${String((err as Error)?.message ?? err).slice(0, 300)}`,
+      );
       throw mapped;
     }
   }
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly budget: AiBudgetService,
+  ) {}
 
   private getClient(): Anthropic {
     if (this.client) return this.client;
     if (!env.ANTHROPIC_API_KEY) {
       throw new AppError(
         'INTERNAL',
-        'IA no está configurada. Define ANTHROPIC_API_KEY en .env.prod y reinicia el contenedor.',
+        // Sin detalles de proveedor ni de infraestructura: esto lo lee un
+        // usuario final del tenant, no quien administra el servidor.
+        'Las funciones de IA no están activas en esta instalación. Contacta con soporte.',
         503,
       );
     }
@@ -457,6 +470,9 @@ export class AiService {
     errorMessage?: string;
     metadata?: Record<string, unknown>;
   }) {
+    // Que el tope muerda dentro del mismo minuto, sin esperar a que caduque la
+    // caché del presupuesto.
+    this.budget.addSpend(opts.tenantId, opts.callResult.totalTokens);
     try {
       await this.prisma.withTenant(opts.tenantId, (tx) =>
         tx.aiUsage.create({

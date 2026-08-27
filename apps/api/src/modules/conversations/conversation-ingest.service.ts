@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { type PrismaClient } from '@converflow/db';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { AiService } from '../../common/ai/ai.service.js';
+import { AiBudgetService } from '../../common/ai/ai-budget.service.js';
 import { AgentRuntimeService } from '../agents/agent-runtime.service.js';
 import { sanitizeEmailHtml, htmlToText } from '../../common/utils/email-html.js';
 
@@ -37,6 +38,7 @@ export class ConversationIngestService {
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
     private readonly agentRuntime: AgentRuntimeService,
+      private readonly budget: AiBudgetService,
   ) {}
 
   /**
@@ -506,6 +508,20 @@ export class ConversationIngestService {
   }
 
   /** Run the assigned agent (tools + reply) or fall back to generic classification. */
+  /**
+   * Fan out an inbound message to the AI.
+   *
+   * This is the product's biggest token consumer by far: it fires on EVERY
+   * inbound message, on every channel, and until now it could not be turned off.
+   * With an agent assigned it runs an agent loop (several model calls with
+   * growing context); without one it runs a classification that first loads the
+   * last five inbound messages.
+   *
+   * Now it respects two tenant-owned limits: the `aiInboundAnalysis` switch and
+   * the monthly token cap. Both are checked BEFORE spending anything, and both
+   * only gate automatic work — on-demand features (summary, translate, writing
+   * assistant) are unaffected, because there a human asked for it.
+   */
   private dispatchInbound(
     tenantId: string,
     agentId: string | null,
@@ -528,6 +544,30 @@ export class ConversationIngestService {
         this.logger.warn({ err, messageId }, 'classify failed'),
       );
 
+    void this.budget
+      .inboundAnalysisEnabled(tenantId)
+      .then(async (enabled) => {
+        if (!enabled) {
+          this.logger.log({ tenantId, messageId }, 'inbound AI analysis disabled by the tenant');
+          return;
+        }
+        await this.budget.assertWithinBudget(tenantId);
+        this.runInboundAi(tenantId, agentId, conversationId, messageId, body, lead, fallbackClassify);
+      })
+      .catch((err) =>
+        this.logger.warn({ err, tenantId, messageId }, 'skipping inbound AI: budget or config'),
+      );
+  }
+
+  private runInboundAi(
+    tenantId: string,
+    agentId: string | null,
+    conversationId: string,
+    messageId: string,
+    body: string,
+    lead: Parameters<ConversationIngestService['dispatchInbound']>[5],
+    fallbackClassify: () => void,
+  ) {
     if (agentId) {
       void this.agentRuntime
         .runForMessage({

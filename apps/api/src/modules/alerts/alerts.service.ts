@@ -6,6 +6,53 @@ import { PrismaService } from '../../common/prisma/prisma.service.js';
 const STALE_LEAD_DAYS = 14;
 const HIGH_SCORE_THRESHOLD = 75;
 
+/** The four rules the engine can raise, each switchable by the tenant. */
+export const ALERT_RULES = ['staleLead', 'oppOverdue', 'taskOverdue', 'hotLead'] as const;
+export type AlertRuleKey = (typeof ALERT_RULES)[number];
+
+export interface AlertRulesConfig {
+  staleLead: { enabled: boolean; days: number };
+  oppOverdue: { enabled: boolean };
+  taskOverdue: { enabled: boolean };
+  hotLead: { enabled: boolean; minScore: number };
+}
+
+/**
+ * Defaults preserve the previous behaviour: everything on, same thresholds.
+ *
+ * The engine used to have NO configuration at all — four rules hardcoded, so
+ * alerts appeared and disappeared in a tenant's account with no way to opt out.
+ * A customer reported exactly that. Note that "Alertas gráficas" is Kit Digital
+ * requirement #7, so turning ALL of them off has compliance consequences for the
+ * tenant; that is their call to make, not ours to prevent.
+ */
+export const DEFAULT_ALERT_RULES: AlertRulesConfig = {
+  staleLead: { enabled: true, days: STALE_LEAD_DAYS },
+  oppOverdue: { enabled: true },
+  taskOverdue: { enabled: true },
+  hotLead: { enabled: true, minScore: HIGH_SCORE_THRESHOLD },
+};
+
+/** Merge a stored config over the defaults, tolerating partial/legacy JSON. */
+export function resolveAlertRules(raw: unknown): AlertRulesConfig {
+  const c = (raw ?? {}) as Partial<AlertRulesConfig>;
+  const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
+  const num = (v: unknown, d: number, min: number, max: number) =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.min(Math.max(Math.round(v), min), max) : d;
+  return {
+    staleLead: {
+      enabled: bool(c.staleLead?.enabled, true),
+      days: num(c.staleLead?.days, STALE_LEAD_DAYS, 1, 365),
+    },
+    oppOverdue: { enabled: bool(c.oppOverdue?.enabled, true) },
+    taskOverdue: { enabled: bool(c.taskOverdue?.enabled, true) },
+    hotLead: {
+      enabled: bool(c.hotLead?.enabled, true),
+      minScore: num(c.hotLead?.minScore, HIGH_SCORE_THRESHOLD, 1, 100),
+    },
+  };
+}
+
 // Severity weight for ordering (CRITICAL first).
 const SEVERITY_WEIGHT: Record<AlertSeverity, number> = {
   CRITICAL: 0,
@@ -38,9 +85,16 @@ export class AlertsService {
    * happen only when there's an actual diff, so a steady state is read-only.
    */
   private async recompute(tenantId: string) {
+    const rules = resolveAlertRules(
+      (
+        await this.prisma.bypass((tx) =>
+          tx.tenant.findUnique({ where: { id: tenantId }, select: { alertRules: true } }),
+        )
+      )?.alertRules,
+    );
     return this.prisma.withTenant(tenantId, async (tx) => {
       const now = new Date();
-      const staleCutoff = new Date(now.getTime() - STALE_LEAD_DAYS * 24 * 60 * 60 * 1000);
+      const staleCutoff = new Date(now.getTime() - rules.staleLead.days * 24 * 60 * 60 * 1000);
 
       const [staleLeads, dueOpps, overdueTasks, hotLeads, existing] = await Promise.all([
         tx.lead.findMany({
@@ -66,7 +120,7 @@ export class AlertsService {
           select: { id: true, title: true, dueAt: true },
         }),
         tx.lead.findMany({
-          where: { score: { gte: HIGH_SCORE_THRESHOLD }, status: { in: ['NEW', 'CONTACTED'] } },
+          where: { score: { gte: rules.hotLead.minScore }, status: { in: ['NEW', 'CONTACTED'] } },
           select: { id: true, name: true, company: true, score: true },
         }),
         tx.alert.findMany({
@@ -76,20 +130,20 @@ export class AlertsService {
 
       const desired: DesiredAlert[] = [];
 
-      for (const lead of staleLeads) {
+      for (const lead of rules.staleLead.enabled ? staleLeads : []) {
         const company = lead.company ? ` (${lead.company})` : '';
         desired.push({
           key: `${AlertType.LEAD_STALE}:${lead.id}`,
           type: AlertType.LEAD_STALE,
           severity: AlertSeverity.WARNING,
-          title: 'Lead sin contactar (+14 días)',
+          title: `Lead sin contactar (+${rules.staleLead.days} días)`,
           description: `${lead.name}${company} · creado el ${fmtDate(lead.createdAt)} y aún sin contactar`,
           resourceType: 'lead',
           resourceId: lead.id,
         });
       }
 
-      for (const opp of dueOpps) {
+      for (const opp of rules.oppOverdue.enabled ? dueOpps : []) {
         desired.push({
           key: `${AlertType.OPPORTUNITY_DUE}:${opp.id}`,
           type: AlertType.OPPORTUNITY_DUE,
@@ -101,7 +155,7 @@ export class AlertsService {
         });
       }
 
-      for (const task of overdueTasks) {
+      for (const task of rules.taskOverdue.enabled ? overdueTasks : []) {
         desired.push({
           key: `${AlertType.TASK_OVERDUE}:${task.id}`,
           type: AlertType.TASK_OVERDUE,
@@ -113,7 +167,7 @@ export class AlertsService {
         });
       }
 
-      for (const lead of hotLeads) {
+      for (const lead of rules.hotLead.enabled ? hotLeads : []) {
         const company = lead.company ? ` (${lead.company})` : '';
         desired.push({
           key: `${AlertType.HIGH_SCORE_LEAD}:${lead.id}`,

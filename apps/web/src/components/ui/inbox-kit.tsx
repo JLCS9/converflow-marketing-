@@ -1,8 +1,10 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import Link from 'next/link';
-import { X } from 'lucide-react';
+import { Mail, MessageSquare, X } from 'lucide-react';
+
+type IconType = ComponentType<{ size?: number; className?: string }>;
 
 /**
  * Shared inbox layout kit (respond.io-style). Used by both Mensajería (IM) and
@@ -59,17 +61,27 @@ export function InboxSwitch({
   mailCount: number;
   imCount: number;
 }) {
-  const item = (href: string, label: string, count: number, on: boolean) => (
+  // Iconos en vez de las etiquetas «Correo»/«Mensajería»: los dos textos no
+  // caben en la columna estrecha de la bandeja y se cortaban. El nombre sigue
+  // disponible como tooltip y como etiqueta accesible, que es lo que importa
+  // para quien navegue con lector de pantalla.
+  const item = (href: string, label: string, Icon: IconType, count: number, on: boolean) => (
     <Link
       href={href}
       aria-current={on ? 'page' : undefined}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
+      aria-label={label}
+      title={label}
+      className={`relative flex flex-1 items-center justify-center rounded-md px-2 py-1.5 transition-colors ${
         on ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'
       }`}
     >
-      {label}
+      <Icon size={17} />
       {count > 0 && (
-        <span className={`rounded-full px-1.5 text-[10px] font-semibold ${on ? 'bg-primary-600 text-white' : 'bg-ink-200 text-ink-600'}`}>
+        <span
+          className={`absolute -right-0.5 -top-0.5 min-w-[1rem] rounded-full px-1 text-[10px] font-semibold leading-4 ${
+            on ? 'bg-primary-600 text-white' : 'bg-ink-400 text-white'
+          }`}
+        >
           {count > 99 ? '99+' : count}
         </span>
       )}
@@ -77,8 +89,8 @@ export function InboxSwitch({
   );
   return (
     <div className="flex gap-1 rounded-lg bg-ink-100 p-1">
-      {item('/app/mail', 'Correo', mailCount, active === 'mail')}
-      {item('/app/conversations', 'Mensajería', imCount, active === 'im')}
+      {item('/app/mail', 'Correo', Mail, mailCount, active === 'mail')}
+      {item('/app/conversations', 'Mensajería', MessageSquare, imCount, active === 'im')}
     </div>
   );
 }

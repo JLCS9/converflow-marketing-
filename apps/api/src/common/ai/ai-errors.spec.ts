@@ -17,22 +17,27 @@ describe('describeAiFailure', () => {
       err('400 {"error":{"message":"Your credit balance is too low to access the API"}}', 400),
     );
     expect(e.httpStatus).toBe(503);
-    expect(e.message).toMatch(/sin saldo/i);
-    expect(e.message).toMatch(/recarga/i);
+    expect(e.message).toMatch(/agotad/i);
+    // Y NUNCA el nombre del proveedor: es información privada de la empresa.
+    expect(e.message).not.toMatch(/anthropic|claude|openai/i);
   });
 
   it('clave inválida o revocada', () => {
-    expect(describeAiFailure(err('invalid x-api-key', 401)).message).toMatch(/clave de API/i);
-    expect(describeAiFailure(err('authentication_error', 403)).message).toMatch(/clave de API/i);
+    for (const e of [describeAiFailure(err('invalid x-api-key', 401)), describeAiFailure(err('authentication_error', 403))]) {
+      expect(e.message).toMatch(/configuraci/i);
+      expect(e.message).not.toMatch(/anthropic|api.?key|\.env/i);
+    }
   });
 
   it('modelo inexistente: nombra la variable de entorno a revisar', () => {
     const e = describeAiFailure(err('404 not_found_error: model: claude-inventado', 404));
-    expect(e.message).toMatch(/ANTHROPIC_DEFAULT_MODEL/);
+    // El nombre del modelo es un detalle interno: no puede salir a la interfaz.
+    expect(e.message).not.toMatch(/claude|anthropic|model/i);
+    expect(e.message).toMatch(/configuraci/i);
   });
 
   it('límite del proveedor: 429 y sugiere reintentar', () => {
-    const e = describeAiFailure(err('rate_limit_error', 429));
+    const e = describeAiFailure(err("rate_limit_error", 429));
     expect(e.httpStatus).toBe(429);
     expect(e.message).toMatch(/reint/i);
   });
@@ -41,10 +46,10 @@ describe('describeAiFailure', () => {
     expect(describeAiFailure(err('overloaded_error', 529)).httpStatus).toBe(503);
   });
 
-  it('un fallo desconocido conserva el mensaje original, recortado', () => {
-    const e = describeAiFailure(err('algo muy raro ha pasado'));
+  it('un fallo desconocido NO filtra el mensaje del proveedor al cliente', () => {
+    const e = describeAiFailure(err('anthropic internal: model claude-x exploded'));
     expect(e.httpStatus).toBe(502);
-    expect(e.message).toContain('algo muy raro ha pasado');
+    expect(e.message).not.toMatch(/anthropic|claude/i);
   });
 
   it('no revienta con un error sin forma de Error', () => {

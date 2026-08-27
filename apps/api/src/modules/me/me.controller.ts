@@ -6,6 +6,10 @@ import {
   type AuthenticatedUser,
 } from '../../common/decorators/current-user.decorator.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { AiBudgetService } from '../../common/ai/ai-budget.service.js';
+import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
+import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
+import { resolveAlertRules } from '../alerts/alerts.service.js';
 
 const WIDGET_SIZES = new Set(['sm', 'md', 'lg']);
 
@@ -32,7 +36,74 @@ function normalizeWidgets(raw: unknown): { id: string; size: string }[] | null {
 @UseGuards(TenantAuthGuard)
 @Controller('me')
 export class MeController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly budget: AiBudgetService,
+  ) {}
+
+  /**
+   * Automation settings the tenant owns: AI on inbound messages, the monthly
+   * token cap, and which alert rules run.
+   *
+   * These exist because a customer reported tasks and alerts appearing in their
+   * account with no way to stop them, and because nothing capped AI spend.
+   */
+  @Get('automation')
+  @UseGuards(PermissionsGuard)
+  @RequirePerm('settings')
+  async automation(@CurrentUser() user: AuthenticatedUser) {
+    const tenant = await this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.tenant.findUniqueOrThrow({
+        where: { id: user.tenantId },
+        select: { aiInboundAnalysis: true, aiMonthlyTokenCap: true, alertRules: true },
+      }),
+    );
+    const usage = await this.budget.status(user.tenantId);
+    return {
+      aiInboundAnalysis: tenant.aiInboundAnalysis,
+      aiMonthlyTokenCap: tenant.aiMonthlyTokenCap,
+      alertRules: resolveAlertRules(tenant.alertRules),
+      tokensThisMonth: usage.tokensThisMonth,
+    };
+  }
+
+  @Patch('automation')
+  @UseGuards(PermissionsGuard)
+  @RequirePerm('settings')
+  async saveAutomation(
+    @Body()
+    body: {
+      aiInboundAnalysis?: boolean;
+      aiMonthlyTokenCap?: number | null;
+      alertRules?: unknown;
+    },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const cap =
+      body.aiMonthlyTokenCap === undefined
+        ? undefined
+        : body.aiMonthlyTokenCap === null || body.aiMonthlyTokenCap <= 0
+          ? null
+          : Math.min(Math.round(body.aiMonthlyTokenCap), 1_000_000_000);
+
+    await this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.tenant.update({
+        where: { id: user.tenantId },
+        data: {
+          ...(body.aiInboundAnalysis === undefined
+            ? {}
+            : { aiInboundAnalysis: !!body.aiInboundAnalysis }),
+          ...(cap === undefined ? {} : { aiMonthlyTokenCap: cap }),
+          ...(body.alertRules === undefined
+            ? {}
+            : { alertRules: resolveAlertRules(body.alertRules) as unknown as object }),
+        },
+      }),
+    );
+    // El presupuesto se cachea un minuto: sin esto el cambio no se notaría.
+    this.budget.invalidate(user.tenantId);
+    return this.automation(user);
+  }
 
   @Get('tenant')
   tenant(@CurrentUser() user: AuthenticatedUser) {

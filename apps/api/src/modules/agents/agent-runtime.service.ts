@@ -205,7 +205,11 @@ export class AgentRuntimeService {
       userPrompt,
       tools: enabledTools,
       executeTool: (name, input) => this.executeTool(ctx, name, input),
-      maxIterations: 4,
+      // 2, no 4: cada iteración es una llamada COMPLETA al modelo con el
+      // historial y las herramientas, así que el coste crece rápido. Con 2 el
+      // agente puede usar una herramienta y responder con su resultado, que es
+      // el caso real; 4 solo multiplicaba el gasto en los casos raros.
+      maxIterations: 2,
       maxTokens: 800,
     });
 
