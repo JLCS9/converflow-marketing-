@@ -356,7 +356,9 @@ export class CampaignsService implements OnModuleInit, OnModuleDestroy {
             // SMTP only (tenant's own mailbox) — never Resend for campaigns.
             const res = await this.email.sendSmtp(emailConn!, {
               to: r.address,
-              subject: campaign.subject ?? 'Información',
+              // The subject takes the same {variables} as the body — without
+              // rendering it, recipients literally read "Hola {nombre}".
+              subject: this.render(campaign.subject ?? 'Información', r),
               text,
               html,
             });
