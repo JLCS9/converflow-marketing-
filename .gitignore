@@ -61,3 +61,4 @@ infra/docker/.volumes/
 # Local-only scratch (fixtures for manual verification, never committed).
 # Must live inside a workspace package or tsx can't resolve @converflow/*.
 **/*.local.ts
+**/*.local.cjs
