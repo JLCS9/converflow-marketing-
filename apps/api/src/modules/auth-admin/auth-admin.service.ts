@@ -18,6 +18,25 @@ import {
   hashSessionToken,
   sessionExpiry,
 } from '../../common/auth/session.util.js';
+import { encryptSecret, decryptSecret } from '../../common/utils/crypto.js';
+
+/** A bare otplib secret is base32; anything else is one of our ciphertexts. */
+const BASE32_RE = /^[A-Z2-7]+=*$/;
+
+/**
+ * Read a stored TOTP secret. New rows are AES-256-GCM ciphertext; rows written
+ * before the secret was encrypted are still plaintext base32, so fall back to
+ * them instead of locking those admins out of their own 2FA.
+ */
+function readTotpSecret(stored: string | null): string | null {
+  if (!stored) return null;
+  if (BASE32_RE.test(stored)) return stored; // legacy plaintext
+  try {
+    return decryptSecret(stored);
+  } catch {
+    return null;
+  }
+}
 
 @Injectable()
 export class AuthAdminService {
@@ -41,8 +60,21 @@ export class AuthAdminService {
       if (!totp) {
         return { requires2fa: true as const };
       }
-      if (!admin.totpSecret || !authenticator.check(totp, admin.totpSecret)) {
+      const secret = readTotpSecret(admin.totpSecret);
+      if (!secret || !authenticator.check(totp, secret)) {
         throw new Invalid2FAError();
+      }
+      // Opportunistic migration: a legacy plaintext secret that just proved
+      // itself gets re-stored encrypted.
+      if (BASE32_RE.test(admin.totpSecret ?? '')) {
+        await this.prisma
+          .bypass((tx) =>
+            tx.platformAdmin.update({
+              where: { id: admin.id },
+              data: { totpSecret: encryptSecret(secret) },
+            }),
+          )
+          .catch(() => undefined);
       }
     }
 
@@ -163,7 +195,7 @@ export class AuthAdminService {
     await this.prisma.bypass(async (tx) =>
       tx.platformAdmin.update({
         where: { id: adminId },
-        data: { totpSecret: secret, totpEnabled: false },
+        data: { totpSecret: encryptSecret(secret), totpEnabled: false },
       }),
     );
 
@@ -174,7 +206,8 @@ export class AuthAdminService {
     const admin = await this.prisma.bypass(async (tx) =>
       tx.platformAdmin.findUniqueOrThrow({ where: { id: adminId } }),
     );
-    if (!admin.totpSecret || !authenticator.check(code, admin.totpSecret)) {
+    const secret = readTotpSecret(admin.totpSecret);
+    if (!secret || !authenticator.check(code, secret)) {
       throw new Invalid2FAError();
     }
     await this.prisma.bypass(async (tx) => {
