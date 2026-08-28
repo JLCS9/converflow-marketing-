@@ -100,11 +100,12 @@ export class MailInboxController {
   @Post('threads/:id/ai/summary')
   summary(
     @Param('id') id: string,
-    @Body() body: { force?: boolean } | undefined,
+    @Body() body: { force?: boolean; locale?: string } | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.mailAi.summarize(user.tenantId, id, this.actor(user), {
       force: body?.force === true,
+      locale: body?.locale,
     });
   }
 

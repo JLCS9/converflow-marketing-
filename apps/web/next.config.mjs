@@ -1,5 +1,10 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import createNextIntlPlugin from 'next-intl/plugin';
+
+// Sin enrutado por idioma: la ruta no lleva prefijo y el idioma sale de la
+// cookie que escribe la API. Así ninguna URL existente cambia.
+const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -58,4 +63,4 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

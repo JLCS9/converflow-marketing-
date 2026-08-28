@@ -1,11 +1,19 @@
+import { resolveLocale, type UiLocale } from '@converflow/shared';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { TabBar, SETTINGS_TABS } from '@/components/ui/tab-bar';
 import { ChangePasswordForm } from './change-password-form';
+import { LanguageCard } from './language-card';
 
 interface MeResponse {
-  user: { userId: string; email: string; mustChangePassword: boolean; role: string };
+  user: {
+    userId: string;
+    email: string;
+    mustChangePassword: boolean;
+    role: string;
+    locale: UiLocale;
+  };
 }
 
 export const metadata = { title: 'Perfil' };
@@ -24,6 +32,8 @@ export default async function ProfilePage() {
           por una propia antes de seguir usando la plataforma.
         </div>
       )}
+
+      <LanguageCard current={resolveLocale(me.user.locale)} />
 
       <Card>
         <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Información</h2>

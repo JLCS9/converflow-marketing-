@@ -218,7 +218,7 @@ export class AuthService {
     return this.prisma.bypass((tx) =>
       tx.user.findUniqueOrThrow({
         where: { id: userId },
-        select: { id: true, mustChangePassword: true },
+        select: { id: true, mustChangePassword: true, locale: true },
       }),
     );
   }

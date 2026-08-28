@@ -69,7 +69,9 @@ describe('MailAiService.summarize — caché', () => {
     const { tx } = summaryTx(
       {
         ...base,
-        aiSummary: { bullets: ['x'], asks: [], nextStep: 'y', state: 'CLOSED' },
+        // `_locale` forma parte del contrato de la caché: identifica en qué
+        // idioma se generó el resumen guardado.
+        aiSummary: { bullets: ['x'], asks: [], nextStep: 'y', state: 'CLOSED', _locale: 'es' },
         aiSummaryMsgCount: 2,
         aiSummaryAt: new Date('2026-08-26T10:00:00Z'),
       },
@@ -80,6 +82,31 @@ describe('MailAiService.summarize — caché', () => {
     expect(res.cached).toBe(true);
     expect(res.summary.state).toBe('CLOSED');
     expect(ai.callWithTool).not.toHaveBeenCalled();
+  });
+
+  it('NO reutiliza el resumen en castellano para un usuario en francés', async () => {
+    // Sin esta comprobación, el primero que resume un hilo fija el idioma para
+    // todo el equipo: un compañero francés recibiría el resumen en castellano.
+    const { tx } = summaryTx(
+      {
+        ...base,
+        aiSummary: { bullets: ['x'], asks: [], nextStep: 'y', state: 'CLOSED', _locale: 'es' },
+        aiSummaryMsgCount: 2,
+      },
+      2,
+    );
+    const { svc, ai } = makeService(tx);
+    const res = await svc.summarize('t', 't1', actor, { locale: 'fr' });
+    expect(res.cached).toBe(false);
+    expect(ai.callWithTool).toHaveBeenCalledOnce();
+    expect(ai.callWithTool.mock.calls[0]![0].system).toMatch(/franc/i);
+  });
+
+  it('guarda el idioma junto al resumen para poder distinguirlo después', async () => {
+    const { tx, update } = summaryTx({ ...base, aiSummary: null }, 2);
+    const { svc } = makeService(tx);
+    await svc.summarize('t', 't1', actor, { locale: 'en' });
+    expect(update.mock.calls[0]![0].data.aiSummary).toMatchObject({ _locale: 'en' });
   });
 
   it('recalcula cuando ha entrado un mensaje nuevo desde el resumen', async () => {

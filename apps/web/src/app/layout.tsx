@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from 'next';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale } from 'next-intl/server';
 import '@/styles/globals.css';
 
 // `??` only catches null/undefined — an empty env var (NEXT_PUBLIC_SITE_URL=)
@@ -27,10 +29,18 @@ export const viewport: Viewport = {
   themeColor: '#0ea5e9',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // El idioma sale de la cookie que escribe la API (ver src/i18n/request.ts).
+  // `lang` tiene que reflejarlo: lo usan los lectores de pantalla y el corrector
+  // ortográfico del navegador.
+  const locale = await getLocale();
   return (
-    <html lang="es">
-      <body>{children}</body>
+    <html lang={locale}>
+      <body>
+        {/* Los mensajes viajan al cliente aquí para que los componentes de
+            cliente puedan traducir sin volver a pedirlos. */}
+        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+      </body>
     </html>
   );
 }

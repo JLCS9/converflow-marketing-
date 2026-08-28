@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Sparkles, RefreshCw, AlertTriangle, ChevronDown } from 'lucide-react';
+import { useLocale } from 'next-intl';
 import { apiFetch } from '@/lib/api-client';
 import { aiErrorMessage } from './ai-error';
 import type { ThreadState, ThreadSummary } from './mail-types';
@@ -35,6 +36,7 @@ interface SummaryResponse {
 }
 
 export function MailAiPanel({ threadId, messageCount }: { threadId: string; messageCount: number }) {
+  const locale = useLocale();
   const [data, setData] = useState<SummaryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +56,9 @@ export function MailAiPanel({ threadId, messageCount }: { threadId: string; mess
       try {
         const r = await apiFetch<SummaryResponse>(`/mail/threads/${threadId}/ai/summary`, {
           method: 'POST',
-          json: { force },
+          // El resumen se escribe en el idioma de QUIEN lo pide, no en el del
+          // hilo: si trabajas en francés, lo quieres en francés.
+          json: { force, locale },
         });
         setData(r);
         setOpen(true);
@@ -64,7 +68,7 @@ export function MailAiPanel({ threadId, messageCount }: { threadId: string; mess
         setLoading(false);
       }
     },
-    [threadId],
+    [threadId, locale],
   );
 
   if (!data && !loading && !error) {

@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Res, UseGuards } from '@nestjs/common';
+import type { FastifyReply } from 'fastify';
 import { ApiTags } from '@nestjs/swagger';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 import {
@@ -10,6 +11,11 @@ import { AiBudgetService } from '../../common/ai/ai-budget.service.js';
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
 import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import { resolveAlertRules } from '../alerts/alerts.service.js';
+import { resolveLocale } from '@converflow/shared';
+import { env } from '../../config/env.js';
+
+/** Cookie que transporta el idioma al servidor de Next. */
+export const LOCALE_COOKIE = 'cf_locale';
 
 const WIDGET_SIZES = new Set(['sm', 'md', 'lg']);
 
@@ -116,6 +122,34 @@ export class MeController {
       });
       return tenant;
     });
+  }
+
+  /**
+   * Idioma de la interfaz del usuario. Se guarda en User.locale y se refleja en
+   * la cookie `cf_locale`, que es lo que lee el servidor de Next para elegir el
+   * idioma en los server components sin tener que consultar la base en cada
+   * render. La base es la fuente de verdad; la cookie solo la transporta.
+   */
+  @Patch('locale')
+  async setLocale(
+    @Body() body: { locale?: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    const locale = resolveLocale(body?.locale);
+    await this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.user.update({ where: { id: user.userId }, data: { locale } }),
+    );
+    res.setCookie(LOCALE_COOKIE, locale, {
+      // Legible por el servidor de Next, no secreta: no necesita httpOnly.
+      httpOnly: false,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365,
+      domain: env.NODE_ENV === 'production' ? '.converflow.ai' : undefined,
+    });
+    return { locale };
   }
 
   @Get('dashboard')

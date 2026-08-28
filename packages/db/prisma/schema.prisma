@@ -193,6 +193,10 @@ model User {
   // Per-user home dashboard layout: { widgets: string[] } — the ordered list of
   // enabled widget ids. Null = use the default layout from the client registry.
   dashboardConfig    Json?
+  /// Idioma de la interfaz para ESTE usuario (ISO-639-1: es | en | fr).
+  /// NULL = hereda el del tenant. Es por usuario y no por cuenta a propósito:
+  /// un equipo mixto tiene que poder trabajar cada uno en su idioma.
+  locale             String?
   emailVerifiedAt    DateTime?
   lastLoginAt        DateTime?
   mustChangePassword Boolean    @default(false)

@@ -10,6 +10,7 @@ import {
   CurrentUser,
   type AuthenticatedUser,
 } from '../../common/decorators/current-user.decorator.js';
+import { resolveLocale } from '@converflow/shared';
 import { env } from '../../config/env.js';
 
 @ApiTags('auth')
@@ -67,7 +68,15 @@ export class AuthController {
   async me(@CurrentUser() user: AuthenticatedUser) {
     // Include mustChangePassword from DB (not stored in the cookie).
     const u = await this.auth.findUserForMe(user.userId);
-    return { user: { ...user, mustChangePassword: u.mustChangePassword } };
+    return {
+      user: {
+        ...user,
+        mustChangePassword: u.mustChangePassword,
+        // NULL en base = «hereda»; se resuelve aquí para que el cliente reciba
+        // siempre un idioma válido y no tenga que replicar la regla.
+        locale: resolveLocale(u.locale),
+      },
+    };
   }
 
   @UseGuards(TenantAuthGuard)

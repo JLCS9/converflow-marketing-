@@ -3,6 +3,7 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   Home,
   MessageCircle,
@@ -132,6 +133,7 @@ export function SidebarNav({
   alertCount: number;
   collapsed?: boolean;
 }) {
+  const t = useTranslations('nav');
   const pathname = usePathname() ?? '';
   const session = useSession();
   const perms = session.permissions;
@@ -163,10 +165,10 @@ export function SidebarNav({
     };
     void poll();
     // 20s is plenty for an unread badge; 5s × every open tab was needless DB load.
-    const t = setInterval(poll, 20000);
+    const timer = setInterval(poll, 20000);
     return () => {
       active = false;
-      clearInterval(t);
+      clearInterval(timer);
     };
   }, []);
 
@@ -179,7 +181,7 @@ export function SidebarNav({
             onClick={() => setMenu((m) => !m)}
             aria-haspopup="menu"
             aria-expanded={menu}
-            aria-label="Atajos de creación"
+            aria-label={t('create')}
             className={`group relative flex w-full items-center justify-center rounded-md bg-ink-900 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-700 ${
               collapsed ? 'px-0' : 'gap-2 px-3'
             }`}
@@ -196,7 +198,7 @@ export function SidebarNav({
                 />
               </>
             ) : (
-              <Tip label="Crear" />
+              <Tip label={t('create')} />
             )}
           </button>
           {menu && (
@@ -226,11 +228,11 @@ export function SidebarNav({
         <Link
           href="/app"
           className={itemCls(pathname === '/app', collapsed)}
-          aria-label={collapsed ? 'Inicio' : undefined}
+          aria-label={collapsed ? t('home') : undefined}
         >
           <Home size={18} strokeWidth={1.75} aria-hidden />
-          {!collapsed && <span>Inicio</span>}
-          {collapsed && <Tip label="Inicio" />}
+          {!collapsed && <span>{t('home')}</span>}
+          {collapsed && <Tip label={t('home')} />}
         </Link>
         {showConversations && (
           <Link
@@ -239,23 +241,23 @@ export function SidebarNav({
               pathname.startsWith('/app/conversations') || pathname.startsWith('/app/mail'),
               collapsed,
             )}
-            aria-label={collapsed ? 'Conversaciones' : undefined}
+            aria-label={collapsed ? t('conversations') : undefined}
           >
             <MessageCircle size={18} strokeWidth={1.75} aria-hidden />
-            {!collapsed && <span>Conversaciones</span>}
+            {!collapsed && <span>{t('conversations')}</span>}
             <Count n={pending} color="blue" collapsed={collapsed} />
-            {collapsed && <Tip label="Conversaciones" />}
+            {collapsed && <Tip label={t('conversations')} />}
           </Link>
         )}
         <Link
           href="/app/alerts"
           className={itemCls(pathname.startsWith('/app/alerts'), collapsed)}
-          aria-label={collapsed ? 'Alertas' : undefined}
+          aria-label={collapsed ? t('alerts') : undefined}
         >
           <Bell size={18} strokeWidth={1.75} aria-hidden />
-          {!collapsed && <span>Alertas</span>}
+          {!collapsed && <span>{t('alerts')}</span>}
           <Count n={alertCount} color="red" collapsed={collapsed} />
-          {collapsed && <Tip label="Alertas" />}
+          {collapsed && <Tip label={t('alerts')} />}
         </Link>
 
         {visibleSections.length > 0 && (
@@ -272,11 +274,11 @@ export function SidebarNav({
         <Link
           href="/app/ayuda"
           className={itemCls(pathname.startsWith('/app/ayuda'), collapsed)}
-          aria-label={collapsed ? 'Ayuda' : undefined}
+          aria-label={collapsed ? t('help') : undefined}
         >
           <HelpCircle size={18} strokeWidth={1.75} aria-hidden />
-          {!collapsed && <span>Ayuda</span>}
-          {collapsed && <Tip label="Ayuda" />}
+          {!collapsed && <span>{t('help')}</span>}
+          {collapsed && <Tip label={t('help')} />}
         </Link>
         {showSettings && (
           <SectionLink section={SETTINGS_SECTION} pathname={pathname} collapsed={collapsed} />

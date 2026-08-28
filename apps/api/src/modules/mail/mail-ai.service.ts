@@ -3,6 +3,7 @@ import { NotFoundError, BadRequestError } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { AiService } from '../../common/ai/ai.service.js';
 import { htmlToText } from '../../common/utils/email-html.js';
+import { resolveLocale } from '@converflow/shared';
 import { env } from '../../config/env.js';
 import { MailConnectionsService } from './mail-connections.service.js';
 
@@ -96,7 +97,7 @@ export class MailAiService {
     tenantId: string,
     threadId: string,
     actor: Actor,
-    opts: { force?: boolean } = {},
+    opts: { force?: boolean; locale?: string } = {},
   ): Promise<{ summary: ThreadSummary; cached: boolean; at: Date }> {
     const thread = await this.prisma.withTenant(tenantId, (tx) =>
       tx.emailThread.findUnique({ where: { id: threadId } }),
@@ -123,10 +124,15 @@ export class MailAiService {
     );
     if (!messages.length) throw new BadRequestError('El hilo no tiene mensajes que resumir');
 
+    // La caché guarda el idioma con el que se generó: sin eso, un usuario
+    // francés recibiría el resumen que ya había hecho un compañero en español.
+    const cachedLocale = (thread.aiSummary as { _locale?: string } | null)?._locale;
+    const wantLocale = resolveLocale(opts.locale);
     const fresh =
       !opts.force &&
       thread.aiSummary != null &&
-      thread.aiSummaryMsgCount === messages.length;
+      thread.aiSummaryMsgCount === messages.length &&
+      cachedLocale === wantLocale;
     if (fresh) {
       return {
         summary: thread.aiSummary as unknown as ThreadSummary,
@@ -140,9 +146,13 @@ export class MailAiService {
     const call = await this.ai.callWithTool<ThreadSummary>({
       model: env.ANTHROPIC_FAST_MODEL,
       system:
-        'Eres un asistente que resume hilos de correo de un equipo comercial español. ' +
+        'Eres un asistente que resume hilos de correo de un equipo comercial. ' +
         'Resume SOLO lo que aparece en el hilo: no inventes datos, cifras, fechas ni compromisos. ' +
-        'Si algo no está claro en el texto, no lo afirmes. Escribe en español, directo y sin relleno.',
+        'Si algo no está claro en el texto, no lo afirmes. Directo y sin relleno. ' +
+        // El resumen lo lee el usuario, así que va en SU idioma, no en el del
+        // hilo: un usuario francés no quiere un resumen en español de un correo
+        // en inglés.
+        `Escribe el resumen en ${SUPPORTED_LANGS[resolveLocale(opts.locale)] ?? 'español'}.`,
       userPrompt: this.buildSummaryPrompt(thread.subject, messages),
       toolName: 'resumir_hilo',
       toolDescription: 'Devuelve el resumen estructurado del hilo de correo.',
@@ -156,7 +166,7 @@ export class MailAiService {
       tx.emailThread.update({
         where: { id: threadId },
         data: {
-          aiSummary: summary as unknown as object,
+          aiSummary: { ...summary, _locale: wantLocale } as unknown as object,
           aiSummaryAt: at,
           aiSummaryMsgCount: messages.length,
         },
