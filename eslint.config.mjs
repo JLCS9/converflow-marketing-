@@ -57,9 +57,24 @@ export default tseslint.config(
     // node a pelo). Without opting out of the type-aware project service,
     // eslint aborts with "was not found by the project service" and takes the
     // whole `turbo run lint` down with it. Se siguen lintando, pero sin tipos.
-    files: ['**/prisma/seed.ts', '**/scripts/*.cjs', '**/*.local.cjs'],
+    files: ['**/prisma/seed.ts'],
     languageOptions: {
       parserOptions: { projectService: false, project: false },
+    },
+  },
+  {
+    // Scripts de operación en CommonJS (migraciones puntuales, restablecer la
+    // contraseña del super admin). Se ejecutan con `node` a pelo dentro del
+    // contenedor, así que usan require() y los globales de Node: sin declararlo
+    // eslint los marcaba como 42 errores de 'require is not defined'.
+    files: ['**/scripts/*.cjs', '**/*.local.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      parserOptions: { projectService: false, project: false },
+      globals: { require: 'readonly', process: 'readonly', console: 'readonly', module: 'writable' },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
     },
   },
   prettierConfig,
