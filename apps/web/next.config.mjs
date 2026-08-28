@@ -1,7 +1,15 @@
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Raíz del monorepo, fijada a mano. Next 15.5 avisa de que la infiere y puede
+  // equivocarse, y aquí no es cosmético: con `output: 'standalone'` el trazado
+  // decide QUÉ ficheros se copian a la imagen de Docker. Si infiere mal, el
+  // contenedor de producción arranca sin dependencias del workspace.
+  outputFileTracingRoot: resolve(dirname(fileURLToPath(import.meta.url)), '../..'),
   // typedRoutes still incompatible with Turbopack on Next 15 — re-enable once supported.
   output: 'standalone',
   // Lint runs in `turbo lint` (CI). Don't double-block Docker builds on lint
