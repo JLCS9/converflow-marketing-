@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
@@ -11,6 +12,7 @@ import { LEAD_STATUS_OPTIONS } from '@/lib/labels';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
 export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefinition[] }) {
+  const t = useTranslations();
   const router = useRouter();
   const { confirm, toast } = useFeedback();
   const [error, setError] = useState<string | null>(null);
@@ -69,26 +71,26 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
         }}
       >
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Nombre" required>
+          <Field label={t('leadDetail.firstName')} required>
             <Input name="name" type="text" required minLength={1} maxLength={150} />
           </Field>
-          <Field label="Apellido">
+          <Field label={t('leadDetail.lastName')}>
             <Input name="lastName" type="text" maxLength={150} />
           </Field>
         </div>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Email">
+          <Field label={t('crm.email')}>
             <Input name="email" type="email" />
           </Field>
-          <Field label="Teléfono">
+          <Field label={t('crm.phone')}>
             <Input name="phone" type="tel" />
           </Field>
         </div>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Fuente">
-            <Input name="source" type="text" placeholder="manual, web, evento, referido…" />
+          <Field label={t('crm.source')}>
+            <Input name="source" type="text" placeholder={t('leadDetail.sourcePlaceholder')} />
           </Field>
-          <Field label="Estado" help="Cambia a Cliente cuando cierres la venta o a Perdido si no fragua.">
+          <Field label={t('crm.status')} help="Cambia a Cliente cuando cierres la venta o a Perdido si no fragua.">
             <Select name="status" defaultValue="LEAD">
               {LEAD_STATUS_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>

@@ -1,7 +1,13 @@
+import { getTranslations } from 'next-intl/server';
 import { serverApiFetch } from '@/lib/server-api';
 import { TasksWorkspace, type Task, type Stats } from './tasks-workspace';
 
-export const metadata = { title: 'Tareas' };
+// metadata estática no puede traducirse: se genera por petición para que la
+// pestaña del navegador siga el idioma del usuario.
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('tasks.title') };
+}
 
 const EMPTY_STATS: Stats = { pending: 0, overdue: 0, doneThisWeek: 0 };
 

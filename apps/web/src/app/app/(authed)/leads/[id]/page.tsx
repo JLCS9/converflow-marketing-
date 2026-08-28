@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
@@ -64,6 +65,7 @@ export default async function LeadDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = await getTranslations();
   const { id } = await params;
   let lead: LeadDetail;
   try {
@@ -99,7 +101,7 @@ export default async function LeadDetailPage({
             </div>
           </div>
           <div className={`rounded-lg px-4 py-3 ${scoreColor(lead.score)}`}>
-            <div className="text-xs font-mono uppercase tracking-wider">Score IA</div>
+            <div className="text-xs font-mono uppercase tracking-wider">{t('leadDetail.aiScore')}</div>
             <div className="text-3xl font-semibold tabular-nums">
               {lead.score != null ? lead.score : '—'}
             </div>
@@ -169,7 +171,7 @@ export default async function LeadDetailPage({
       </Card>
 
       <Card>
-        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Reuniones IA</h2>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('leadDetail.aiMeetings')}</h2>
         <p className="mt-1 text-xs text-ink-500">
           La IA consulta tu disponibilidad en Google Calendar y propone los mejores huecos. Al
           agendar, crea el evento (invitando al lead) y una tarea de seguimiento.
@@ -207,7 +209,7 @@ export default async function LeadDetailPage({
             </Link>
           </div>
           {lead.opportunities.length === 0 ? (
-            <p className="mt-3 text-sm text-ink-500">Sin oportunidades todavía.</p>
+            <p className="mt-3 text-sm text-ink-500">{t('leadDetail.noOpportunities')}</p>
           ) : (
             <ul className="mt-3 space-y-1 text-sm">
               {lead.opportunities.map((o) => (

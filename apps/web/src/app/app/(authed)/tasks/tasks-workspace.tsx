@@ -184,14 +184,14 @@ export function TasksWorkspace({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Tareas</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t('tasks.title')}</h1>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg border border-ink-200 p-0.5">
-            <button type="button" onClick={() => setView('list')} className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${view === 'list' ? 'bg-ink-100 text-ink-900' : 'text-ink-500'}`}><LayoutList size={14} /> Lista</button>
-            <button type="button" onClick={() => setView('board')} className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${view === 'board' ? 'bg-ink-100 text-ink-900' : 'text-ink-500'}`}><Columns3 size={14} /> Tablero</button>
+            <button type="button" onClick={() => setView('list')} className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${view === 'list' ? 'bg-ink-100 text-ink-900' : 'text-ink-500'}`}><LayoutList size={14} /> {t('taskBoard.list')}</button>
+            <button type="button" onClick={() => setView('board')} className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${view === 'board' ? 'bg-ink-100 text-ink-900' : 'text-ink-500'}`}><Columns3 size={14} /> {t('taskBoard.board')}</button>
           </div>
           <button type="button" onClick={() => setModal({ task: null })} className={buttonClass('primary', 'flex items-center gap-1.5')}>
-            <Plus size={16} /> Nueva tarea
+            <Plus size={16} /> {t('taskBoard.newTask')}
           </button>
         </div>
       </div>
@@ -199,33 +199,33 @@ export function TasksWorkspace({
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         <Card className="p-3"><div className="text-xs text-ink-500">{t('tasks.pending')}</div><div className="text-2xl font-semibold">{stats.pending}</div></Card>
-        <Card className="p-3"><div className="text-xs text-ink-500">Vencidas</div><div className={`text-2xl font-semibold ${stats.overdue > 0 ? 'text-red-600' : ''}`}>{stats.overdue}</div></Card>
+        <Card className="p-3"><div className="text-xs text-ink-500">{t('taskBoard.overdue')}</div><div className={`text-2xl font-semibold ${stats.overdue > 0 ? 'text-red-600' : ''}`}>{stats.overdue}</div></Card>
         <Card className="p-3"><div className="text-xs text-ink-500">{t('tasks.doneThisWeek')}</div><div className="text-2xl font-semibold text-green-600">{stats.doneThisWeek}</div></Card>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg bg-ink-100 p-0.5">
-          <button type="button" onClick={() => setScope('mine')} className={segBtn(scope === 'mine')}>Mías</button>
-          <button type="button" onClick={() => setScope('team')} className={segBtn(scope === 'team')}>Equipo</button>
-          <button type="button" onClick={() => setScope('all')} className={segBtn(scope === 'all')}>Todas</button>
+          <button type="button" onClick={() => setScope('mine')} className={segBtn(scope === 'mine')}>{t('taskBoard.mine')}</button>
+          <button type="button" onClick={() => setScope('team')} className={segBtn(scope === 'team')}>{t('taskBoard.team')}</button>
+          <button type="button" onClick={() => setScope('all')} className={segBtn(scope === 'all')}>{t('taskBoard.allScope')}</button>
         </div>
-        <button type="button" onClick={() => setQuick(quick === 'today' ? null : 'today')} className={chip(quick === 'today')}>Hoy</button>
-        <button type="button" onClick={() => setQuick(quick === 'overdue' ? null : 'overdue')} className={chip(quick === 'overdue')}>Vencidas</button>
-        <button type="button" onClick={() => setQuick(quick === 'unassigned' ? null : 'unassigned')} className={chip(quick === 'unassigned')}>Sin asignar</button>
+        <button type="button" onClick={() => setQuick(quick === 'today' ? null : 'today')} className={chip(quick === 'today')}>{t('taskBoard.today')}</button>
+        <button type="button" onClick={() => setQuick(quick === 'overdue' ? null : 'overdue')} className={chip(quick === 'overdue')}>{t('taskBoard.overdue')}</button>
+        <button type="button" onClick={() => setQuick(quick === 'unassigned' ? null : 'unassigned')} className={chip(quick === 'unassigned')}>{t('taskBoard.unassigned')}</button>
         <select value={statusF} onChange={(e) => setStatusF(e.target.value)} className="rounded border border-ink-200 px-2 py-1 text-xs">
-          <option value="">Todos los estados</option>
+          <option value="">{t('taskBoard.allStatuses')}</option>
           {Object.entries(TASK_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <select value={typeF} onChange={(e) => setTypeF(e.target.value)} className="rounded border border-ink-200 px-2 py-1 text-xs">
-          <option value="">Todos los tipos</option>
+          <option value="">{t('taskBoard.allTypes')}</option>
           {Object.entries(TASK_TYPE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" className="rounded border border-ink-200 px-2 py-1 text-xs" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('taskBoard.searchPlaceholder')} className="rounded border border-ink-200 px-2 py-1 text-xs" />
       </div>
 
       {filtered.length === 0 ? (
-        <Card className="text-center text-sm text-ink-500">No hay tareas con estos filtros.</Card>
+        <Card className="text-center text-sm text-ink-500">{t('taskBoard.emptyFiltered')}</Card>
       ) : view === 'list' ? (
         <Card className="overflow-x-auto p-0">
           <table className="w-full text-sm">
@@ -260,7 +260,7 @@ export function TasksWorkspace({
                     <td className="hidden py-2.5 pr-2 md:table-cell">
                       <select value={task.ownerId ?? ''} onChange={(e) => void patch(task.id, { ownerId: e.target.value || null })} disabled={busyId === task.id}
                         className="max-w-[10rem] rounded border border-ink-200 px-1.5 py-0.5 text-xs text-ink-700">
-                        <option value="">Sin asignar</option>
+                        <option value="">{t('taskBoard.unassigned')}</option>
                         {assignees.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                       </select>
                     </td>
@@ -341,6 +341,7 @@ function TaskModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useTranslations();
   const fb = useFeedback();
   const [saving, setSaving] = useState(false);
   const editing = !!task;
@@ -387,14 +388,14 @@ function TaskModal({
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-900/40 p-4 sm:p-8" onClick={onClose}>
       <div className="w-full max-w-xl rounded-lg border border-ink-100 bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3">
-          <h3 className="text-sm font-semibold">{editing ? 'Editar tarea' : 'Nueva tarea'}</h3>
+          <h3 className="text-sm font-semibold">{editing ? t('taskBoard.editTask') : t('taskBoard.newTask')}</h3>
           <button type="button" onClick={onClose} className="text-ink-400 hover:text-ink-700" aria-label="Cerrar">✕</button>
         </div>
         <form className="space-y-4 p-4" onSubmit={submit}>
-          <Field label="Título" required>
+          <Field label={t('taskBoard.formTitle')} required>
             <Input name="title" defaultValue={task?.title ?? ''} required maxLength={200} autoFocus />
           </Field>
-          <Field label="Descripción">
+          <Field label={t('taskBoard.formDescription')}>
             <Textarea name="description" rows={3} defaultValue={task?.description ?? ''} />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -408,14 +409,14 @@ function TaskModal({
                 {Object.entries(PRIORITY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </Select>
             </Field>
-            <Field label="Estado">
+            <Field label={t('crm.status')}>
               <Select name="status" defaultValue={task?.status ?? 'PENDING'}>
                 {Object.entries(TASK_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </Select>
             </Field>
-            <Field label="Asignar a">
+            <Field label={t('taskBoard.assignTo')}>
               <Select name="ownerId" defaultValue={task?.ownerId ?? ''}>
-                <option value="">Sin asignar</option>
+                <option value="">{t('taskBoard.unassigned')}</option>
                 {assignees.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </Select>
             </Field>

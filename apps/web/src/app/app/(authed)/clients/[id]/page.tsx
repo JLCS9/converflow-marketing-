@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
@@ -28,6 +29,7 @@ export default async function ClientDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = await getTranslations();
   const { id } = await params;
   let client: ClientDetail;
   try {
@@ -44,7 +46,7 @@ export default async function ClientDetailPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/app/clients" className="text-sm text-ink-500 hover:text-ink-900">← Volver</Link>
+        <Link href="/app/clients" className="text-sm text-ink-500 hover:text-ink-900">{t('detail.back')}</Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">{client.name}</h1>
         <div className="mt-1 flex items-center gap-3 text-sm">
           <Badge color={client.status === 'ACTIVE' ? 'green' : 'gray'}>{client.status}</Badge>
@@ -55,9 +57,9 @@ export default async function ClientDetailPage({
         <ClientInfoCard client={client} />
 
         <Card className="lg:col-span-2">
-          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Oportunidades</h2>
+          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('opportunities.title')}</h2>
           {client.opportunities.length === 0 ? (
-            <p className="mt-3 text-sm text-ink-500">Sin oportunidades.</p>
+            <p className="mt-3 text-sm text-ink-500">{t('detail.noOpps')}</p>
           ) : (
             <ul className="mt-3 space-y-1 text-sm">
               {client.opportunities.map((o) => (
@@ -84,9 +86,9 @@ export default async function ClientDetailPage({
       />
 
       <Card>
-        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Tareas</h2>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('detail.tasks')}</h2>
         {client.tasks.length === 0 ? (
-          <p className="mt-3 text-sm text-ink-500">Sin tareas asociadas.</p>
+          <p className="mt-3 text-sm text-ink-500">{t('detail.noTasks')}</p>
         ) : (
           <ul className="mt-3 space-y-1 text-sm">
             {client.tasks.map((t) => (

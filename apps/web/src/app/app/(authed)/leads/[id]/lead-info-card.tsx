@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
@@ -24,6 +25,7 @@ interface LeadInfo {
 }
 
 export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
+  const t = useTranslations();
   const router = useRouter();
   const { toast } = useFeedback();
   const [editing, setEditing] = useState(false);
@@ -69,37 +71,37 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
     return (
       <Card>
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Información</h2>
+          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('leadDetail.info')}</h2>
           <button type="button" className="text-xs text-ink-500" onClick={() => setEditing(false)}>
             Cancelar
           </button>
         </div>
         <div className="mt-4 space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Nombre" required>
+            <Field label={t('leadDetail.firstName')} required>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </Field>
-            <Field label="Apellido">
+            <Field label={t('leadDetail.lastName')}>
               <Input
                 value={form.lastName}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })}
               />
             </Field>
           </div>
-          <Field label="Email">
+          <Field label={t('crm.email')}>
             <Input
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
           </Field>
-          <Field label="Teléfono">
+          <Field label={t('crm.phone')}>
             <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </Field>
-          <Field label="Fuente">
+          <Field label={t('crm.source')}>
             <Input value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} />
           </Field>
-          <Field label="Estado">
+          <Field label={t('crm.status')}>
             <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
               {LEAD_STATUS_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -127,23 +129,23 @@ export function LeadInfoCard({ lead }: { lead: LeadInfo }) {
   return (
     <Card>
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Información</h2>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('leadDetail.info')}</h2>
         <button type="button" className="text-xs text-primary-700 hover:underline" onClick={() => setEditing(true)}>
           Editar
         </button>
       </div>
       <dl className="mt-4 space-y-2 text-sm">
-        {lead.lastName && <Row label="Apellido" value={lead.lastName} />}
-        <Row label="Email" value={lead.email ?? '—'} />
-        <Row label="Teléfono" value={lead.phone ?? '—'} />
-        {lead.company && <Row label="Empresa" value={lead.company} />}
-        <Row label="Fuente" value={lead.source ?? '—'} />
-        <Row label="Creado" value={new Date(lead.createdAt).toLocaleString('es-ES')} />
+        {lead.lastName && <Row label={t('leadDetail.lastName')} value={lead.lastName} />}
+        <Row label={t('crm.email')} value={lead.email ?? '—'} />
+        <Row label={t('crm.phone')} value={lead.phone ?? '—'} />
+        {lead.company && <Row label={t('crm.company')} value={lead.company} />}
+        <Row label={t('crm.source')} value={lead.source ?? '—'} />
+        <Row label={t('crm.createdAt')} value={new Date(lead.createdAt).toLocaleString('es-ES')} />
         {lead.contactedAt && (
-          <Row label="Contactado" value={new Date(lead.contactedAt).toLocaleString('es-ES')} />
+          <Row label={t('leadDetail.contactedAt')} value={new Date(lead.contactedAt).toLocaleString('es-ES')} />
         )}
         {lead.qualifiedAt && (
-          <Row label="Cliente desde" value={new Date(lead.qualifiedAt).toLocaleString('es-ES')} />
+          <Row label={t('leadDetail.clientSince')} value={new Date(lead.qualifiedAt).toLocaleString('es-ES')} />
         )}
       </dl>
     </Card>

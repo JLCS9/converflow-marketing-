@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
@@ -92,6 +93,7 @@ export default async function OpportunityDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = await getTranslations();
   const { id } = await params;
   let opp: OppDetail;
   try {
@@ -169,10 +171,10 @@ export default async function OpportunityDetailPage({
                 <Badge color="gray">{opp.lead.status}</Badge>
               </div>
               <dl className="grid gap-3 sm:grid-cols-2">
-                {opp.lead.company && <KV label="Empresa" value={opp.lead.company} />}
+                {opp.lead.company && <KV label={t('crm.company')} value={opp.lead.company} />}
                 {opp.lead.email && (
                   <KV
-                    label="Email"
+                    label={t('crm.email')}
                     value={
                       <a className="text-primary-700 hover:underline" href={`mailto:${opp.lead.email}`}>
                         {opp.lead.email}
@@ -180,9 +182,9 @@ export default async function OpportunityDetailPage({
                     }
                   />
                 )}
-                {opp.lead.phone && <KV label="Teléfono" value={opp.lead.phone} />}
-                {opp.lead.source && <KV label="Fuente" value={opp.lead.source} />}
-                {opp.lead.score != null && <KV label="Score IA" value={String(opp.lead.score)} />}
+                {opp.lead.phone && <KV label={t('crm.phone')} value={opp.lead.phone} />}
+                {opp.lead.source && <KV label={t('crm.source')} value={opp.lead.source} />}
+                {opp.lead.score != null && <KV label={t('leadDetail.aiScore')} value={String(opp.lead.score)} />}
               </dl>
               {opp.lead.customFields && leadFields.length > 0 && (
                 <div className="border-t border-ink-100 pt-3">
@@ -206,7 +208,7 @@ export default async function OpportunityDetailPage({
               )}
             </div>
           ) : (
-            <p className="mt-3 text-sm text-ink-500">Sin lead ni cliente vinculado.</p>
+            <p className="mt-3 text-sm text-ink-500">{t('detail.noLinkedContact')}</p>
           )}
         </Card>
       </div>
@@ -219,7 +221,7 @@ export default async function OpportunityDetailPage({
       />
 
       <Card>
-        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Notas</h2>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('detail.notes')}</h2>
         <p className="mt-1 text-xs text-ink-500">
           Apunta el avance de la oportunidad, próximos pasos o blockers.
         </p>
@@ -230,9 +232,9 @@ export default async function OpportunityDetailPage({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Historial de etapas</h2>
+          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('detail.stageHistory')}</h2>
           {opp.stageHistory.length === 0 ? (
-            <p className="mt-3 text-sm text-ink-500">Sin cambios registrados todavía.</p>
+            <p className="mt-3 text-sm text-ink-500">{t('detail.noStageChanges')}</p>
           ) : (
             <ol className="mt-3 space-y-2 text-sm">
               {opp.stageHistory.map((h) => (
@@ -254,9 +256,9 @@ export default async function OpportunityDetailPage({
         </Card>
 
         <Card>
-          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Tareas</h2>
+          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('detail.tasks')}</h2>
           {opp.tasks.length === 0 ? (
-            <p className="mt-3 text-sm text-ink-500">Sin tareas asociadas.</p>
+            <p className="mt-3 text-sm text-ink-500">{t('detail.noTasks')}</p>
           ) : (
             <ul className="mt-3 space-y-1.5 text-sm">
               {opp.tasks.map((t) => (
@@ -274,9 +276,9 @@ export default async function OpportunityDetailPage({
       </div>
 
       <Card>
-        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Documentos</h2>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('detail.documents')}</h2>
         {opp.documents.length === 0 ? (
-          <p className="mt-3 text-sm text-ink-500">Sin documentos en esta oportunidad.</p>
+          <p className="mt-3 text-sm text-ink-500">{t('detail.noDocuments')}</p>
         ) : (
           <ul className="mt-3 space-y-1.5 text-sm">
             {opp.documents.map((d) => (
