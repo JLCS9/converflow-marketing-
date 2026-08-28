@@ -31,6 +31,54 @@ const es = {
     search: 'Buscar',
     close: 'Cerrar',
   },
+  crm: {
+    // Etiquetas compartidas por leads, clientes, oportunidades y tareas: son
+    // las mismas columnas y filtros en las cuatro pantallas.
+    name: 'Nombre',
+    email: 'Email',
+    phone: 'Teléfono',
+    company: 'Empresa',
+    status: 'Estado',
+    owner: 'Responsable',
+    source: 'Fuente',
+    createdAt: 'Creado',
+    dueDate: 'Vencimiento',
+    amount: 'Importe',
+    all: 'Todos',
+    perPage: 'Por página',
+    noResults: 'Sin resultados',
+    actions: 'Acciones',
+  },
+  leads: {
+    score: 'Score',
+    filter: 'Filtrar',
+    newLead: 'Nuevo lead',
+    importCsv: 'Importar CSV',
+    bulkScore: 'Score IA en masa',
+    countLine: '{total, plural, =0 {Sin leads} one {# lead en total} other {# leads en total}} · mostrando {from}–{to}.',
+    title: 'Leads',
+    searchPlaceholder: 'Buscar (nombre, email, empresa)',
+    noMatch: 'Ningún lead coincide con los filtros. Prueba a quitarlos o cambia los criterios.',
+    emptyTitle: 'Aún no tienes leads',
+    emptyBody: 'Crea tu primer lead manualmente o importa una lista en CSV.',
+  },
+  clients: {
+    title: 'Clientes',
+    searchPlaceholder: 'Buscar (nombre o email)',
+    noMatch: 'Ningún cliente coincide con los filtros.',
+    emptyTitle: 'Aún no tienes clientes',
+    emptyBody:
+      'Los leads que pasen a ganado se convierten automáticamente en clientes. También puedes darlos de alta a mano.',
+  },
+  opportunities: {
+    title: 'Oportunidades',
+    board: 'Tablero',
+  },
+  tasks: {
+    title: 'Tareas',
+    pending: 'Pendientes',
+    doneThisWeek: 'Hechas (7 días)',
+  },
   profile: {
     language: 'Idioma de la interfaz',
     languageHelp:

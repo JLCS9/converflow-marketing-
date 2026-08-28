@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
@@ -50,6 +51,7 @@ export default async function LeadsPage({
     perPage?: string;
   }>;
 }) {
+  const t = await getTranslations();
   const params = await searchParams;
   const perPage = clampPageSize(params.perPage);
   const page = Math.max(1, Number(params.page) || 1);
@@ -81,13 +83,13 @@ export default async function LeadsPage({
     <div className="space-y-6">
       <TabBar items={CRM_TABS} />
       <PageHeader
-        title="Leads"
+        title={t('leads.title')}
         description={
           total === 0
             ? hasFilters
               ? 'Ningún lead coincide con los filtros.'
               : 'Sin leads todavía. Da de alta uno o importa CSV.'
-            : `${total} ${total === 1 ? 'lead en total' : 'leads en total'} · mostrando ${rangeFrom}–${rangeTo}.`
+            : t('leads.countLine', { total, from: rangeFrom, to: rangeTo })
         }
         action={
           <LeadsTopActions
@@ -101,13 +103,13 @@ export default async function LeadsPage({
       <Card>
         <form className="flex flex-wrap items-end gap-3 text-sm" method="get">
           <label className="flex flex-col">
-            <span className="text-xs text-ink-500">Estado</span>
+            <span className="text-xs text-ink-500">{t('crm.status')}</span>
             <select
               name="status"
               defaultValue={params.status ?? ''}
               className="mt-1 rounded-md border border-ink-300 px-2 py-1.5"
             >
-              <option value="">Todos</option>
+              <option value="">{t('crm.all')}</option>
               {LEAD_STATUS_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
@@ -116,7 +118,7 @@ export default async function LeadsPage({
             </select>
           </label>
           <label className="flex flex-1 flex-col">
-            <span className="text-xs text-ink-500">Buscar (nombre, email, empresa)</span>
+            <span className="text-xs text-ink-500">{t('leads.searchPlaceholder')}</span>
             <input
               type="text"
               name="search"
@@ -125,7 +127,7 @@ export default async function LeadsPage({
             />
           </label>
           <label className="flex flex-col">
-            <span className="text-xs text-ink-500">Por página</span>
+            <span className="text-xs text-ink-500">{t('crm.perPage')}</span>
             <select
               name="perPage"
               defaultValue={String(perPage)}
@@ -139,7 +141,7 @@ export default async function LeadsPage({
             </select>
           </label>
           <button type="submit" className={buttonClass('primary')}>
-            Filtrar
+            {t('leads.filter')}
           </button>
         </form>
       </Card>
@@ -147,8 +149,8 @@ export default async function LeadsPage({
       {leads.length === 0 ? (
         hasFilters ? (
           <EmptyState
-            title="Sin resultados"
-            description="Ningún lead coincide con los filtros. Prueba a quitarlos o cambia los criterios."
+            title={t('crm.noResults')}
+            description={t('leads.noMatch')}
             cta={
               <Link href="/app/leads" className={buttonClass('secondary', 'text-xs')}>
                 Quitar filtros
@@ -157,11 +159,11 @@ export default async function LeadsPage({
           />
         ) : (
           <EmptyState
-            title="Aún no tienes leads"
-            description="Crea tu primer lead manualmente o importa una lista en CSV."
+            title={t('leads.emptyTitle')}
+            description={t('leads.emptyBody')}
             cta={
               <Link href="/app/leads/new" className={buttonClass('primary', 'text-xs')}>
-                + Nuevo lead
+                {t('leads.newLead')}
               </Link>
             }
           />
@@ -172,13 +174,13 @@ export default async function LeadsPage({
             <table className="w-full text-sm">
               <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
                 <tr>
-                  <th className="px-4 py-3">Nombre</th>
-                  <th className="hidden px-4 py-3 md:table-cell">Email</th>
-                  <th className="hidden px-4 py-3 lg:table-cell">Teléfono</th>
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3">Score</th>
-                  <th className="hidden px-4 py-3 lg:table-cell">Fuente</th>
-                  <th className="hidden px-4 py-3 md:table-cell">Creado</th>
+                  <th className="px-4 py-3">{t('crm.name')}</th>
+                  <th className="hidden px-4 py-3 md:table-cell">{t('crm.email')}</th>
+                  <th className="hidden px-4 py-3 lg:table-cell">{t('crm.phone')}</th>
+                  <th className="px-4 py-3">{t('crm.status')}</th>
+                  <th className="px-4 py-3">{t('leads.score')}</th>
+                  <th className="hidden px-4 py-3 lg:table-cell">{t('crm.source')}</th>
+                  <th className="hidden px-4 py-3 md:table-cell">{t('crm.createdAt')}</th>
                 </tr>
               </thead>
               <tbody>

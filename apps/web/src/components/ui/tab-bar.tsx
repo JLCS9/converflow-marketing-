@@ -1,13 +1,21 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
 export interface TabItem {
   href: string;
+  /** Texto literal. Se usa cuando no hay `labelKey`. */
   label: string;
+  /**
+   * Clave del diccionario. Los presets de sección la usan para poder
+   * traducirse: son constantes de módulo, así que no pueden llamar al hook de
+   * traducción donde se declaran.
+   */
+  labelKey?: string;
   badge?: number;
 }
 
@@ -24,6 +32,7 @@ interface Props {
  * highlighted).
  */
 export function TabBar({ items, className, action }: Props) {
+  const t = useTranslations();
   const pathname = usePathname() ?? '';
   return (
     <nav
@@ -47,7 +56,7 @@ export function TabBar({ items, className, action }: Props) {
                 : 'text-ink-500 hover:text-ink-700',
             )}
           >
-            <span>{it.label}</span>
+            <span>{it.labelKey ? t(it.labelKey) : it.label}</span>
             {it.badge != null && it.badge > 0 && (
               <span
                 className={cn(
@@ -74,9 +83,9 @@ export function TabBar({ items, className, action }: Props) {
 
 // Section presets — keep them here so every page reads the same source of truth.
 export const CRM_TABS: TabItem[] = [
-  { href: '/app/leads', label: 'Leads' },
-  { href: '/app/opportunities', label: 'Oportunidades' },
-  { href: '/app/clients', label: 'Clientes' },
+  { href: '/app/leads', label: 'Leads', labelKey: 'leads.title' },
+  { href: '/app/opportunities', label: 'Oportunidades', labelKey: 'opportunities.title' },
+  { href: '/app/clients', label: 'Clientes', labelKey: 'clients.title' },
 ];
 
 export const IA_TABS: TabItem[] = [

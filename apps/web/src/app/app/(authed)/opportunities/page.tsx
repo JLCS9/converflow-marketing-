@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
 import { buttonClass } from '@/components/ui/primitives';
@@ -13,6 +14,7 @@ export default async function OpportunitiesPage({
 }: {
   searchParams: Promise<{ pipelineId?: string }>;
 }) {
+  const t = await getTranslations();
   const params = await searchParams;
   const pipelines = await serverApiFetch<Pipeline[]>('/pipelines').catch(() => []);
   const selected =
@@ -28,7 +30,7 @@ export default async function OpportunitiesPage({
       <TabBar items={CRM_TABS} />
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Oportunidades</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t('opportunities.title')}</h1>
           <p className="mt-1 text-sm text-ink-500">
             {opps.length} oportunidades · arrastra las tarjetas entre columnas para cambiar de etapa.
           </p>
@@ -36,7 +38,7 @@ export default async function OpportunitiesPage({
         <div className="flex items-center gap-2">
           {pipelines.length > 1 && (
             <form className="flex items-center gap-2">
-              <label className="text-xs text-ink-500">Tablero</label>
+              <label className="text-xs text-ink-500">{t('opportunities.board')}</label>
               <select
                 name="pipelineId"
                 defaultValue={selected?.id ?? ''}

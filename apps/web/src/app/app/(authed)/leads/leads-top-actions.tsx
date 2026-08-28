@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { buttonClass } from '@/components/ui/primitives';
 import { useCan } from '@/lib/session-context';
 import { BulkScoreButton } from './bulk-score-button';
@@ -26,6 +27,7 @@ export function LeadsTopActions({
   total: number;
   filterQs: string;
 }) {
+  const t = useTranslations();
   const canBulkAi = useCan('bulkAi');
   const canImport = useCan('import');
   const canCreate = useCan('crm');
@@ -37,12 +39,12 @@ export function LeadsTopActions({
       )}
       {canImport && (
         <Link href="/app/leads/import" className={buttonClass('secondary')}>
-          ⤒ Importar CSV
+          ⤒ {t('leads.importCsv')}
         </Link>
       )}
       {canCreate && (
         <Link href="/app/leads/new" className={buttonClass('primary')}>
-          + Nuevo lead
+          + {t('leads.newLead')}
         </Link>
       )}
     </div>

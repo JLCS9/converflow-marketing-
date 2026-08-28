@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
@@ -22,6 +23,7 @@ export default async function ClientsPage({
 }: {
   searchParams: Promise<{ status?: string; search?: string }>;
 }) {
+  const t = await getTranslations();
   const params = await searchParams;
   const qs = new URLSearchParams();
   if (params.status) qs.set('status', params.status);
@@ -34,7 +36,7 @@ export default async function ClientsPage({
     <div className="space-y-6">
       <TabBar items={CRM_TABS} />
       <PageHeader
-        title="Clientes"
+        title={t('clients.title')}
         description={`${clients.length} ${clients.length === 1 ? 'cliente' : 'clientes'}.`}
         action={
           <Link href="/app/clients/new" className={buttonClass('primary')}>
@@ -46,13 +48,13 @@ export default async function ClientsPage({
       <Card>
         <form className="flex flex-wrap items-end gap-3 text-sm" method="get">
           <label className="flex flex-col">
-            <span className="text-xs text-ink-500">Estado</span>
+            <span className="text-xs text-ink-500">{t('crm.status')}</span>
             <select
               name="status"
               defaultValue={params.status ?? ''}
               className="mt-1 rounded-md border border-ink-300 px-2 py-1.5"
             >
-              <option value="">Todos</option>
+              <option value="">{t('crm.all')}</option>
               {Object.entries(CLIENT_STATUS).map(([k, v]) => (
                 <option key={k} value={k}>
                   {v}
@@ -61,7 +63,7 @@ export default async function ClientsPage({
             </select>
           </label>
           <label className="flex flex-1 flex-col">
-            <span className="text-xs text-ink-500">Buscar (nombre o email)</span>
+            <span className="text-xs text-ink-500">{t('clients.searchPlaceholder')}</span>
             <input
               type="text"
               name="search"
@@ -78,8 +80,8 @@ export default async function ClientsPage({
       {clients.length === 0 ? (
         hasFilters ? (
           <EmptyState
-            title="Sin resultados"
-            description="Ningún cliente coincide con los filtros."
+            title={t('crm.noResults')}
+            description={t('clients.noMatch')}
             cta={
               <Link href="/app/clients" className={buttonClass('secondary', 'text-xs')}>
                 Quitar filtros
@@ -88,8 +90,8 @@ export default async function ClientsPage({
           />
         ) : (
           <EmptyState
-            title="Aún no tienes clientes"
-            description="Los leads que pasen a ganado se convierten automáticamente en clientes. También puedes darlos de alta a mano."
+            title={t('clients.emptyTitle')}
+            description={t('clients.emptyBody')}
             cta={
               <Link href="/app/clients/new" className={buttonClass('primary', 'text-xs')}>
                 + Nuevo cliente
@@ -102,10 +104,10 @@ export default async function ClientsPage({
           <table className="w-full text-sm">
             <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
               <tr>
-                <th className="px-4 py-3">Nombre</th>
-                <th className="hidden px-4 py-3 md:table-cell">Email</th>
-                <th className="hidden px-4 py-3 lg:table-cell">Teléfono</th>
-                <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3">{t('crm.name')}</th>
+                <th className="hidden px-4 py-3 md:table-cell">{t('crm.email')}</th>
+                <th className="hidden px-4 py-3 lg:table-cell">{t('crm.phone')}</th>
+                <th className="px-4 py-3">{t('crm.status')}</th>
                 <th className="hidden px-4 py-3 md:table-cell">Alta</th>
               </tr>
             </thead>

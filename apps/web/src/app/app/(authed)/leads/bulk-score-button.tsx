@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
@@ -40,6 +41,7 @@ function fmtEta(sec: number | null): string {
 }
 
 export function BulkScoreButton({ agents, total, filterQs }: Props) {
+  const t = useTranslations();
   const router = useRouter();
   const { toast, confirm } = useFeedback();
   const [open, setOpen] = useState(false);
@@ -176,7 +178,7 @@ export function BulkScoreButton({ agents, total, filterQs }: Props) {
         className={buttonClass('secondary')}
         title="Calcula score IA + (opcional) cambia estado y crea oportunidades para los leads filtrados"
       >
-        ✨ Score IA en masa
+        ✨ {t('leads.bulkScore')}
       </button>
 
       {open && (
@@ -188,7 +190,7 @@ export function BulkScoreButton({ agents, total, filterQs }: Props) {
                   <span className="mr-2 inline-flex items-center rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-amber-900">
                     IA
                   </span>
-                  Score IA en masa
+                  {t('leads.bulkScore')}
                 </h2>
                 <p className="mt-1 text-sm text-ink-500">
                   La IA lee cada lead (con sus campos personalizados) y le pone un score
