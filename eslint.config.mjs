@@ -53,10 +53,11 @@ export default tseslint.config(
   },
   {
     // Scripts that live outside any package's tsconfig `include` (the Prisma
-    // seed is compiled by tsx, not tsc). Without opting out of the type-aware
-    // project service, eslint aborts with "was not found by the project
-    // service" and takes the whole `turbo run lint` down with it.
-    files: ['**/prisma/seed.ts'],
+    // seed is compiled by tsx, not tsc; los .cjs de operacion se ejecutan con
+    // node a pelo). Without opting out of the type-aware project service,
+    // eslint aborts with "was not found by the project service" and takes the
+    // whole `turbo run lint` down with it. Se siguen lintando, pero sin tipos.
+    files: ['**/prisma/seed.ts', '**/scripts/*.cjs', '**/*.local.cjs'],
     languageOptions: {
       parserOptions: { projectService: false, project: false },
     },
