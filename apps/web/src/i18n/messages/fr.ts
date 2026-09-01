@@ -5,6 +5,7 @@ const fr: Messages = {
     home: 'Accueil',
     conversations: 'Conversations',
     alerts: 'Alertes',
+    tasks: 'Tâches',
     crm: 'CRM',
     ai: 'IA',
     campaigns: 'Campagnes',

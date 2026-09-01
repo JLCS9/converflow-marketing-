@@ -11,6 +11,7 @@ const es = {
     home: 'Inicio',
     conversations: 'Conversaciones',
     alerts: 'Alertas',
+    tasks: 'Tareas',
     crm: 'CRM',
     ai: 'IA',
     campaigns: 'Campañas',

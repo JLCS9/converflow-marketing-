@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   MessageCircle,
@@ -20,11 +20,13 @@ import {
   Plus,
   X,
   type LucideIcon,
+  CheckCircle2,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { useSession } from '@/lib/session-context';
 import { useFeedback } from '@/components/ui/feedback';
 import { Card, StatCard, buttonClass } from '@/components/ui/primitives';
+import { Avatar } from '@/components/ui/inbox-kit';
 import { OnboardingChecklist, type OnboardingStep } from '@/components/ui/onboarding-checklist';
 import type { PermissionModule } from '@converflow/shared';
 
@@ -45,7 +47,14 @@ export interface Series {
 }
 export interface AlertItem { id: string; type: string; severity: 'INFO' | 'WARNING' | 'CRITICAL'; title: string; description: string | null; resourceType: string; resourceId: string }
 export interface ConvRow { id: string; contactName: string | null; contactPhone: string | null; contactJid: string; lastMessagePreview: string | null; assignedUserId: string | null }
-export interface TaskPreview { id: string; title: string; dueAt: string | null; ownerId: string | null }
+export interface TaskPreview {
+  id: string;
+  title: string;
+  dueAt: string | null;
+  ownerId: string | null;
+  priority: string;
+  owner: { id: string; name: string } | null;
+}
 export interface DocPreview { id: string; name: string; sizeBytes: number }
 export interface PendingMailRow { id: string; subject: string | null; snippet: string | null; participants: string[] | null; unreadCount: number; lastMessageAt: string | null }
 
@@ -148,17 +157,28 @@ export function HomeDashboard({
 }) {
   const session = useSession();
   const fb = useFeedback();
-  const can = (p?: PermissionModule) => !p || session.role === 'OWNER' || session.permissions.includes(p);
-  const available = useMemo(() => WIDGETS.filter((w) => can(w.perm)), [session.permissions, session.role]);
+  const can = useCallback(
+    (p?: PermissionModule) => !p || session.role === 'OWNER' || session.permissions.includes(p),
+    [session.role, session.permissions],
+  );
+  const available = useMemo(() => WIDGETS.filter((w) => can(w.perm)), [can]);
   const availableIds = available.map((w) => w.id);
 
   const defaults: WidgetItem[] = available.filter((w) => w.defaultOn).map((w) => ({ id: w.id, size: w.size }));
   const coerceSize = (s: string | undefined, _fallback: Size): Size => (s === 'lg' ? 'lg' : 'sm');
+  // Config guardada + widgets NUEVOS con defaultOn que el usuario aún no tiene.
+  // Sin este merge, quien guardó su tablero una vez no veía jamás un widget
+  // añadido después (el filtro solo conservaba los conocidos). Efecto colateral
+  // asumido: un widget quitado a mano puede reaparecer UNA vez tras un deploy
+  // que lo marque defaultOn; se puede volver a quitar y el guardado lo respeta.
   const start: WidgetItem[] =
     initialWidgets && initialWidgets.length
-      ? initialWidgets
-          .filter((w) => availableIds.includes(w.id))
-          .map((w) => ({ id: w.id, size: coerceSize(w.size, WIDGETS.find((d) => d.id === w.id)?.size ?? 'sm') }))
+      ? [
+          ...initialWidgets
+            .filter((w) => availableIds.includes(w.id))
+            .map((w) => ({ id: w.id, size: coerceSize(w.size, WIDGETS.find((d) => d.id === w.id)?.size ?? 'sm') })),
+          ...defaults.filter((d) => !initialWidgets.some((w) => w.id === d.id)),
+        ]
       : defaults;
 
   const [items, setItems] = useState<WidgetItem[]>(start);
@@ -215,7 +235,31 @@ export function HomeDashboard({
   const myConvs = data.convs.filter((c) => c.assignedUserId === session.userId);
   const unassignedConvs = data.convs.filter((c) => !c.assignedUserId);
   const convShown = [...myConvs, ...unassignedConvs].slice(0, 6);
-  const myTasks = data.tasks.filter((t) => t.ownerId === session.userId);
+  // Mías + sin asignar: una tarea sin dueño es trabajo de todos y tiene que
+  // verse. Antes se filtraba ownerId === yo y, como la mayoría se crean sin
+  // asignar, el widget salía siempre vacío.
+  const myTasks = data.tasks
+    .filter((t) => !t.ownerId || t.ownerId === session.userId)
+    .sort((a, b) => {
+      if (!a.dueAt && !b.dueAt) return 0;
+      if (!a.dueAt) return 1;
+      if (!b.dueAt) return -1;
+      return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+    });
+  const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
+  const completeTask = async (id: string) => {
+    // Optimista: se tacha ya; si el PATCH falla, vuelve.
+    setDoneIds((prev) => new Set(prev).add(id));
+    try {
+      await apiFetch(`/tasks/${id}`, { method: 'PATCH', json: { status: 'DONE' } });
+    } catch {
+      setDoneIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
 
   function renderWidget(id: string): React.ReactNode {
     const { overview, series, alerts, docs, mailUnread } = data;
@@ -251,21 +295,13 @@ export function HomeDashboard({
             <CardTitle right={<Link href="/app/tasks" className="text-xs text-primary-700 hover:underline">Ver todas →</Link>}>
               <ListChecks size={15} strokeWidth={1.75} className="text-primary-600" /> Mis tareas
             </CardTitle>
-            {myTasks.length === 0 ? (
-              <p className="text-sm text-ink-500">No tienes tareas pendientes asignadas. 🎉</p>
+            {myTasks.filter((t) => !doneIds.has(t.id)).length === 0 ? (
+              <p className="text-sm text-ink-500">Nada pendiente. 🎉</p>
             ) : (
-              <ul className="space-y-1.5">
-                {myTasks.slice(0, 8).map((t) => {
-                  const overdue = t.dueAt && new Date(t.dueAt) < new Date();
-                  return (
-                    <li key={t.id} className="flex items-baseline justify-between gap-2 text-sm">
-                      <Link href="/app/tasks" className="min-w-0 flex-1 truncate text-ink-900 hover:text-primary-700" title={t.title}>{t.title}</Link>
-                      <span className={`shrink-0 font-mono text-[11px] ${overdue ? 'text-red-600' : 'text-ink-500'}`}>
-                        {t.dueAt ? new Date(t.dueAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '—'}
-                      </span>
-                    </li>
-                  );
-                })}
+              <ul className="space-y-1">
+                {myTasks.filter((t) => !doneIds.has(t.id)).slice(0, 6).map((t) => (
+                  <TaskRow key={t.id} task={t} meId={session.userId} onComplete={() => void completeTask(t.id)} />
+                ))}
               </ul>
             )}
           </Card>
@@ -527,5 +563,89 @@ export function HomeDashboard({
         </div>
       )}
     </div>
+  );
+}
+
+/** Vencimiento relativo, en lenguaje de persona: la fecha absoluta va en title. */
+function dueLabelOf(dueAt: string | null): { label: string; tone: 'overdue' | 'today' | 'soon' | 'none' } {
+  if (!dueAt) return { label: 'sin fecha', tone: 'none' };
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOfDay(new Date(dueAt)) - startOfDay(new Date())) / 86400000);
+  if (days < 0) return { label: days === -1 ? 'ayer' : `hace ${-days} días`, tone: 'overdue' };
+  if (days === 0) return { label: 'hoy', tone: 'today' };
+  if (days === 1) return { label: 'mañana', tone: 'soon' };
+  return { label: `en ${days} días`, tone: days <= 7 ? 'soon' : 'none' };
+}
+
+const DUE_TONE: Record<string, string> = {
+  overdue: 'bg-red-100 text-red-700',
+  today: 'bg-amber-100 text-amber-800',
+  soon: 'bg-ink-100 text-ink-600',
+  none: 'bg-ink-100 text-ink-400',
+};
+
+/** Barra de color por prioridad: más ruido visual cuanto más urgente. */
+const PRIORITY_BAR: Record<string, string> = {
+  URGENT: 'bg-red-500',
+  HIGH: 'bg-orange-400',
+  MEDIUM: 'bg-sky-300',
+  LOW: 'bg-ink-200',
+};
+
+function TaskRow({
+  task,
+  meId,
+  onComplete,
+}: {
+  task: TaskPreview;
+  meId: string;
+  onComplete: () => void;
+}) {
+  const due = dueLabelOf(task.dueAt);
+  const mine = task.ownerId === meId;
+  return (
+    <li className="group flex items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors hover:bg-ink-100/50">
+      {/* Completar al vuelo: aparece en hover donde vive la barra de prioridad. */}
+      <button
+        type="button"
+        onClick={onComplete}
+        title="Marcar como hecha"
+        aria-label={`Completar «${task.title}»`}
+        className="relative h-8 w-1.5 shrink-0 overflow-visible rounded-full"
+      >
+        <span className={`absolute inset-0 rounded-full ${PRIORITY_BAR[task.priority] ?? 'bg-ink-200'} group-hover:opacity-0`} />
+        <CheckCircle2
+          size={18}
+          className="absolute -left-2 top-1/2 -translate-y-1/2 text-green-600 opacity-0 transition-opacity group-hover:opacity-100"
+        />
+      </button>
+      <div className="min-w-0 flex-1">
+        <Link
+          href="/app/tasks"
+          className="block truncate text-sm text-ink-900 hover:text-primary-700"
+          title={task.title}
+        >
+          {task.title}
+        </Link>
+        <div className="mt-0.5 flex items-center gap-1.5">
+          <span
+            className={`rounded-full px-1.5 py-px text-[10px] font-medium ${DUE_TONE[due.tone]}`}
+            title={task.dueAt ? new Date(task.dueAt).toLocaleString('es-ES') : undefined}
+          >
+            {due.label}
+          </span>
+          {task.owner ? (
+            <span className="inline-flex items-center gap-1 text-[10px] text-ink-500">
+              <Avatar name={task.owner.name} size="sm" />
+              {mine ? 'tú' : task.owner.name.split(' ')[0]}
+            </span>
+          ) : (
+            <span className="rounded-full border border-dashed border-ink-300 px-1.5 py-px text-[10px] text-ink-400">
+              sin asignar
+            </span>
+          )}
+        </div>
+      </div>
+    </li>
   );
 }
