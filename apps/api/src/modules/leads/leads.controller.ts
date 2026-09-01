@@ -52,6 +52,11 @@ export class LeadsController {
     return this.leads.findById(user.tenantId, id);
   }
 
+  @Get(':id/timeline')
+  timeline(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.leads.timeline(user.tenantId, id);
+  }
+
   @Post()
   create(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
     return this.leads.create(user.tenantId, body as never);

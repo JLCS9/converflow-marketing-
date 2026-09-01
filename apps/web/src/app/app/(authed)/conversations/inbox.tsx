@@ -11,6 +11,7 @@ import { ChannelBadge } from '@/components/ui/channel-badge';
 import { RichEmailEditor } from '@/components/ui/rich-email-editor';
 import { TemplatePicker } from '@/components/ui/template-picker';
 import { InboxShell, InboxSwitch, Avatar, DateSeparator, ContactPanel } from '@/components/ui/inbox-kit';
+import { LeadDrawer } from '@/components/lead/lead-drawer';
 import { ComposeEmailModal } from './compose-email-modal';
 
 function escapeHtml(s: string): string {
@@ -138,6 +139,7 @@ export function Inbox({
   const [docs, setDocs] = useState<{ id: string; name: string }[] | null>(null);
   const [showDocs, setShowDocs] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const [leadDrawerId, setLeadDrawerId] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const msgScrollRef = useRef<HTMLDivElement>(null);
 
@@ -604,15 +606,18 @@ export function Inbox({
         {
           label: 'Lead',
           value: thread.lead ? (
-            <Link href={`/app/leads/${thread.lead.id}`} className="text-primary-700 hover:underline">
+            <button
+              type="button"
+              onClick={() => setLeadDrawerId(thread.lead!.id)}
+              className="text-primary-700 hover:underline"
+            >
               {thread.lead.name}
               {thread.lead.score != null && ` (${thread.lead.score})`}
-            </Link>
+            </button>
           ) : (
             'Sin lead'
           ),
         },
-        ...(thread.lead?.company ? [{ label: 'Empresa', value: thread.lead.company }] : []),
       ]}
     />
   ) : undefined;
@@ -626,6 +631,8 @@ export function Inbox({
         thread={threadNode}
         details={detailsNode}
       />
+
+      {leadDrawerId && <LeadDrawer leadId={leadDrawerId} onClose={() => setLeadDrawerId(null)} />}
 
       {showCompose && (
         <ComposeEmailModal

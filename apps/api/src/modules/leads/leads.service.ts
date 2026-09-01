@@ -10,6 +10,7 @@ import {
   type UpdateLeadInput,
 } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { buildLeadTimeline } from './lead-timeline.js';
 import { AiService } from '../../common/ai/ai.service.js';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service.js';
 
@@ -82,7 +83,55 @@ export class LeadsService {
         },
       });
       if (!lead) throw new NotFoundError('Lead no encontrado');
-      return lead;
+
+      // Note.authorId is a plain string (no FK relation), so resolve author
+      // names by hand for the comments UI. One query for the whole page.
+      const authorIds = [...new Set(lead.notes.map((n) => n.authorId).filter(Boolean))];
+      const users = authorIds.length
+        ? await tx.user.findMany({ where: { id: { in: authorIds } }, select: { id: true, name: true } })
+        : [];
+      const nameById = new Map(users.map((u) => [u.id, u.name]));
+      return {
+        ...lead,
+        notes: lead.notes.map((n) => ({ ...n, authorName: nameById.get(n.authorId) ?? null })),
+      };
+    });
+  }
+
+  /**
+   * Derived activity timeline for the canonical lead card (Bloque 3).
+   * No table behind it: see lead-timeline.ts.
+   */
+  async timeline(tenantId: string, id: string) {
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const lead = await tx.lead.findUnique({
+        where: { id },
+        select: {
+          source: true,
+          createdAt: true,
+          contactedAt: true,
+          qualifiedAt: true,
+          convertedAt: true,
+          opportunities: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              amount: true,
+              currency: true,
+              createdAt: true,
+              closedAt: true,
+            },
+          },
+          conversations: { select: { id: true, channel: true, createdAt: true } },
+        },
+      });
+      if (!lead) throw new NotFoundError('Lead no encontrado');
+      return buildLeadTimeline({
+        lead,
+        opportunities: lead.opportunities,
+        conversations: lead.conversations,
+      });
     });
   }
 
