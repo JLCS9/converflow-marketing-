@@ -27,6 +27,8 @@ export interface ThreadRow {
   snippet: string | null;
   participants: string[] | null;
   unreadCount: number;
+  /** Sin leer PARA MÍ (estado por usuario en buzones compartidos). */
+  unreadForMe?: boolean;
   lastMessageAt: string | null;
   status: string;
   assigneeUserId: string | null;

@@ -22,6 +22,22 @@ function asFolder(v: string | undefined): Folder {
   return (FOLDERS as readonly string[]).includes(v ?? '') ? (v as Folder) : 'INBOX';
 }
 
+/**
+ * ¿Este hilo está sin leer PARA ESTE USUARIO?
+ *
+ * Con fila propia manda la fila (llegó algo después de mi última lectura).
+ * Sin fila se cae al contador global: así el primer deploy no marca toda la
+ * bandeja como no leída para todo el mundo — el estado por usuario va
+ * divergiendo del global a medida que cada uno lee o recibe asignaciones.
+ */
+export function isUnreadForMe(
+  read: { lastReadAt: Date } | null | undefined,
+  thread: { lastMessageAt: Date | null; unreadCount: number },
+): boolean {
+  if (read) return !!thread.lastMessageAt && thread.lastMessageAt > read.lastReadAt;
+  return thread.unreadCount > 0;
+}
+
 const PAGE_SIZE = 40;
 const MAX_PAGE_SIZE = 100;
 
@@ -95,18 +111,21 @@ export class MailInboxService {
     connectionId: string,
     actor: Actor,
     folderRaw?: string,
-    opts: { cursor?: string; limit?: number } = {},
+    opts: { cursor?: string; limit?: number; mine?: boolean } = {},
   ): Promise<{ items: unknown[]; nextCursor: string | null }> {
     await this.connections.assertAccess(tenantId, connectionId, actor);
     const folder = asFolder(folderRaw);
     // INBOX/ARCHIVE/SPAM/TRASH are thread buckets. SENT/DRAFTS are message-level
     // (a thread "appears" in them if it has a matching message).
-    const scope =
+    const base =
       folder === 'SENT'
         ? { connectionId, messages: { some: { direction: 'OUT' as const, isDraft: false } } }
         : folder === 'DRAFTS'
           ? { connectionId, messages: { some: { isDraft: true } } }
           : { connectionId, folder };
+    // «Solo los míos»: filtro en servidor, no en cliente — con paginación por
+    // cursor, filtrar en cliente rompería las páginas.
+    const scope = opts.mine ? { ...base, assigneeUserId: actor.userId } : base;
     const cursor = decodeThreadCursor(opts.cursor);
     const take = Math.min(Math.max(opts.limit ?? PAGE_SIZE, 1), MAX_PAGE_SIZE);
 
@@ -119,7 +138,29 @@ export class MailInboxService {
         select: THREAD_ROW,
       }),
     );
-    return this.page(rows, take);
+    const paged = this.page(rows, take);
+    return { ...paged, items: await this.annotateUnread(tenantId, actor.userId, paged.items) };
+  }
+
+  /**
+   * Añade `unreadForMe` a cada fila (una sola query por página). El global
+   * `unreadCount` se conserva: los buzones privados y los badges lo siguen
+   * usando.
+   */
+  private async annotateUnread(
+    tenantId: string,
+    userId: string,
+    items: { id: string; lastMessageAt: Date | null; unreadCount: number }[],
+  ) {
+    if (!items.length) return items;
+    const reads = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.emailThreadRead.findMany({
+        where: { userId, threadId: { in: items.map((i) => i.id) } },
+        select: { threadId: true, lastReadAt: true },
+      }),
+    );
+    const byThread = new Map(reads.map((r) => [r.threadId, r]));
+    return items.map((i) => ({ ...i, unreadForMe: isUnreadForMe(byThread.get(i.id), i) }));
   }
 
   /** Trim the sentinel row and derive the next cursor from the last kept item. */
@@ -221,7 +262,8 @@ export class MailInboxService {
         select: THREAD_ROW,
       }),
     );
-    return this.page(rows, take);
+    const paged = this.page(rows, take);
+    return { ...paged, items: await this.annotateUnread(tenantId, actor.userId, paged.items) };
   }
 
   /** Unread counts per bucket folder, for the sidebar badges. */
@@ -237,6 +279,29 @@ export class MailInboxService {
       for (const g of grouped) out[g.folder] = g._count._all;
       return out;
     });
+  }
+
+  /**
+   * Contadores del filtro «Solo los míos»: cuántos hilos tengo asignados en
+   * Recibidos y cuántos de ellos están sin leer PARA MÍ.
+   */
+  async mineCounts(
+    tenantId: string,
+    connectionId: string,
+    actor: Actor,
+  ): Promise<{ assigned: number; unread: number }> {
+    await this.connections.assertAccess(tenantId, connectionId, actor);
+    const threads = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.emailThread.findMany({
+        where: { connectionId, folder: 'INBOX', assigneeUserId: actor.userId },
+        select: { id: true, lastMessageAt: true, unreadCount: true },
+      }),
+    );
+    const annotated = await this.annotateUnread(tenantId, actor.userId, threads);
+    return {
+      assigned: threads.length,
+      unread: annotated.filter((x) => (x as { unreadForMe?: boolean }).unreadForMe).length,
+    };
   }
 
   async getThread(tenantId: string, threadId: string, actor: Actor) {
@@ -313,6 +378,14 @@ export class MailInboxService {
   async setRead(tenantId: string, threadId: string, actor: Actor, read: boolean) {
     await this.assertThreadAccess(tenantId, threadId, actor);
     return this.prisma.withTenant(tenantId, async (tx) => {
+      // Estado POR USUARIO: leído = ahora; no-leído = epoch (así la regla
+      // lastMessageAt > lastReadAt lo marca sin ambigüedad). El estado global
+      // de abajo se conserva para buzones privados y los badges existentes.
+      await tx.emailThreadRead.upsert({
+        where: { threadId_userId: { threadId, userId: actor.userId } },
+        create: { tenantId, threadId, userId: actor.userId, lastReadAt: read ? new Date() : new Date(0) },
+        update: { lastReadAt: read ? new Date() : new Date(0) },
+      });
       if (read) {
         await tx.emailMessage.updateMany({
           where: { threadId, readAt: null },

@@ -9,7 +9,7 @@
  * living in the same component.
  */
 
-import { Inbox, Mail, Search, Users, X } from 'lucide-react';
+import { Inbox, Mail, Search, UserCheck, Users, X } from 'lucide-react';
 import { Avatar } from '@/components/ui/inbox-kit';
 import { buttonClass } from '@/components/ui/primitives';
 import type { ThreadRow } from './mail-types';
@@ -44,6 +44,9 @@ export function MailThreadList({
   loadingMore,
   onLoadMore,
   onNewMail,
+  onlyMine,
+  onOnlyMine,
+  mineUnread,
 }: {
   threads: ThreadRow[];
   selectedId: string | null;
@@ -59,6 +62,11 @@ export function MailThreadList({
   loadingMore: boolean;
   onLoadMore: () => void;
   onNewMail: () => void;
+  /** Filtro «Solo los míos» (solo tiene sentido en buzones compartidos). */
+  onlyMine: boolean;
+  onOnlyMine: (v: boolean) => void;
+  /** Hilos asignados a mí y sin leer para mí, para el badge del filtro. */
+  mineUnread: number;
 }) {
   return (
   <div className="flex h-full flex-col">
@@ -89,6 +97,25 @@ export function MailThreadList({
           </button>
         )}
       </div>
+      {!isPrivate && (
+        <button
+          type="button"
+          onClick={() => onOnlyMine(!onlyMine)}
+          aria-pressed={onlyMine}
+          className={`flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
+            onlyMine
+              ? 'border-primary-600 bg-primary-600 text-white'
+              : 'border-ink-200 text-ink-600 hover:border-ink-400'
+          }`}
+        >
+          <UserCheck size={13} /> Solo los míos
+          {mineUnread > 0 && (
+            <span className={`rounded-full px-1.5 text-[10px] font-semibold ${onlyMine ? 'bg-white text-primary-700' : 'bg-primary-600 text-white'}`}>
+              {mineUnread > 99 ? '99+' : mineUnread}
+            </span>
+          )}
+        </button>
+      )}
     </div>
     <div className="flex-1 overflow-y-auto">
       {loading && threads.length === 0 ? (
@@ -110,6 +137,7 @@ export function MailThreadList({
         </div>
       ) : (
         threads.map((t) => {
+          const unread = t.unreadForMe ?? t.unreadCount > 0;
           const people = (t.participants ?? []).filter(Boolean);
           const who = people[0] || 'Contacto';
           // Surface at a glance that a thread has more people on it — otherwise
@@ -126,7 +154,7 @@ export function MailThreadList({
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[t.status] ?? 'bg-ink-300'}`} title={`Estado: ${STATUS_LABEL[t.status] ?? t.status}`} />
-                    <span className={`truncate text-sm ${t.unreadCount > 0 ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>{who}</span>
+                    <span className={`truncate text-sm ${unread ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>{who}</span>
                     {others > 0 && (
                       <span
                         className="inline-flex shrink-0 items-center gap-0.5 text-[10px] text-ink-400"
@@ -138,7 +166,7 @@ export function MailThreadList({
                   </span>
                   <span className="shrink-0 text-[10px] text-ink-400">{timeShort(t.lastMessageAt)}</span>
                 </div>
-                <div className={`truncate text-xs ${t.unreadCount > 0 ? 'font-medium text-ink-800' : 'text-ink-500'}`}>{t.subject || '(sin asunto)'}</div>
+                <div className={`truncate text-xs ${unread ? 'font-medium text-ink-800' : 'text-ink-500'}`}>{t.subject || '(sin asunto)'}</div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-xs text-ink-400">{t.snippet}</span>
                   <span className="flex shrink-0 items-center gap-1">

@@ -34,7 +34,8 @@ function makeService(tx: Record<string, unknown>) {
     presignForSend: vi.fn().mockResolvedValue([]),
     presignForMessage: vi.fn().mockResolvedValue([]),
   } as never;
-  return new MailComposeService(prisma, connections, attachments);
+  const shared = { completeLinkedTask: vi.fn().mockResolvedValue(undefined) } as never;
+  return new MailComposeService(prisma, connections, attachments, shared);
 }
 
 const actor = { userId: 'u1', role: 'OWNER' };

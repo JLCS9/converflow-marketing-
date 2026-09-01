@@ -384,3 +384,12 @@ CREATE POLICY tenant_isolation ON email_message_translations
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- email_thread_reads (bandeja de equipo — leído por usuario en buzones compartidos)
+ALTER TABLE email_thread_reads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_thread_reads FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON email_thread_reads;
+CREATE POLICY tenant_isolation ON email_thread_reads
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

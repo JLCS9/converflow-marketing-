@@ -31,7 +31,7 @@ function makeService(rows: { id: string; lastMessageAt: Date | null }[]) {
   const findMany = vi.fn().mockResolvedValue(rows);
   const prisma = {
     withTenant: (_t: string, fn: (tx: unknown) => unknown) =>
-      Promise.resolve(fn({ emailThread: { findMany } })),
+      Promise.resolve(fn({ emailThread: { findMany }, emailThreadRead: { findMany: vi.fn().mockResolvedValue([]) } })),
   } as never;
   const connections = { assertAccess: vi.fn().mockResolvedValue({}) } as never;
   const contacts = { findByEmail: vi.fn() } as never;

@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { NotFoundError, BadRequestError } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { MailConnectionsService } from './mail-connections.service.js';
+import { env } from '../../config/env.js';
+
+/** Marca de las tareas creadas por asignación de bandeja (con sourceRef = threadId). */
+export const MAIL_TASK_SOURCE = 'mail-assign';
 
 interface Actor {
   userId: string;
@@ -51,6 +55,16 @@ export class MailSharedService {
     );
   }
 
+  /**
+   * Asignar un hilo a alguien hace tres cosas, todas en la misma transacción:
+   *
+   * 1. Fija el asignado en el hilo.
+   * 2. Lo marca como NO LEÍDO para el asignado (fila por-usuario a epoch): si
+   *    te asignan algo, tiene que saltar a la vista aunque otro ya lo leyera.
+   * 3. Crea/actualiza la tarea vinculada. Idempotente por (source, sourceRef):
+   *    reasignar ACTUALIZA la tarea (nuevo dueño, vuelve a PENDING), nunca
+   *    duplica. Desasignar la cancela si seguía pendiente.
+   */
   async assign(tenantId: string, threadId: string, actor: Actor, assigneeUserId: string | null) {
     await this.assertThread(tenantId, threadId, actor);
     if (assigneeUserId) {
@@ -59,25 +73,85 @@ export class MailSharedService {
       );
       if (!u) throw new BadRequestError('Usuario inválido');
     }
-    return this.prisma.withTenant(tenantId, (tx) =>
-      tx.emailThread.update({
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const thread = await tx.emailThread.update({
         where: { id: threadId },
         data: { assigneeUserId },
-        select: { id: true, assigneeUserId: true },
-      }),
-    );
+        select: { id: true, assigneeUserId: true, subject: true, connectionId: true },
+      });
+
+      const existingTask = await tx.task.findFirst({
+        where: { source: MAIL_TASK_SOURCE, sourceRef: threadId },
+        select: { id: true, status: true },
+      });
+
+      if (assigneeUserId) {
+        await tx.emailThreadRead.upsert({
+          where: { threadId_userId: { threadId, userId: assigneeUserId } },
+          create: { tenantId, threadId, userId: assigneeUserId, lastReadAt: new Date(0) },
+          update: { lastReadAt: new Date(0) },
+        });
+
+        const title = `Correo: ${(thread.subject ?? '').trim() || '(sin asunto)'}`.slice(0, 200);
+        const link = `${env.WEB_PUBLIC_URL}/app/mail?conn=${thread.connectionId}&thread=${threadId}`;
+        const description = `Hilo de correo asignado desde la bandeja compartida.\n${link}`;
+        if (existingTask) {
+          await tx.task.update({
+            where: { id: existingTask.id },
+            data: { ownerId: assigneeUserId, status: 'PENDING', title, description },
+          });
+        } else {
+          await tx.task.create({
+            data: {
+              tenantId,
+              title,
+              description,
+              type: 'EMAIL',
+              priority: 'MEDIUM',
+              status: 'PENDING',
+              ownerId: assigneeUserId,
+              source: MAIL_TASK_SOURCE,
+              sourceRef: threadId,
+            },
+          });
+        }
+      } else if (existingTask && existingTask.status !== 'DONE') {
+        // Desasignado sin responder: la tarea deja de tener sentido.
+        await tx.task.update({ where: { id: existingTask.id }, data: { status: 'CANCELLED' } });
+      }
+
+      return { id: thread.id, assigneeUserId: thread.assigneeUserId };
+    });
+  }
+
+  /**
+   * Completa la tarea vinculada al hilo, si existe y sigue abierta. Lo llaman
+   * responder (decisión de producto: responder = trabajo hecho) y cerrar el
+   * hilo. Nunca falla la operación principal por esto.
+   */
+  async completeLinkedTask(tenantId: string, threadId: string): Promise<void> {
+    await this.prisma
+      .withTenant(tenantId, (tx) =>
+        tx.task.updateMany({
+          where: { source: MAIL_TASK_SOURCE, sourceRef: threadId, status: { in: ['PENDING', 'IN_PROGRESS'] } },
+          data: { status: 'DONE' },
+        }),
+      )
+      .catch(() => undefined);
   }
 
   async setStatus(tenantId: string, threadId: string, actor: Actor, status: string) {
     if (!(STATUSES as readonly string[]).includes(status)) throw new BadRequestError('Estado inválido');
     await this.assertThread(tenantId, threadId, actor);
-    return this.prisma.withTenant(tenantId, (tx) =>
+    const updated = await this.prisma.withTenant(tenantId, (tx) =>
       tx.emailThread.update({
         where: { id: threadId },
         data: { status: status as Status },
         select: { id: true, status: true },
       }),
     );
+    if (status === 'CLOSED') await this.completeLinkedTask(tenantId, threadId);
+    return updated;
   }
 
   // ---- internal notes ----

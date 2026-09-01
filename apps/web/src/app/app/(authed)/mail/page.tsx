@@ -7,7 +7,12 @@ import { MailWorkspace, type MailboxOption } from './mail-workspace';
 
 export const metadata = { title: 'Correo' };
 
-export default async function MailPage() {
+export default async function MailPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ conn?: string; thread?: string }>;
+}) {
+  const deepLink = await searchParams;
   const [conns, convCount, mail] = await Promise.all([
     serverApiFetch<MailboxOption[]>('/mail/connections').catch(() => [] as MailboxOption[]),
     serverApiFetch<{ pending: number }>('/conversations/count').catch(() => ({ pending: 0 })),
@@ -31,5 +36,13 @@ export default async function MailPage() {
     );
   }
 
-  return <MailWorkspace connections={conns} mailUnread={mail.unread} imPending={convCount.pending} />;
+  return (
+    <MailWorkspace
+      connections={conns}
+      mailUnread={mail.unread}
+      imPending={convCount.pending}
+      initialConnectionId={deepLink.conn}
+      initialThreadId={deepLink.thread}
+    />
+  );
 }
