@@ -1,13 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Field, Input, Select, buttonClass } from '@/components/ui/primitives';
 import { useFeedback } from '@/components/ui/feedback';
 import {
-  ENTITY_LABEL,
-  FIELD_TYPE_LABEL,
+  ENTITY_LABEL_KEY,
+  FIELD_TYPE_LABEL_KEY,
   type CustomFieldDefinition,
   type CustomFieldEntity,
   type CustomFieldOption,
@@ -33,6 +34,8 @@ const TYPES: CustomFieldType[] = [
 ];
 
 export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinition[] }) {
+  const t = useTranslations('settings');
+  const tUi = useTranslations('uiBits');
   const router = useRouter();
   const [tab, setTab] = useState<CustomFieldEntity>('LEAD');
   const [defs, setDefs] = useState(initial);
@@ -91,7 +94,7 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinition[
                 tab === e ? 'bg-ink-900 text-white' : 'text-ink-600 hover:text-ink-900'
               }`}
             >
-              {ENTITY_LABEL[e]}
+              {tUi(ENTITY_LABEL_KEY[e])}
             </button>
           ))}
         </div>
@@ -100,14 +103,14 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinition[
           className={buttonClass('primary', 'text-xs px-3 py-1.5')}
           onClick={() => setCreating(true)}
         >
-          + Nuevo campo
+          {t('customFields.newField')}
         </button>
       </div>
 
       <div className="mt-4 space-y-3">
         {visible.length === 0 && !creating && (
           <p className="rounded-md border border-dashed border-ink-200 p-4 text-sm text-ink-500">
-            No hay campos personalizados para {ENTITY_LABEL[tab].toLowerCase()}. Crea uno arriba.
+            {t('customFields.empty', { entity: tUi(ENTITY_LABEL_KEY[tab]).toLowerCase() })}
           </p>
         )}
         {visible.map((def, i) => (
@@ -136,7 +139,7 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinition[
       {archived.length > 0 && (
         <div className="mt-8">
           <h3 className="text-xs font-mono uppercase tracking-wider text-ink-500">
-            Archivados
+            {t('customFields.archived')}
           </h3>
           <div className="mt-2 space-y-2">
             {archived.map((def) => (
@@ -146,7 +149,7 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinition[
               >
                 <span className="text-ink-500">
                   {def.label} <span className="font-mono text-xs">({def.key})</span> ·{' '}
-                  {FIELD_TYPE_LABEL[def.type]}
+                  {tUi(FIELD_TYPE_LABEL_KEY[def.type])}
                 </span>
                 <button
                   type="button"
@@ -159,7 +162,7 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinition[
                     await refresh();
                   }}
                 >
-                  Restaurar
+                  {t('customFields.restore')}
                 </button>
               </div>
             ))}
@@ -185,6 +188,8 @@ function DefinitionRow({
   onMoveDown: () => Promise<void> | void;
   onChanged: () => Promise<void> | void;
 }) {
+  const t = useTranslations('settings');
+  const tUi = useTranslations('uiBits');
   const { confirm, toast } = useFeedback();
   const [editing, setEditing] = useState(false);
   return (
@@ -195,8 +200,8 @@ function DefinitionRow({
             type="button"
             disabled={isFirst}
             onClick={() => void onMoveUp()}
-            aria-label="Subir"
-            title="Subir"
+            aria-label={t('customFields.moveUp')}
+            title={t('customFields.moveUp')}
             className="text-xs leading-none text-ink-500 hover:text-ink-900 disabled:cursor-not-allowed disabled:text-ink-200"
           >
             ▲
@@ -205,8 +210,8 @@ function DefinitionRow({
             type="button"
             disabled={isLast}
             onClick={() => void onMoveDown()}
-            aria-label="Bajar"
-            title="Bajar"
+            aria-label={t('customFields.moveDown')}
+            title={t('customFields.moveDown')}
             className="text-xs leading-none text-ink-500 hover:text-ink-900 disabled:cursor-not-allowed disabled:text-ink-200"
           >
             ▼
@@ -218,7 +223,7 @@ function DefinitionRow({
             {def.required && <span className="ml-1 text-red-600">*</span>}
           </div>
           <div className="text-xs text-ink-500">
-            <span className="font-mono">{def.key}</span> · {FIELD_TYPE_LABEL[def.type]}
+            <span className="font-mono">{def.key}</span> · {tUi(FIELD_TYPE_LABEL_KEY[def.type])}
             {def.helpText && <> · {def.helpText}</>}
           </div>
         </div>
@@ -228,29 +233,29 @@ function DefinitionRow({
             className="text-xs text-ink-600 hover:text-ink-900"
             onClick={() => setEditing((v) => !v)}
           >
-            {editing ? 'Cerrar' : 'Editar'}
+            {editing ? t('customFields.close') : t('customFields.edit')}
           </button>
           <button
             type="button"
             className="text-xs text-red-600 hover:underline"
             onClick={async () => {
               const ok = await confirm({
-                title: `Archivar "${def.label}"`,
-                description: 'El campo dejará de aparecer en formularios. Los valores ya guardados se mantienen.',
-                confirmLabel: 'Archivar',
+                title: t('customFields.archiveTitle', { label: def.label }),
+                description: t('customFields.archiveDescription'),
+                confirmLabel: t('customFields.archive'),
                 danger: true,
               });
               if (!ok) return;
               try {
                 await apiFetch(`/custom-fields/${def.id}`, { method: 'DELETE' });
-                toast.success('Campo archivado');
+                toast.success(t('customFields.fieldArchived'));
                 await onChanged();
               } catch (e) {
-                toast.error(e instanceof ApiError ? e.message : 'No se pudo archivar');
+                toast.error(e instanceof ApiError ? e.message : t('customFields.archiveError'));
               }
             }}
           >
-            Archivar
+            {t('customFields.archive')}
           </button>
         </div>
       </div>
@@ -277,6 +282,7 @@ function EditForm({
   onClose: () => void;
   onSaved: () => Promise<void> | void;
 }) {
+  const t = useTranslations('settings');
   const [label, setLabel] = useState(def.label);
   const [required, setRequired] = useState(def.required);
   const [helpText, setHelpText] = useState(def.helpText ?? '');
@@ -300,7 +306,7 @@ function EditForm({
       });
       await onSaved();
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Error');
+      setErr(e instanceof ApiError ? e.message : t('customFields.error'));
     } finally {
       setBusy(false);
     }
@@ -308,10 +314,10 @@ function EditForm({
 
   return (
     <div className="space-y-3 border-t border-ink-100 bg-ink-50 px-3 py-3">
-      <Field label="Etiqueta" required>
+      <Field label={t('customFields.label')} required>
         <Input value={label} onChange={(e) => setLabel(e.target.value)} />
       </Field>
-      <Field label="Texto de ayuda">
+      <Field label={t('customFields.helpText')}>
         <Input value={helpText} onChange={(e) => setHelpText(e.target.value)} />
       </Field>
       <label className="inline-flex items-center gap-2 text-sm">
@@ -321,7 +327,7 @@ function EditForm({
           checked={required}
           onChange={(e) => setRequired(e.target.checked)}
         />
-        Campo obligatorio
+        {t('customFields.requiredField')}
       </label>
       {needsOptions && <OptionsEditor options={options} onChange={setOptions} />}
       {err && (
@@ -329,10 +335,10 @@ function EditForm({
       )}
       <div className="flex gap-2">
         <button type="button" className={buttonClass('primary', 'text-xs')} disabled={busy} onClick={save}>
-          {busy ? 'Guardando…' : 'Guardar'}
+          {busy ? t('customFields.saving') : t('customFields.save')}
         </button>
         <button type="button" className={buttonClass('secondary', 'text-xs')} onClick={onClose}>
-          Cancelar
+          {t('customFields.cancel')}
         </button>
       </div>
     </div>
@@ -348,11 +354,15 @@ function CreateForm({
   onCancel: () => void;
   onCreated: () => Promise<void> | void;
 }) {
+  const t = useTranslations('settings');
+  const tUi = useTranslations('uiBits');
   const [label, setLabel] = useState('');
   const [type, setType] = useState<CustomFieldType>('TEXT');
   const [required, setRequired] = useState(false);
   const [helpText, setHelpText] = useState('');
-  const [options, setOptions] = useState<CustomFieldOption[]>([{ value: 'opt1', label: 'Opción 1' }]);
+  const [options, setOptions] = useState<CustomFieldOption[]>([
+    { value: 'opt1', label: t('customFields.optionN', { n: 1 }) },
+  ]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const needsOptions = type === 'SELECT' || type === 'MULTISELECT';
@@ -375,7 +385,7 @@ function CreateForm({
       });
       await onCreated();
     } catch (e2) {
-      setErr(e2 instanceof ApiError ? e2.message : 'Error');
+      setErr(e2 instanceof ApiError ? e2.message : t('customFields.error'));
     } finally {
       setBusy(false);
     }
@@ -387,23 +397,23 @@ function CreateForm({
       className="space-y-3 rounded-md border border-primary-200 bg-primary-50/30 p-4"
     >
       <h3 className="text-sm font-medium">
-        Nuevo campo en {ENTITY_LABEL[entityType].toLowerCase()}
+        {t('customFields.newFieldIn', { entity: tUi(ENTITY_LABEL_KEY[entityType]).toLowerCase() })}
       </h3>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Etiqueta visible" required>
+        <Field label={t('customFields.visibleLabel')} required>
           <Input value={label} onChange={(e) => setLabel(e.target.value)} required />
         </Field>
-        <Field label="Tipo de dato" required>
+        <Field label={t('customFields.dataType')} required>
           <Select value={type} onChange={(e) => setType(e.target.value as CustomFieldType)}>
-            {TYPES.map((t) => (
-              <option key={t} value={t}>
-                {FIELD_TYPE_LABEL[t]}
+            {TYPES.map((ft) => (
+              <option key={ft} value={ft}>
+                {tUi(FIELD_TYPE_LABEL_KEY[ft])}
               </option>
             ))}
           </Select>
         </Field>
       </div>
-      <Field label="Texto de ayuda (opcional)">
+      <Field label={t('customFields.helpTextOptional')}>
         <Input value={helpText} onChange={(e) => setHelpText(e.target.value)} />
       </Field>
       <label className="inline-flex items-center gap-2 text-sm">
@@ -413,7 +423,7 @@ function CreateForm({
           checked={required}
           onChange={(e) => setRequired(e.target.checked)}
         />
-        Campo obligatorio
+        {t('customFields.requiredField')}
       </label>
       {needsOptions && <OptionsEditor options={options} onChange={setOptions} />}
       {err && (
@@ -421,10 +431,10 @@ function CreateForm({
       )}
       <div className="flex gap-2">
         <button type="submit" className={buttonClass('primary', 'text-xs')} disabled={busy}>
-          {busy ? 'Creando…' : 'Crear campo'}
+          {busy ? t('customFields.creating') : t('customFields.createField')}
         </button>
         <button type="button" className={buttonClass('secondary', 'text-xs')} onClick={onCancel}>
-          Cancelar
+          {t('customFields.cancel')}
         </button>
       </div>
     </form>
@@ -438,13 +448,14 @@ function OptionsEditor({
   options: CustomFieldOption[];
   onChange: (o: CustomFieldOption[]) => void;
 }) {
+  const t = useTranslations('settings');
   return (
     <div className="space-y-2">
-      <div className="text-xs font-mono uppercase tracking-wider text-ink-500">Opciones</div>
+      <div className="text-xs font-mono uppercase tracking-wider text-ink-500">{t('customFields.options')}</div>
       {options.map((o, i) => (
         <div key={i} className="flex items-center gap-2">
           <Input
-            placeholder="valor"
+            placeholder={t('customFields.valuePlaceholder')}
             value={o.value}
             onChange={(e) => {
               const next = [...options];
@@ -454,7 +465,7 @@ function OptionsEditor({
             className="font-mono text-xs"
           />
           <Input
-            placeholder="etiqueta visible"
+            placeholder={t('customFields.labelPlaceholder')}
             value={o.label}
             onChange={(e) => {
               const next = [...options];
@@ -477,11 +488,14 @@ function OptionsEditor({
         onClick={() =>
           onChange([
             ...options,
-            { value: `opt${options.length + 1}`, label: `Opción ${options.length + 1}` },
+            {
+              value: `opt${options.length + 1}`,
+              label: t('customFields.optionN', { n: options.length + 1 }),
+            },
           ])
         }
       >
-        + Añadir opción
+        {t('customFields.addOption')}
       </button>
     </div>
   );

@@ -1,7 +1,11 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { CreateTaskForm } from './create-form';
 
-export const metadata = { title: 'Nueva tarea' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('titles.newTask') };
+}
 
 export default async function NewTaskPage({
   searchParams,

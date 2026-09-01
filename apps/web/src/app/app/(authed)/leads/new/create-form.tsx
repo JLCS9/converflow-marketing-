@@ -12,6 +12,7 @@ import { useLabelMaps } from '@/lib/use-labels';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
 export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefinition[] }) {
+  const tf = useTranslations('crmForms');
   const tToasts = useTranslations('toasts');
   const { LEAD_STATUS_OPTIONS } = useLabelMaps();
   const t = useTranslations();
@@ -28,9 +29,9 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
   async function handleCancel() {
     if (dirty) {
       const ok = await confirm({
-        title: 'Descartar cambios',
-        description: 'Has empezado a rellenar el formulario. Si sales, se pierde lo escrito.',
-        confirmLabel: 'Descartar',
+        title: tf('discardTitle'),
+        description: tf('discardLeadBody'),
+        confirmLabel: tf('discard'),
         danger: true,
       });
       if (!ok) return;
@@ -67,7 +68,7 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
               router.push(`/app/leads/${lead.id}`);
             } catch (err) {
               setSubmitting(false);
-              setError(err instanceof ApiError ? err.message : 'Error inesperado');
+              setError(err instanceof ApiError ? err.message : tf('unexpectedError'));
             }
           });
         }}
@@ -92,7 +93,7 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
           <Field label={t('crm.source')}>
             <Input name="source" type="text" placeholder={t('leadDetail.sourcePlaceholder')} />
           </Field>
-          <Field label={t('crm.status')} help="Cambia a Cliente cuando cierres la venta o a Perdido si no fragua.">
+          <Field label={t('crm.status')} help={tf('statusHelpLead')}>
             <Select name="status" defaultValue="LEAD">
               {LEAD_STATUS_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -106,7 +107,7 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
         {visibleCustom.length > 0 && (
           <div className="border-t border-ink-100 pt-4">
             <h3 className="text-xs font-mono uppercase tracking-wider text-ink-500">
-              Campos personalizados
+              {tf('customFields')}
             </h3>
             <div className="mt-3">
               <CustomFieldsForm
@@ -131,10 +132,10 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
             className={buttonClass('secondary')}
             disabled={pending}
           >
-            Cancelar
+            {tf('cancel')}
           </button>
           <button type="submit" className={buttonClass('primary')} disabled={pending}>
-            {pending ? 'Creando…' : 'Crear lead'}
+            {pending ? tf('creating') : tf('createLead')}
           </button>
         </div>
       </form>

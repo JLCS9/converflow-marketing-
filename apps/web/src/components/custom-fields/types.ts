@@ -38,22 +38,27 @@ export interface CustomFieldDocumentValue {
   size?: number;
 }
 
-export const FIELD_TYPE_LABEL: Record<CustomFieldType, string> = {
-  TEXT: 'Texto corto',
-  LONGTEXT: 'Texto largo',
-  NUMBER: 'Número',
-  DATE: 'Fecha',
-  BOOLEAN: 'Sí / No',
-  SELECT: 'Lista (una opción)',
-  MULTISELECT: 'Lista (múltiple)',
-  URL: 'URL',
-  EMAIL: 'Email',
-  PHONE: 'Teléfono',
-  DOCUMENT: 'Documento',
+/**
+ * Claves del diccionario (namespace `uiBits`) para cada tipo de campo.
+ * Se traducen en render: este módulo no puede usar hooks.
+ */
+export const FIELD_TYPE_LABEL_KEY: Record<CustomFieldType, string> = {
+  TEXT: 'fieldTypeText',
+  LONGTEXT: 'fieldTypeLongtext',
+  NUMBER: 'fieldTypeNumber',
+  DATE: 'fieldTypeDate',
+  BOOLEAN: 'fieldTypeBoolean',
+  SELECT: 'fieldTypeSelect',
+  MULTISELECT: 'fieldTypeMultiselect',
+  URL: 'fieldTypeUrl',
+  EMAIL: 'fieldTypeEmail',
+  PHONE: 'fieldTypePhone',
+  DOCUMENT: 'fieldTypeDocument',
 };
 
-export const ENTITY_LABEL: Record<CustomFieldEntity, string> = {
-  LEAD: 'Leads y Clientes',
-  CLIENT: 'Leads y Clientes',
-  OPPORTUNITY: 'Oportunidades',
+/** Claves del diccionario (namespace `uiBits`) para cada entidad. */
+export const ENTITY_LABEL_KEY: Record<CustomFieldEntity, string> = {
+  LEAD: 'entityLeadClient',
+  CLIENT: 'entityLeadClient',
+  OPPORTUNITY: 'entityOpportunity',
 };

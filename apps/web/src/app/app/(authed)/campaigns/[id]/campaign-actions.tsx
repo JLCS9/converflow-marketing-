@@ -2,10 +2,12 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { buttonClass } from '@/components/ui/primitives';
 
 export function CampaignActions({ id, status }: { id: string; status: string }) {
+  const t = useTranslations('campaigns');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +27,7 @@ export function CampaignActions({ id, status }: { id: string; status: string }) 
           router.push('/app/campaigns');
         }
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Error');
+        setError(err instanceof ApiError ? err.message : t('genericError'));
       }
     });
   }
@@ -35,12 +37,12 @@ export function CampaignActions({ id, status }: { id: string; status: string }) 
       {error && <span className="text-sm text-red-600">{error}</span>}
       {canCancel && (
         <button onClick={() => run('cancel')} className={buttonClass('secondary')} disabled={pending}>
-          Cancelar envío
+          {t('cancelSend')}
         </button>
       )}
       {canDelete && (
         <button onClick={() => run('delete')} className={buttonClass('danger')} disabled={pending}>
-          Eliminar
+          {t('delete')}
         </button>
       )}
     </div>

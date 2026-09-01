@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Field, Input, buttonClass } from '@/components/ui/primitives';
 
 export function ChangePasswordForm() {
+  const t = useTranslations('profile');
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -21,7 +23,7 @@ export function ChangePasswordForm() {
         const confirmPassword = String(data.get('confirmPassword') ?? '');
 
         if (newPassword !== confirmPassword) {
-          setError('La confirmación no coincide con la nueva contraseña');
+          setError(t('confirmMismatch'));
           return;
         }
 
@@ -35,16 +37,16 @@ export function ChangePasswordForm() {
             // Backend cleared all sessions including current → redirect to login.
             router.replace('/login?changed=1');
           } catch (err) {
-            setError(err instanceof ApiError ? err.message : 'Error inesperado');
+            setError(err instanceof ApiError ? err.message : t('unexpectedError'));
           }
         });
       }}
     >
-      <Field label="Contraseña actual" required>
+      <Field label={t('currentPassword')} required>
         <Input name="currentPassword" type="password" autoComplete="current-password" required />
       </Field>
       <Field
-        label="Nueva contraseña"
+        label={t('newPassword')}
         required
         help="Mínimo 12 caracteres, con mayúscula, minúscula y número."
       >
@@ -56,7 +58,7 @@ export function ChangePasswordForm() {
           minLength={12}
         />
       </Field>
-      <Field label="Confirmar nueva contraseña" required>
+      <Field label={t('confirmPassword')} required>
         <Input
           name="confirmPassword"
           type="password"
@@ -73,7 +75,7 @@ export function ChangePasswordForm() {
       )}
 
       <button type="submit" className={buttonClass('primary')} disabled={pending}>
-        {pending ? 'Cambiando…' : 'Cambiar contraseña'}
+        {pending ? t('changing') : t('changePassword')}
       </button>
     </form>
   );

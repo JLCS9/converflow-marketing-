@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ApiError } from '@/lib/api-client';
 import { Field, Input, Select, Textarea } from '@/components/ui/primitives';
 import type {
@@ -50,6 +51,7 @@ function CustomFieldRow({
   onChange: (v: unknown) => void;
   disabled?: boolean;
 }) {
+  const t = useTranslations('uiBits');
   const help = def.helpText ?? undefined;
   const required = def.required;
 
@@ -125,7 +127,7 @@ function CustomFieldRow({
               onChange={(e) => onChange(e.target.checked)}
               disabled={disabled}
             />
-            <span>{def.helpText ?? 'Activar'}</span>
+            <span>{def.helpText ?? t('activate')}</span>
           </label>
         </Field>
       );
@@ -139,7 +141,7 @@ function CustomFieldRow({
             required={required}
             disabled={disabled}
           >
-            <option value="">{required ? 'Selecciona…' : '— sin valor —'}</option>
+            <option value="">{required ? t('selectOption') : t('noValue')}</option>
             {options.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -196,6 +198,7 @@ function DocumentField({
   onChange: (v: CustomFieldDocumentValue | undefined) => void;
   disabled?: boolean;
 }) {
+  const t = useTranslations('uiBits');
   const current = (value ?? null) as CustomFieldDocumentValue | null;
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -235,7 +238,7 @@ function DocumentField({
         size: doc.sizeBytes,
       });
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Error al subir el archivo');
+      setErr(e instanceof ApiError ? e.message : t('uploadError'));
     } finally {
       setUploading(false);
     }
@@ -259,7 +262,7 @@ function DocumentField({
             onClick={() => onChange(undefined)}
             disabled={disabled}
           >
-            Quitar
+            {t('remove')}
           </button>
         </div>
       ) : (
@@ -273,7 +276,7 @@ function DocumentField({
           disabled={disabled || uploading}
         />
       )}
-      {uploading && <p className="mt-1 text-xs text-ink-500">Subiendo…</p>}
+      {uploading && <p className="mt-1 text-xs text-ink-500">{t('uploading')}</p>}
       {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
     </Field>
   );

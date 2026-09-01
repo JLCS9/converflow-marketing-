@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import {
   AGENT_TEMPLATES,
   FAMILY_META,
@@ -18,7 +19,27 @@ import {
  * Click on non-available → no navigation, no form. Just a "Próximamente"
  * tooltip.
  */
+function useTemplateLabels() {
+  const t = useTranslations('agentTemplates');
+  const safe = (key: string, fallback: string) => {
+    try {
+      return t(key as never);
+    } catch {
+      return fallback;
+    }
+  };
+  return {
+    label: (tpl: AgentTemplate) => safe(`${tpl.id}Label`, tpl.label),
+    subtitle: (tpl: AgentTemplate) => safe(`${tpl.id}Subtitle`, tpl.subtitle),
+    stage: (stage: string, fallback: string) =>
+      safe(`stage${stage.charAt(0)}${stage.slice(1).toLowerCase()}`, fallback),
+    family: (family: string, fallback: string) =>
+      safe(`family${family.charAt(0)}${family.slice(1).toLowerCase()}`, fallback),
+  };
+}
+
 export function AgentTemplateWizard() {
+  const tl = useTemplateLabels();
   const byStage = VISIBLE_STAGES.map((stage) => ({
     stage,
     meta: FUNNEL_STAGE_META[stage],
@@ -32,7 +53,7 @@ export function AgentTemplateWizard() {
         {byStage.map(({ stage, meta, items }) => (
           <section key={stage} className="space-y-2">
             <h2 className="text-xs font-mono uppercase tracking-wider text-ink-500">
-              {meta.label}
+              {tl.stage(stage, meta.label)}
             </h2>
             <div className="space-y-2">
               {items.map((t) => (
@@ -45,7 +66,7 @@ export function AgentTemplateWizard() {
 
       <section className="space-y-2 border-t border-ink-100 pt-5">
         <h2 className="text-xs font-mono uppercase tracking-wider text-ink-500">
-          {FUNNEL_STAGE_META.TRANSVERSAL.label}
+          {tl.stage('TRANSVERSAL', FUNNEL_STAGE_META.TRANSVERSAL.label)}
         </h2>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {transversal.map((t) => (
@@ -60,6 +81,8 @@ export function AgentTemplateWizard() {
 }
 
 function TemplateCard({ tpl }: { tpl: AgentTemplate }) {
+  const t = useTranslations('agents');
+  const tl = useTemplateLabels();
   const fam = FAMILY_META[tpl.family];
   const base =
     'group block rounded-lg border border-ink-100 border-l-4 bg-white px-3 py-2.5 transition-colors';
@@ -70,18 +93,18 @@ function TemplateCard({ tpl }: { tpl: AgentTemplate }) {
   const inner = (
     <div>
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-sm font-medium text-ink-900">{tpl.label}</span>
+        <span className="truncate text-sm font-medium text-ink-900">{tl.label(tpl)}</span>
         {tpl.available ? (
           <span className="shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
-            Disponible
+            {t('available')}
           </span>
         ) : (
           <span className="shrink-0 rounded-full bg-ink-100 px-1.5 py-0.5 text-[10px] font-medium text-ink-500">
-            Próximamente
+            {t('comingSoon')}
           </span>
         )}
       </div>
-      <div className="mt-0.5 text-xs text-ink-500">{tpl.subtitle}</div>
+      <div className="mt-0.5 text-xs text-ink-500">{tl.subtitle(tpl)}</div>
     </div>
   );
 
@@ -89,7 +112,7 @@ function TemplateCard({ tpl }: { tpl: AgentTemplate }) {
     return (
       <div
         className={`${base} ${fam.accent} ${interactive}`}
-        title="Próximamente — estamos trabajando en ello"
+        title={t('comingSoonTooltip')}
         aria-disabled
       >
         {inner}
@@ -108,26 +131,28 @@ function TemplateCard({ tpl }: { tpl: AgentTemplate }) {
 }
 
 function Legend() {
+  const t = useTranslations('agents');
+  const tl = useTemplateLabels();
   return (
     <div className="flex flex-wrap items-center gap-4 text-xs text-ink-500">
       {Object.entries(FAMILY_META).map(([key, meta]) => (
         <span key={key} className="inline-flex items-center gap-1.5">
           <span className={`inline-block h-3 w-1 rounded-sm border-l-2 ${meta.accent}`} />
-          {meta.label}
+          {tl.family(key, meta.label)}
         </span>
       ))}
       <span className="text-ink-400">·</span>
       <span>
         <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
-          Disponible
+          {t('available')}
         </span>{' '}
-        ya usable
+        {t('legendUsable')}
       </span>
       <span>
         <span className="rounded-full bg-ink-100 px-1.5 py-0.5 text-[10px] font-medium text-ink-500">
-          Próximamente
+          {t('comingSoon')}
         </span>{' '}
-        en construcción
+        {t('legendInProgress')}
       </span>
     </div>
   );

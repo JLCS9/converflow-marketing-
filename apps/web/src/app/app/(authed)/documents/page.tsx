@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
@@ -16,13 +17,17 @@ interface DocRow {
   opportunity: { id: string; name: string } | null;
 }
 
-export const metadata = { title: 'Documentos' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('documents.title') };
+}
 
 export default async function DocumentsPage({
   searchParams,
 }: {
   searchParams: Promise<{ clientId?: string; opportunityId?: string }>;
 }) {
+  const t = await getTranslations('documents');
   const params = await searchParams;
   const qs = new URLSearchParams();
   if (params.clientId) qs.set('clientId', params.clientId);
@@ -31,26 +36,20 @@ export default async function DocumentsPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Documentos"
-        description="Almacenamiento centralizado de contratos, presupuestos y ficheros comerciales. Cifrado en reposo en Cloudflare R2."
-      />
+      <PageHeader title={t('title')} description={t('description')} />
 
       <Card>
-        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Subir documento</h2>
-        <p className="mt-1 text-xs text-ink-500">
-          Máximo 50 MB. Opcional: vincúlalo a un cliente u oportunidad.
-        </p>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
+          {t('uploadTitle')}
+        </h2>
+        <p className="mt-1 text-xs text-ink-500">{t('uploadHint')}</p>
         <div className="mt-4">
           <UploadForm />
         </div>
       </Card>
 
       {docs.length === 0 ? (
-        <EmptyState
-          title="Sin documentos"
-          description="Sube contratos, presupuestos o cualquier archivo y vincúlalo a un cliente u oportunidad."
-        />
+        <EmptyState title={t('emptyTitle')} description={t('emptyDescription')} />
       ) : (
         <Card className="overflow-x-auto p-0">
           <DocumentsTable docs={docs} />

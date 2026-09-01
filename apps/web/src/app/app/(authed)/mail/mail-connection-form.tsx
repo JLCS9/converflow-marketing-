@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, Textarea, buttonClass } from '@/components/ui/primitives';
@@ -32,15 +33,16 @@ function deriveSecure(port: number): boolean {
   return true;
 }
 
-const PRESETS: Record<string, { imapHost: string; imapPort: number; smtpHost: string; smtpPort: number; note?: string }> = {
-  gmail: { imapHost: 'imap.gmail.com', imapPort: 993, smtpHost: 'smtp.gmail.com', smtpPort: 465, note: 'Gmail/Workspace: activa 2FA y usa una "Contraseña de aplicación" (16 caracteres), no tu contraseña normal.' },
+const PRESETS: Record<string, { imapHost: string; imapPort: number; smtpHost: string; smtpPort: number; noteKey?: string }> = {
+  gmail: { imapHost: 'imap.gmail.com', imapPort: 993, smtpHost: 'smtp.gmail.com', smtpPort: 465, noteKey: 'presetNoteGmail' },
   // SMTP 587 (STARTTLS) + IMAP 993 (TLS): los dos transportes NO coinciden, que
   // es justo lo que rompía este preset cuando había un solo flag para ambos.
-  outlook: { imapHost: 'outlook.office365.com', imapPort: 993, smtpHost: 'smtp.office365.com', smtpPort: 587, note: 'Outlook/365: SMTP 587 con STARTTLS e IMAP 993 con TLS. Converflow lo configura solo.' },
+  outlook: { imapHost: 'outlook.office365.com', imapPort: 993, smtpHost: 'smtp.office365.com', smtpPort: 587, noteKey: 'presetNoteOutlook' },
   ionos: { imapHost: 'imap.ionos.es', imapPort: 993, smtpHost: 'smtp.ionos.es', smtpPort: 465 },
 };
 
 export function MailConnectionForm({ connection }: { connection?: MailConnectionData }) {
+  const t = useTranslations('mailboxes');
   const router = useRouter();
   const c = connection;
   const [fromAddress, setFromAddress] = useState(c?.fromAddress ?? '');
@@ -75,7 +77,7 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
     // Los presets usan puertos estándar → dejar que el servidor derive el TLS.
     setSmtpSecure(null);
     setImapSecure(null);
-    setPresetNote(p.note ?? null);
+    setPresetNote(p.noteKey ?? null);
   }
 
   function save() {
@@ -106,7 +108,7 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
         router.push('/app/mail/ajustes');
         router.refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Error inesperado');
+        setError(err instanceof ApiError ? err.message : t('unexpectedError'));
       }
     });
   }
@@ -118,41 +120,41 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
     <Card>
       <div className="space-y-5">
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Dirección de correo" required help="El buzón que se conecta (envía y recibe como esta dirección).">
+          <Field label={t('fromAddress')} required help={t('fromAddressHelp')}>
             <Input type="email" value={fromAddress} onChange={(e) => setFromAddress(e.target.value)} placeholder="ventas@tuempresa.com" />
           </Field>
-          <Field label="Nombre visible" help="Aparece como remitente.">
-            <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Ventas · Tu Empresa" />
+          <Field label={t('displayName')} help={t('displayNameHelp')}>
+            <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder={t('displayNamePlaceholder')} />
           </Field>
         </div>
 
-        <Field label="Proveedor (autocompleta servidores)">
+        <Field label={t('provider')}>
           <Select defaultValue="" onChange={(e) => applyPreset(e.target.value)}>
-            <option value="">— Elegir preset —</option>
+            <option value="">{t('choosePreset')}</option>
             <option value="gmail">Gmail / Google Workspace</option>
             <option value="outlook">Outlook / Microsoft 365</option>
             <option value="ionos">IONOS</option>
           </Select>
         </Field>
-        {presetNote && <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">{presetNote}</p>}
+        {presetNote && <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">{t(presetNote)}</p>}
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Servidor IMAP (entrante)" required>
+          <Field label={t('imapServer')} required>
             <Input value={imapHost} onChange={(e) => setImapHost(e.target.value)} placeholder="imap.tuempresa.com" />
           </Field>
-          <Field label="Puerto IMAP">
+          <Field label={t('imapPort')}>
             <Input value={imapPort} onChange={(e) => setImapPort(e.target.value)} inputMode="numeric" />
           </Field>
-          <Field label="Servidor SMTP (saliente)" required>
+          <Field label={t('smtpServer')} required>
             <Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.tuempresa.com" />
           </Field>
-          <Field label="Puerto SMTP">
+          <Field label={t('smtpPort')}>
             <Input value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} inputMode="numeric" />
           </Field>
-          <Field label="Usuario" help="Normalmente tu dirección de correo.">
-            <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="(por defecto, tu dirección)" />
+          <Field label={t('username')} help={t('usernameHelp')}>
+            <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder={t('usernamePlaceholder')} />
           </Field>
-          <Field label={c ? 'Contraseña (dejar vacío = no cambiar)' : 'Contraseña / App Password'} required={!c}>
+          <Field label={c ? t('passwordEdit') : t('passwordNew')} required={!c}>
             <Input type="password" value={secret} onChange={(e) => setSecret(e.target.value)} autoComplete="new-password" />
           </Field>
         </div>
@@ -160,31 +162,32 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
         <div className="rounded-md border border-ink-100 bg-ink-100/30 p-3">
           <div className="flex items-start justify-between gap-3">
             <p className="text-xs text-ink-600">
-              <span className="font-medium text-ink-800">Cifrado:</span>{' '}
-              IMAP {effectiveImapSecure ? 'TLS directo' : 'STARTTLS'} (puerto {imapPort || '—'}) ·{' '}
-              SMTP {effectiveSmtpSecure ? 'TLS directo' : 'STARTTLS'} (puerto {smtpPort || '—'}).
-              {' '}Se ajusta automáticamente al puerto de cada servidor.
+              <span className="font-medium text-ink-800">{t('encryptionLabel')}</span>{' '}
+              {t('encryptionSummary', {
+                imapMode: effectiveImapSecure ? t('tlsDirect') : 'STARTTLS',
+                imapPort: imapPort || '—',
+                smtpMode: effectiveSmtpSecure ? t('tlsDirect') : 'STARTTLS',
+                smtpPort: smtpPort || '—',
+              })}
             </p>
             <button
               type="button"
               onClick={() => setShowTls((v) => !v)}
               className="shrink-0 text-xs text-primary-700 hover:underline"
             >
-              {showTls ? 'Ocultar' : 'Avanzado'}
+              {showTls ? t('hide') : t('advanced')}
             </button>
           </div>
           {showTls && (
             <div className="mt-3 space-y-2 border-t border-ink-200 pt-3">
-              <p className="text-xs text-ink-500">
-                Cámbialo solo si tu proveedor usa puertos no estándar y la verificación falla.
-              </p>
+              <p className="text-xs text-ink-500">{t('advancedHint')}</p>
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={effectiveImapSecure}
                   onChange={(e) => setImapSecure(e.target.checked)}
                 />
-                IMAP con TLS directo (implícito)
+                {t('imapTls')}
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -192,25 +195,25 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
                   checked={effectiveSmtpSecure}
                   onChange={(e) => setSmtpSecure(e.target.checked)}
                 />
-                SMTP con TLS directo (implícito)
+                {t('smtpTls')}
               </label>
             </div>
           )}
         </div>
 
-        <Field label="Visibilidad" help="Compartido: todo el equipo con permiso lo usa. Privado: solo tú.">
+        <Field label={t('visibility')} help={t('visibilityHelp')}>
           <Select value={visibility} onChange={(e) => setVisibility(e.target.value)}>
-            <option value="SHARED">Compartido (equipo)</option>
-            <option value="PRIVATE">Privado (solo yo)</option>
+            <option value="SHARED">{t('visibilityShared')}</option>
+            <option value="PRIVATE">{t('visibilityPrivate')}</option>
           </Select>
         </Field>
 
-        <Field label="Firma" help="Se añade automáticamente al redactar o responder desde este buzón.">
+        <Field label={t('signature')} help={t('signatureHelp')}>
           <Textarea
             value={signature}
             onChange={(e) => setSignature(e.target.value)}
             rows={4}
-            placeholder={'Nombre Apellido\nCargo · Tu Empresa\n+34 600 000 000'}
+            placeholder={t('signaturePlaceholder')}
           />
         </Field>
 
@@ -218,7 +221,7 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
 
         <div className="flex justify-end gap-2">
           <button type="button" onClick={() => router.push('/app/mail/ajustes')} className={buttonClass('secondary')} disabled={pending}>
-            Cancelar
+            {t('cancel')}
           </button>
           <button
             type="button"
@@ -226,12 +229,10 @@ export function MailConnectionForm({ connection }: { connection?: MailConnection
             className={buttonClass('primary')}
             disabled={pending || !fromAddress.trim() || !imapHost.trim() || !smtpHost.trim() || (!c && !secret)}
           >
-            {pending ? 'Guardando…' : c ? 'Guardar' : 'Conectar buzón'}
+            {pending ? t('saving') : c ? t('save') : t('connectMailboxCta')}
           </button>
         </div>
-        <p className="text-xs text-ink-400">
-          Al guardar, Converflow verifica la conexión. Próximamente: conectar con Google/Microsoft con un clic (OAuth).
-        </p>
+        <p className="text-xs text-ink-400">{t('saveFootnote')}</p>
       </div>
     </Card>
   );

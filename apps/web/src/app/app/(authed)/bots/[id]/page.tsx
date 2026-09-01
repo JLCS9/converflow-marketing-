@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { Card } from '@/components/ui/primitives';
+import { getLabelMaps } from '@/lib/get-labels';
 import { BotConnection } from './bot-connection';
 import { BotAgentSelect } from './bot-agent-select';
 import { BotEmailConnect } from './bot-email-connect';
@@ -24,20 +26,18 @@ interface BotDetail {
   createdAt: string;
 }
 
-const channelLabel: Record<string, string> = {
-  WHATSAPP: 'WhatsApp',
-  INSTAGRAM: 'Instagram',
-  MESSENGER: 'Messenger',
-  WEBCHAT: 'Web Chat',
-};
-
-export const metadata = { title: 'Bot' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('bots.detailTitle') };
+}
 
 export default async function BotDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = await getTranslations('bots');
+  const { CHANNEL } = await getLabelMaps();
   const { id } = await params;
   let bot: BotDetail;
   try {
@@ -58,33 +58,27 @@ export default async function BotDetailPage({
     <div className="space-y-6">
       <div>
         <Link href="/app/bots" className="text-sm text-ink-500 hover:text-ink-900">
-          ← Volver a bots
+          {t('backToBots')}
         </Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">{bot.name}</h1>
         <p className="mt-1 text-sm text-ink-500">
-          {channelLabel[bot.channel] ?? bot.channel}
+          {CHANNEL[bot.channel] ?? bot.channel}
           {bot.phoneNumber && <> · {bot.phoneNumber}</>}
         </p>
       </div>
 
       {bot.channel === 'WHATSAPP' ? (
         <Card>
-          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Conexión WhatsApp</h2>
-          <p className="mt-1 text-xs text-ink-500">
-            Vincula tu número escaneando un QR (igual que WhatsApp Web). La sesión queda
-            guardada cifrada y se reconecta sola tras un reinicio.
-          </p>
+          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('waConnTitle')}</h2>
+          <p className="mt-1 text-xs text-ink-500">{t('waConnBody')}</p>
           <div className="mt-4">
             <BotConnection botId={bot.id} initialStatus={bot.status} />
           </div>
         </Card>
       ) : bot.channel === 'EMAIL' ? (
         <Card>
-          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Conexión Email</h2>
-          <p className="mt-1 text-xs text-ink-500">
-            Conecta tu propio buzón por IMAP/SMTP. Los emails entrantes entran en Conversaciones y
-            las respuestas salen desde tu dirección.
-          </p>
+          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('emailConnTitle')}</h2>
+          <p className="mt-1 text-xs text-ink-500">{t('emailConnBody')}</p>
           <div className="mt-4">
             <BotEmailConnect botId={bot.id} />
           </div>
@@ -93,19 +87,16 @@ export default async function BotDetailPage({
         <WebchatInstall botId={bot.id} appUrl={appUrl} />
       ) : (
         <Card>
-          <p className="text-sm text-ink-500">
-            Este canal todavía no soporta conexión automática.
-          </p>
+          <p className="text-sm text-ink-500">{t('noAutoConnection')}</p>
         </Card>
       )}
 
       <Card>
-        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Agente IA</h2>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('aiAgentTitle')}</h2>
         <p className="mt-1 text-xs text-ink-500">
-          Asigna un agente para que gobierne las respuestas de este bot. Crea y configura
-          agentes en{' '}
+          {t('agentIntro')}{' '}
           <Link href="/app/agents" className="text-primary-700 hover:underline">
-            Agentes IA
+            {t('agentsLinkLabel')}
           </Link>
           .
         </p>
@@ -117,16 +108,16 @@ export default async function BotDetailPage({
       <BotReplyMode botId={bot.id} initialMode={bot.replyMode ?? 'SUGGEST'} />
 
       <Card>
-        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Detalles</h2>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('detailsTitle')}</h2>
         <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
-          <Row label="Límite / minuto" value={String(bot.maxMessagesPerMinute)} />
-          <Row label="Límite / hora" value={String(bot.maxMessagesPerHour)} />
+          <Row label={t('limitPerMinute')} value={String(bot.maxMessagesPerMinute)} />
+          <Row label={t('limitPerHour')} value={String(bot.maxMessagesPerHour)} />
           <Row
-            label="Última conexión"
+            label={t('lastConnection')}
             value={bot.lastConnectedAt ? new Date(bot.lastConnectedAt).toLocaleString('es-ES') : '—'}
           />
           <Row
-            label="Última desconexión"
+            label={t('lastDisconnect')}
             value={
               bot.lastDisconnectAt
                 ? `${new Date(bot.lastDisconnectAt).toLocaleString('es-ES')}${
@@ -135,7 +126,7 @@ export default async function BotDetailPage({
                 : '—'
             }
           />
-          <Row label="Creado" value={new Date(bot.createdAt).toLocaleString('es-ES')} />
+          <Row label={t('created')} value={new Date(bot.createdAt).toLocaleString('es-ES')} />
         </dl>
       </Card>
     </div>

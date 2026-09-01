@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { apiFetch, ApiError } from '@/lib/api-client';
+import { useLabelMaps } from '@/lib/use-labels';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
 import { RichEmailEditor } from '@/components/ui/rich-email-editor';
 import { TemplatePicker } from '@/components/ui/template-picker';
@@ -62,12 +64,11 @@ function contactKey(c: { leadId: string | null; clientId: string | null }): stri
   return c.leadId ? `L:${c.leadId}` : c.clientId ? `C:${c.clientId}` : '';
 }
 
-const CHANNELS = [
-  { value: 'EMAIL', label: 'Email' },
-  { value: 'WHATSAPP', label: 'WhatsApp' },
-];
+const CHANNELS = ['EMAIL', 'WHATSAPP'] as const;
 
 export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
+  const t = useTranslations('campaigns');
+  const { CHANNEL } = useLabelMaps();
   const router = useRouter();
   const a = campaign?.audience ?? {};
 
@@ -176,7 +177,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
       });
       setPreview(res);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo previsualizar');
+      setError(err instanceof ApiError ? err.message : t('previewError'));
     } finally {
       setPreviewing(false);
     }
@@ -202,7 +203,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
         router.push(`/app/campaigns/${id}`);
         router.refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Error inesperado');
+        setError(err instanceof ApiError ? err.message : t('unexpectedError'));
       }
     });
   }
@@ -211,10 +212,10 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
     <Card>
       <div className="space-y-5">
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Nombre" required>
+          <Field label={t('name')} required>
             <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
           </Field>
-          <Field label="Canal" required>
+          <Field label={t('channelLabel')} required>
             <Select
               value={channel}
               onChange={(e) => {
@@ -224,8 +225,8 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
               }}
             >
               {CHANNELS.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
+                <option key={c} value={c}>
+                  {CHANNEL[c] ?? c}
                 </option>
               ))}
             </Select>
@@ -233,16 +234,12 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
         </div>
 
         <Field
-          label={channel === 'EMAIL' ? 'Buzón de envío' : 'Bot de WhatsApp'}
+          label={channel === 'EMAIL' ? t('mailboxLabel') : t('whatsappBotLabel')}
           required
-          help={
-            channel === 'EMAIL'
-              ? 'Se envía desde tu propio correo: el buzón cuya dirección coincida con la del bot, o el buzón compartido del equipo si no hay coincidencia. Conéctalos en Correo → Ajustes → Buzones.'
-              : 'El número de WhatsApp conectado desde el que se enviará.'
-          }
+          help={channel === 'EMAIL' ? t('mailboxHelp') : t('whatsappBotHelp')}
         >
           <Select value={botId} onChange={(e) => setBotId(e.target.value)}>
-            <option value="">— Selecciona el buzón conectado —</option>
+            <option value="">{t('selectMailbox')}</option>
             {channelBots.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
@@ -253,21 +250,17 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
         </Field>
 
         {channel === 'EMAIL' && (
-          <Field label="Asunto" required>
+          <Field label={t('subject')} required>
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={200} />
           </Field>
         )}
 
-        <Field
-          label="Mensaje"
-          required
-          help="Variables: {nombre}, {first_name}, {email}, {telefono}. En email se añade un pie de baja automático; en WhatsApp se envía como texto."
-        >
+        <Field label={t('message')} required help={t('messageHelp')}>
           <div className="mb-2 flex justify-end">
             <TemplatePicker
-              onPick={(t) => {
-                if (t.subject) setSubject(t.subject);
-                setBody(t.bodyHtml);
+              onPick={(tpl) => {
+                if (tpl.subject) setSubject(tpl.subject);
+                setBody(tpl.bodyHtml);
                 setBodyKey((k) => k + 1);
               }}
             />
@@ -275,12 +268,9 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
           <RichEmailEditor key={bodyKey} initialHtml={body} onChange={setBody} />
         </Field>
 
-        <Field
-          label="Agente para respuestas (opcional)"
-          help="Si un destinatario responde, esa conversación la atenderá este agente (en vez del agente del bot). Solo afecta a los contactos de esta campaña."
-        >
+        <Field label={t('replyAgentLabel')} help={t('replyAgentHelp')}>
           <Select value={agentId} onChange={(e) => setAgentId(e.target.value)}>
-            <option value="">— El del bot / ninguno —</option>
+            <option value="">{t('replyAgentNone')}</option>
             {agents
               .filter((ag) => ag.status !== 'ARCHIVED')
               .map((ag) => (
@@ -293,18 +283,20 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
 
         {/* ── Audiencia ─────────────────────────────────────────── */}
         <div className="rounded-md border border-ink-100 bg-ink-100/40 p-4 space-y-4">
-          <div className="text-xs font-mono uppercase tracking-wider text-ink-500">Audiencia</div>
+          <div className="text-xs font-mono uppercase tracking-wider text-ink-500">
+            {t('audience')}
+          </div>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Contactos">
+            <Field label={t('contacts')}>
               <Select value={entity} onChange={(e) => setEntity(e.target.value)}>
-                <option value="BOTH">Leads y clientes</option>
-                <option value="LEAD">Solo leads</option>
-                <option value="CLIENT">Solo clientes</option>
+                <option value="BOTH">{t('audienceBoth')}</option>
+                <option value="LEAD">{t('audienceLeads')}</option>
+                <option value="CLIENT">{t('audienceClients')}</option>
               </Select>
             </Field>
-            <Field label="Responsable">
+            <Field label={t('owner')}>
               <Select value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
-                <option value="">Cualquiera</option>
+                <option value="">{t('anyOwner')}</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.name}
@@ -312,7 +304,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
                 ))}
               </Select>
             </Field>
-            <Field label="Estados" help="Coma. Vacío = todos.">
+            <Field label={t('statusesLabel')} help={t('statusesHelp')}>
               <Input
                 value={statuses}
                 onChange={(e) => setStatuses(e.target.value)}
@@ -320,7 +312,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
               />
             </Field>
           </div>
-          <Field label="Fuentes (origen)" help="Coma. Vacío = todas.">
+          <Field label={t('sourcesLabel')} help={t('sourcesHelp')}>
             <Input
               value={sources}
               onChange={(e) => setSources(e.target.value)}
@@ -335,14 +327,17 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
               className={buttonClass('secondary')}
               disabled={previewing}
             >
-              {previewing ? 'Calculando…' : 'Previsualizar audiencia'}
+              {previewing ? t('computing') : t('previewAudience')}
             </button>
             {preview && (
               <span className="text-sm text-ink-700">
                 <strong>{preview.contacts.filter((c) => !excluded.has(contactKey(c))).length}</strong>{' '}
-                seleccionados de {preview.total}
+                {t('selectedOf', { total: preview.total })}
                 {preview.suppressed > 0 && (
-                  <span className="text-ink-500"> · {preview.suppressed} de baja excluidos</span>
+                  <span className="text-ink-500">
+                    {' '}
+                    · {t('suppressedNote', { count: preview.suppressed })}
+                  </span>
                 )}
               </span>
             )}
@@ -351,7 +346,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
           {preview && (
             <div className="rounded-md border border-ink-100 bg-white">
               <div className="flex items-center justify-between border-b border-ink-100 px-3 py-2 text-xs text-ink-500">
-                <span>Desmarca los que no quieras incluir</span>
+                <span>{t('deselectHint')}</span>
                 <div className="flex gap-3">
                   <button
                     type="button"
@@ -364,7 +359,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
                       })
                     }
                   >
-                    Todos
+                    {t('selectAll')}
                   </button>
                   <button
                     type="button"
@@ -380,13 +375,13 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
                       })
                     }
                   >
-                    Ninguno
+                    {t('selectNone')}
                   </button>
                 </div>
               </div>
               <div className="max-h-64 overflow-y-auto divide-y divide-ink-50">
                 {preview.contacts.length === 0 ? (
-                  <p className="px-3 py-4 text-sm text-ink-500">Ningún contacto coincide con estos filtros.</p>
+                  <p className="px-3 py-4 text-sm text-ink-500">{t('noMatches')}</p>
                 ) : (
                   preview.contacts.map((c) => {
                     const key = contactKey(c);
@@ -410,7 +405,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
               </div>
               {preview.truncated && (
                 <p className="border-t border-ink-100 px-3 py-2 text-[11px] text-amber-700">
-                  Mostrando los primeros 1000. Afina los filtros para ver el resto.
+                  {t('truncatedNote')}
                 </p>
               )}
             </div>
@@ -419,14 +414,14 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
 
         {/* ── Programación ──────────────────────────────────────── */}
         <div className="space-y-2">
-          <div className="text-sm font-medium text-ink-900">¿Cuándo enviar?</div>
+          <div className="text-sm font-medium text-ink-900">{t('whenToSend')}</div>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="radio"
               checked={scheduleMode === 'now'}
               onChange={() => setScheduleMode('now')}
             />
-            Enviar al lanzar
+            {t('sendOnLaunch')}
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -434,7 +429,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
               checked={scheduleMode === 'later'}
               onChange={() => setScheduleMode('later')}
             />
-            Programar
+            {t('scheduleLabel')}
             {scheduleMode === 'later' && (
               <input
                 type="datetime-local"
@@ -459,7 +454,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
             className={buttonClass('secondary')}
             disabled={pending}
           >
-            Cancelar
+            {t('cancel')}
           </button>
           <button
             type="button"
@@ -467,7 +462,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
             className={buttonClass('secondary')}
             disabled={pending}
           >
-            {pending ? 'Guardando…' : 'Guardar borrador'}
+            {pending ? t('saving') : t('saveDraft')}
           </button>
           <button
             type="button"
@@ -475,7 +470,7 @@ export function CampaignForm({ campaign }: { campaign?: CampaignData }) {
             className={buttonClass('primary')}
             disabled={pending}
           >
-            {scheduleMode === 'later' ? 'Guardar y programar' : 'Guardar y enviar'}
+            {scheduleMode === 'later' ? t('saveAndSchedule') : t('saveAndSend')}
           </button>
         </div>
       </div>

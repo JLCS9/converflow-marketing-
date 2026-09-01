@@ -8,6 +8,8 @@ import { buttonClass } from '@/components/ui/primitives';
 import { useFeedback } from '@/components/ui/feedback';
 
 export function OpportunityDelete({ opportunityId }: { opportunityId: string }) {
+  const tToastsX = useTranslations('toasts');
+  const tOpp = useTranslations('opportunities');
   const tToasts = useTranslations('toasts');
   const router = useRouter();
   const { confirm, toast } = useFeedback();
@@ -19,8 +21,8 @@ export function OpportunityDelete({ opportunityId }: { opportunityId: string }) 
       className={buttonClass('danger', 'text-xs')}
       onClick={async () => {
         const ok = await confirm({
-          title: 'Eliminar oportunidad',
-          description: 'Se borran también las notas e historial asociados. No se puede deshacer.',
+          title: tOpp('deleteTitle'),
+          description: tOpp('deleteBody'),
           danger: true,
         });
         if (!ok) return;
@@ -30,7 +32,7 @@ export function OpportunityDelete({ opportunityId }: { opportunityId: string }) 
           toast.success(tToasts('oppDeleted'));
           router.replace('/app/opportunities');
         } catch (e) {
-          toast.error(e instanceof ApiError ? e.message : 'No se pudo eliminar');
+          toast.error(e instanceof ApiError ? e.message : tToastsX('deleteError'));
           setBusy(false);
         }
       }}

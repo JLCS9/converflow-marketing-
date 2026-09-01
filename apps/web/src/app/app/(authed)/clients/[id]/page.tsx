@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
+import { getLabelMaps } from '@/lib/get-labels';
 import { Card, Badge } from '@/components/ui/primitives';
 import { ClientInfoCard } from './client-info-card';
 import { CustomFieldsCard } from '@/components/custom-fields/card';
@@ -22,7 +23,10 @@ interface ClientDetail {
   tasks: Array<{ id: string; title: string; status: string; dueAt: string | null }>;
 }
 
-export const metadata = { title: 'Cliente' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('titles.client') };
+}
 
 export default async function ClientDetailPage({
   params,
@@ -30,6 +34,7 @@ export default async function ClientDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const t = await getTranslations();
+  const { CLIENT_STATUS, OPP_STATUS, TASK_STATUS } = await getLabelMaps();
   const { id } = await params;
   let client: ClientDetail;
   try {
@@ -56,7 +61,9 @@ export default async function ClientDetailPage({
         <Link href="/app/clients" className="text-sm text-ink-500 hover:text-ink-900">{t('detail.back')}</Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">{client.name}</h1>
         <div className="mt-1 flex items-center gap-3 text-sm">
-          <Badge color={client.status === 'ACTIVE' ? 'green' : 'gray'}>{client.status}</Badge>
+          <Badge color={client.status === 'ACTIVE' ? 'green' : 'gray'}>
+            {CLIENT_STATUS[client.status] ?? client.status}
+          </Badge>
         </div>
       </div>
 
@@ -76,7 +83,7 @@ export default async function ClientDetailPage({
                   </Link>
                   <span className="text-xs text-ink-500">
                     {o.amount ? `${Number(o.amount).toLocaleString('es-ES')} € · ` : ''}
-                    {o.status}
+                    {OPP_STATUS[o.status] ?? o.status}
                   </span>
                 </li>
               ))}
@@ -98,11 +105,12 @@ export default async function ClientDetailPage({
           <p className="mt-3 text-sm text-ink-500">{t('detail.noTasks')}</p>
         ) : (
           <ul className="mt-3 space-y-1 text-sm">
-            {client.tasks.map((t) => (
-              <li key={t.id} className="flex items-center justify-between gap-3">
-                <span>{t.title}</span>
+            {client.tasks.map((task) => (
+              <li key={task.id} className="flex items-center justify-between gap-3">
+                <span>{task.title}</span>
                 <span className="text-xs text-ink-500">
-                  {t.status}{t.dueAt ? ` · ${new Date(t.dueAt).toLocaleDateString('es-ES')}` : ''}
+                  {TASK_STATUS[task.status] ?? task.status}
+                  {task.dueAt ? ` · ${new Date(task.dueAt).toLocaleDateString('es-ES')}` : ''}
                 </span>
               </li>
             ))}

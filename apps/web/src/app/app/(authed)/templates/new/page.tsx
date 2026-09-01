@@ -1,15 +1,20 @@
+import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@/components/ui/page-header';
 import { TemplateForm } from '../template-form';
 
-export const metadata = { title: 'Nueva plantilla' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('templates.newTitle') };
+}
 
-export default function NewTemplatePage() {
+export default async function NewTemplatePage() {
+  const t = await getTranslations('templates');
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Nueva plantilla"
-        description="Diseña el correo con el editor; la vista previa de la derecha muestra cómo se verá."
-        back={{ href: '/app/mail/ajustes/plantillas', label: 'Plantillas' }}
+        title={t('newTitle')}
+        description={t('newDescription')}
+        back={{ href: '/app/mail/ajustes/plantillas', label: t('listTitle') }}
       />
       <TemplateForm />
     </div>

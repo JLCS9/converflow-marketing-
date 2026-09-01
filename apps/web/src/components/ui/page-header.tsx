@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
 interface Crumb {
@@ -15,10 +16,12 @@ interface Props {
 }
 
 export function PageHeader({ title, description, action, back, breadcrumbs }: Props) {
+  // useTranslations funciona también en componentes de servidor síncronos.
+  const t = useTranslations('uiBits');
   return (
     <header className="space-y-2">
       {breadcrumbs && breadcrumbs.length > 0 ? (
-        <nav aria-label="Migas de pan" className="text-xs text-ink-500">
+        <nav aria-label={t('breadcrumbs')} className="text-xs text-ink-500">
           {breadcrumbs.map((c, i) => (
             <span key={i}>
               {c.href ? (
@@ -34,7 +37,7 @@ export function PageHeader({ title, description, action, back, breadcrumbs }: Pr
         </nav>
       ) : back ? (
         <Link href={back.href} className="text-sm text-ink-500 hover:text-ink-900">
-          ← {back.label ?? 'Volver'}
+          ← {back.label ?? t('back')}
         </Link>
       ) : null}
       <div className="flex flex-wrap items-end justify-between gap-3">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, buttonClass } from '@/components/ui/primitives';
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function CustomFieldsCard({ entityType, apiBase, definitions, values }: Props) {
+  const t = useTranslations('uiBits');
   const router = useRouter();
   const { toast } = useFeedback();
   const [editing, setEditing] = useState(false);
@@ -38,11 +40,11 @@ export function CustomFieldsCard({ entityType, apiBase, definitions, values }: P
         method: 'PATCH',
         json: { customFields: draft },
       });
-      toast.success('Campos guardados');
+      toast.success(t('fieldsSaved'));
       setEditing(false);
       router.refresh();
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : 'No se pudo guardar';
+      const msg = e instanceof ApiError ? e.message : t('saveError');
       setErr(msg);
       toast.error(msg);
     } finally {
@@ -54,11 +56,11 @@ export function CustomFieldsCard({ entityType, apiBase, definitions, values }: P
     <Card>
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
-          Campos personalizados
+          {t('customFields')}
         </h2>
         {editing ? (
           <button type="button" className="text-xs text-ink-500" onClick={() => setEditing(false)}>
-            Cancelar
+            {t('cancel')}
           </button>
         ) : (
           <button
@@ -66,7 +68,7 @@ export function CustomFieldsCard({ entityType, apiBase, definitions, values }: P
             className="text-xs text-primary-700 hover:underline"
             onClick={() => setEditing(true)}
           >
-            Editar
+            {t('edit')}
           </button>
         )}
       </div>
@@ -85,7 +87,7 @@ export function CustomFieldsCard({ entityType, apiBase, definitions, values }: P
               onClick={save}
               disabled={busy}
             >
-              {busy ? 'Guardando…' : 'Guardar'}
+              {busy ? t('saving') : t('save')}
             </button>
           </>
         ) : (

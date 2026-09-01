@@ -1,37 +1,39 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { PERMISSION_MODULES, type PermissionModule } from '@converflow/shared';
 
 /**
- * Human-readable labels for each permission module. Kept close to the
- * editor itself so the wording stays consistent across invite/edit/help.
+ * Dictionary keys (namespace `uiBits`) for each permission module. Kept close
+ * to the editor itself so the wording stays consistent across invite/edit/help.
+ * Constantes de módulo: guardan claves y se traducen en render (sin hooks aquí).
  */
-export const PERMISSION_LABELS: Record<PermissionModule, string> = {
-  crm: 'CRM',
-  conversations: 'Conversaciones',
-  documents: 'Documentos',
-  agents: 'Agentes',
-  bots: 'Bots',
-  bulkAi: 'Score IA en masa',
-  import: 'Importar leads (CSV)',
-  settings: 'Configuración',
-  users: 'Gestionar usuarios',
-  campaigns: 'Campañas',
-  mail: 'Correo / Buzones',
+export const PERMISSION_LABEL_KEYS: Record<PermissionModule, string> = {
+  crm: 'permCrm',
+  conversations: 'permConversations',
+  documents: 'permDocuments',
+  agents: 'permAgents',
+  bots: 'permBots',
+  bulkAi: 'permBulkAi',
+  import: 'permImport',
+  settings: 'permSettings',
+  users: 'permUsers',
+  campaigns: 'permCampaigns',
+  mail: 'permMail',
 };
 
-export const PERMISSION_DESCRIPTIONS: Record<PermissionModule, string> = {
-  crm: 'Ver y editar leads, clientes, oportunidades y tareas.',
-  conversations: 'Ver la bandeja, responder, asignar conversaciones.',
-  documents: 'Subir, listar y compartir documentos.',
-  agents: 'Crear, editar y publicar agentes de IA.',
-  bots: 'Crear bots y conectar canales (WhatsApp, Email, WebChat).',
-  bulkAi: 'Lanzar puntuaciones con IA sobre lotes de leads.',
-  import: 'Importar leads desde un CSV.',
-  settings: 'Campos personalizados, tableros (pipelines).',
-  users: 'Invitar, editar y eliminar otros usuarios del tenant.',
-  campaigns: 'Crear y enviar campañas masivas (email/WhatsApp).',
-  mail: 'Conectar y configurar buzones de correo (módulo Correo).',
+export const PERMISSION_DESCRIPTION_KEYS: Record<PermissionModule, string> = {
+  crm: 'permCrmDesc',
+  conversations: 'permConversationsDesc',
+  documents: 'permDocumentsDesc',
+  agents: 'permAgentsDesc',
+  bots: 'permBotsDesc',
+  bulkAi: 'permBulkAiDesc',
+  import: 'permImportDesc',
+  settings: 'permSettingsDesc',
+  users: 'permUsersDesc',
+  campaigns: 'permCampaignsDesc',
+  mail: 'permMailDesc',
 };
 
 /**
@@ -58,6 +60,7 @@ export function PermissionsEditor({
   disabled?: boolean;
   roleDefaults?: ReadonlyArray<PermissionModule>;
 }) {
+  const t = useTranslations('uiBits');
   const set = new Set(value);
   const defaults = new Set(roleDefaults ?? []);
 
@@ -95,15 +98,15 @@ export function PermissionsEditor({
               />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5 font-medium text-ink-900">
-                  {PERMISSION_LABELS[m]}
+                  {t(PERMISSION_LABEL_KEYS[m])}
                   {isDefault && (
                     <span className="rounded bg-ink-100 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-ink-500">
-                      por rol
+                      {t('byRole')}
                     </span>
                   )}
                 </span>
                 <span className="mt-0.5 block text-xs text-ink-500">
-                  {PERMISSION_DESCRIPTIONS[m]}
+                  {t(PERMISSION_DESCRIPTION_KEYS[m])}
                 </span>
               </span>
             </label>

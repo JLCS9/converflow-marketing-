@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   ROLE_DEFAULTS,
   type PermissionModule,
@@ -12,7 +13,7 @@ import { useFeedback } from '@/components/ui/feedback';
 import { Field, Select, buttonClass } from '@/components/ui/primitives';
 import {
   PermissionsEditor,
-  PERMISSION_LABELS,
+  PERMISSION_LABEL_KEYS,
 } from '@/components/permissions-editor';
 
 interface UserSnapshot {
@@ -31,6 +32,7 @@ interface UserSnapshot {
  * checklist when role === 'OWNER'.
  */
 export function UserActions({ user }: { user: UserSnapshot }) {
+  const t = useTranslations('users');
   const router = useRouter();
   const { confirm, toast } = useFeedback();
   const [pending, startTransition] = useTransition();
@@ -44,31 +46,31 @@ export function UserActions({ user }: { user: UserSnapshot }) {
         className="text-xs text-primary-700 hover:text-primary-800"
         disabled={pending}
       >
-        Editar
+        {t('edit')}
       </button>
       <button
         type="button"
         onClick={async () => {
           const ok = await confirm({
-            title: `Eliminar usuario ${user.email}`,
-            description: 'Pierde acceso inmediatamente. No se puede deshacer.',
+            title: t('deleteTitle', { email: user.email }),
+            description: t('deleteDescription'),
             danger: true,
           });
           if (!ok) return;
           startTransition(async () => {
             try {
               await apiFetch(`/users/${user.id}`, { method: 'DELETE' });
-              toast.success('Usuario eliminado');
+              toast.success(t('deleted'));
               router.refresh();
             } catch (err) {
-              toast.error(err instanceof ApiError ? err.message : 'No se pudo eliminar');
+              toast.error(err instanceof ApiError ? err.message : t('deleteError'));
             }
           });
         }}
         className="text-xs text-red-600 hover:text-red-800 disabled:opacity-60"
         disabled={pending}
       >
-        {pending ? 'Eliminando…' : 'Eliminar'}
+        {pending ? t('deleting') : t('delete')}
       </button>
       {open && (
         <EditUserModal
@@ -93,6 +95,8 @@ function EditUserModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useTranslations('users');
+  const tUi = useTranslations('uiBits');
   const { toast } = useFeedback();
   const [pending, startTransition] = useTransition();
   const [role, setRole] = useState<UserRole>(user.role);
@@ -125,10 +129,10 @@ function EditUserModal({
               role === 'OWNER' ? null : usingDefaults ? null : perms,
           },
         });
-        toast.success('Usuario actualizado');
+        toast.success(t('updated'));
         onSaved();
       } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'No se pudo guardar');
+        toast.error(err instanceof ApiError ? err.message : t('saveError'));
       }
     });
   }
@@ -139,7 +143,7 @@ function EditUserModal({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold tracking-tight">
-              Editar usuario
+              {t('editTitle')}
             </h2>
             <p className="mt-1 text-sm text-ink-500">
               {user.name} · {user.email}
@@ -147,7 +151,7 @@ function EditUserModal({
           </div>
           <button
             type="button"
-            aria-label="Cerrar"
+            aria-label={t('close')}
             onClick={onClose}
             className="text-ink-500 hover:text-ink-900"
           >
@@ -156,22 +160,22 @@ function EditUserModal({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Rol">
+          <Field label={t('roleLabel')}>
             <Select
               value={role}
               onChange={(e) => changeRole(e.target.value as UserRole)}
             >
-              <option value="AGENT_USER">Agente</option>
-              <option value="BUILDER">Constructor</option>
-              <option value="ADMIN">Administrador</option>
-              <option value="OWNER">Propietario</option>
+              <option value="AGENT_USER">{t('roleAgent')}</option>
+              <option value="BUILDER">{t('roleBuilder')}</option>
+              <option value="ADMIN">{t('roleAdmin')}</option>
+              <option value="OWNER">{t('roleOwner')}</option>
             </Select>
           </Field>
-          <Field label="Estado">
+          <Field label={t('statusLabel')}>
             <Select value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="ACTIVE">Activo</option>
-              <option value="PENDING">Pendiente</option>
-              <option value="SUSPENDED">Suspendido</option>
+              <option value="ACTIVE">{t('statusActive')}</option>
+              <option value="PENDING">{t('statusPending')}</option>
+              <option value="SUSPENDED">{t('statusSuspended')}</option>
             </Select>
           </Field>
         </div>
@@ -180,14 +184,14 @@ function EditUserModal({
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-xs font-mono uppercase tracking-wider text-ink-500">
-                Permisos
+                {t('permissions')}
               </div>
               <p className="mt-1 text-xs text-ink-600">
                 {role === 'OWNER'
-                  ? 'Los propietarios siempre tienen acceso completo.'
+                  ? t('ownerAlwaysFull')
                   : usingDefaults
-                    ? `Usando los valores por defecto del rol ${role}. Activa la personalización para ajustar módulos concretos.`
-                    : 'Permisos personalizados — solo los módulos marcados estarán disponibles.'}
+                    ? t('usingRoleDefaults', { role })
+                    : t('customPerms')}
               </p>
             </div>
             {role !== 'OWNER' && (
@@ -198,14 +202,16 @@ function EditUserModal({
                   onChange={(e) => toggleOverride(e.target.checked)}
                   className="rounded border-ink-300 text-primary-600 focus:ring-primary-500"
                 />
-                Personalizar
+                {t('customize')}
               </label>
             )}
           </div>
 
           {role === 'OWNER' ? (
             <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              Acceso completo a todos los módulos: {Object.values(PERMISSION_LABELS).join(' · ')}.
+              {t('fullAccessAll', {
+                list: Object.values(PERMISSION_LABEL_KEYS).map((k) => tUi(k)).join(' · '),
+              })}
             </div>
           ) : (
             <PermissionsEditor
@@ -224,7 +230,7 @@ function EditUserModal({
             disabled={pending}
             className={buttonClass('secondary')}
           >
-            Cancelar
+            {t('cancel')}
           </button>
           <button
             type="button"
@@ -232,7 +238,7 @@ function EditUserModal({
             disabled={pending}
             className={buttonClass('primary')}
           >
-            {pending ? 'Guardando…' : 'Guardar cambios'}
+            {pending ? t('saving') : t('saveChanges')}
           </button>
         </div>
       </div>

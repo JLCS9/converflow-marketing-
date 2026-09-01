@@ -6,7 +6,10 @@ import { TabBar, CRM_TABS } from '@/components/ui/tab-bar';
 import { OpportunitiesBoard } from './opportunities-board';
 import type { OppCard, Pipeline } from './types';
 
-export const metadata = { title: 'Oportunidades' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('titles.opportunities') };
+}
 export const dynamic = 'force-dynamic';
 
 export default async function OpportunitiesPage({

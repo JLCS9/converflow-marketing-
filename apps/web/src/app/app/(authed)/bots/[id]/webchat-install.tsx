@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, buttonClass } from '@/components/ui/primitives';
 import { CopyButton } from '@/components/ui/copy-button';
 
@@ -19,6 +20,7 @@ interface Props {
  *     part of the page (e.g., a "Contact" section).
  */
 export function WebchatInstall({ botId, appUrl }: Props) {
+  const t = useTranslations('bots');
   const [tab, setTab] = useState<'bubble' | 'inline'>('bubble');
 
   const widgetUrl = `${appUrl}/widget/${botId}`;
@@ -61,13 +63,12 @@ export function WebchatInstall({ botId, appUrl }: Props) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
-            Instalar Web Chat
+            {t('installTitle')}
           </h2>
           <p className="mt-1 text-xs text-ink-500">
-            Pega el snippet en el HTML de tu web. El visitante verá un formulario para dejar
-            nombre y email antes de empezar — las conversaciones aparecen automáticamente en{' '}
+            {t('installIntro')}{' '}
             <a href="/app/conversations" className="text-primary-700 hover:underline">
-              Conversaciones
+              {t('conversationsLink')}
             </a>
             .
           </p>
@@ -78,7 +79,7 @@ export function WebchatInstall({ botId, appUrl }: Props) {
           rel="noreferrer"
           className={buttonClass('secondary', 'text-xs')}
         >
-          Probar widget
+          {t('tryWidget')}
         </a>
       </div>
 
@@ -90,7 +91,7 @@ export function WebchatInstall({ botId, appUrl }: Props) {
             tab === 'bubble' ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-900'
           }`}
         >
-          🟢 Burbuja flotante (recomendado)
+          {t('tabBubble')}
         </button>
         <button
           type="button"
@@ -99,20 +100,18 @@ export function WebchatInstall({ botId, appUrl }: Props) {
             tab === 'inline' ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-900'
           }`}
         >
-          📐 iframe inline
+          {t('tabInline')}
         </button>
       </div>
 
       {tab === 'bubble' ? (
         <p className="mt-3 text-xs text-ink-500">
-          Pégalo justo antes de <code className="rounded bg-ink-100 px-1">&lt;/body&gt;</code> en
-          cada página donde quieras el chat (o en tu plantilla principal). Aparecerá un botón en
-          la esquina inferior derecha que abre/cierra el chat.
+          {t('bubbleHelp1')} <code className="rounded bg-ink-100 px-1">&lt;/body&gt;</code>{' '}
+          {t('bubbleHelp2')}
         </p>
       ) : (
         <p className="mt-3 text-xs text-ink-500">
-          Pégalo donde quieras el chat anclado (por ejemplo en una sección de "Contacto"). El
-          tamaño es ajustable cambiando los estilos <code>width</code> y <code>height</code>.
+          {t('inlineHelp1')} <code>width</code> {t('and')} <code>height</code>.
         </p>
       )}
 
@@ -121,33 +120,30 @@ export function WebchatInstall({ botId, appUrl }: Props) {
           <code>{current}</code>
         </pre>
         <div className="absolute right-2 top-2">
-          <CopyButton value={current} label="Copiar snippet" />
+          <CopyButton value={current} label={t('copySnippet')} />
         </div>
       </div>
 
       <details className="mt-3 text-xs text-ink-500">
-        <summary className="cursor-pointer">Detalles técnicos</summary>
+        <summary className="cursor-pointer">{t('techDetails')}</summary>
         <ul className="mt-2 list-inside list-disc space-y-1">
           <li>
-            URL del widget:{' '}
+            {t('widgetUrlLabel')}{' '}
             <code className="font-mono text-[11px]">{widgetUrl}</code>
           </li>
           <li>
-            Asegúrate de tener un <strong>agente IA asignado</strong> a este bot abajo para que
-            responda automáticamente.
+            {t('ensureAgent1')} <strong>{t('ensureAgentStrong')}</strong> {t('ensureAgent2')}
           </li>
           <li>
-            Las conversaciones quedan vinculadas a un Lead (con nombre y email) — visibles en{' '}
-            <a href="/app/leads" className="text-primary-700 hover:underline">Leads</a> y{' '}
+            {t('linkedToLead')}{' '}
+            <a href="/app/leads" className="text-primary-700 hover:underline">{t('leadsLink')}</a>{' '}
+            {t('and')}{' '}
             <a href="/app/conversations" className="text-primary-700 hover:underline">
-              Conversaciones
+              {t('conversationsLink')}
             </a>
             .
           </li>
-          <li>
-            El visitante guarda su sesión en localStorage del navegador: si vuelve, no le pedimos
-            otra vez el nombre y email.
-          </li>
+          <li>{t('localStorageNote')}</li>
         </ul>
       </details>
     </Card>

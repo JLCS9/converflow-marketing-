@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
@@ -18,20 +19,24 @@ interface AgentRow {
   updatedAt: string;
 }
 
-const TYPE_LABEL: Record<AgentRow['type'], string> = {
-  CONVERSATIONAL: 'Conversacional',
-  OPPORTUNITIES: 'Oportunidades',
-  UTILITY: 'Utilidad',
-};
+const TYPE_LABEL_KEY = {
+  CONVERSATIONAL: 'typeConversational',
+  OPPORTUNITIES: 'typeOpportunities',
+  UTILITY: 'typeUtility',
+} as const;
 const TYPE_COLOR: Record<AgentRow['type'], 'green' | 'blue' | 'yellow'> = {
   CONVERSATIONAL: 'green',
   OPPORTUNITIES: 'blue',
   UTILITY: 'yellow',
 };
 
-export const metadata = { title: 'Agentes IA' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('agents.title') };
+}
 
 export default async function AgentsPage() {
+  const t = await getTranslations('agents');
   const { AGENT_STATUS } = await getLabelMaps();
   const agents = await serverApiFetch<AgentRow[]>('/agents');
 
@@ -39,22 +44,22 @@ export default async function AgentsPage() {
     <div className="space-y-6">
       <TabBar items={IA_TABS} />
       <PageHeader
-        title="Agentes IA"
-        description="Crea asistentes con tu información, pruébalos y asígnalos a un bot."
+        title={t('title')}
+        description={t('description')}
         action={
           <Link href="/app/agents/new" className={buttonClass('primary')}>
-            + Nuevo agente
+            {t('newAgent')}
           </Link>
         }
       />
 
       {agents.length === 0 ? (
         <EmptyState
-          title="Aún no tienes agentes"
-          description="Un agente reúne tu prompt, herramientas y conocimiento para conversar con tus contactos. Empieza por uno y pruébalo con el probador."
+          title={t('emptyTitle')}
+          description={t('emptyBody')}
           cta={
             <Link href="/app/agents/new" className={buttonClass('primary', 'text-xs')}>
-              + Nuevo agente
+              {t('newAgent')}
             </Link>
           }
         />
@@ -63,10 +68,10 @@ export default async function AgentsPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
               <tr>
-                <th className="px-4 py-3">Nombre</th>
-                <th className="px-4 py-3">Tipo</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="hidden px-4 py-3 md:table-cell">Actualizado</th>
+                <th className="px-4 py-3">{t('thName')}</th>
+                <th className="px-4 py-3">{t('thType')}</th>
+                <th className="px-4 py-3">{t('thStatus')}</th>
+                <th className="hidden px-4 py-3 md:table-cell">{t('thUpdated')}</th>
               </tr>
             </thead>
             <tbody>
@@ -80,7 +85,7 @@ export default async function AgentsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <Badge color={TYPE_COLOR[a.type ?? 'CONVERSATIONAL']}>
-                      {TYPE_LABEL[a.type ?? 'CONVERSATIONAL']}
+                      {t(TYPE_LABEL_KEY[a.type ?? 'CONVERSATIONAL'])}
                     </Badge>
                   </td>
                   <td className="px-4 py-3">

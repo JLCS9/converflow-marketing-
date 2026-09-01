@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
@@ -15,18 +16,22 @@ interface ImportResult {
   errors: { row: number; reason: string }[];
 }
 
+// Traductor mínimo que se pasa a las funciones de módulo (no pueden usar hooks).
+type TFunc = (key: string, values?: Record<string, string | number>) => string;
+
 interface StandardTarget {
   key: string;
-  label: string;
+  /** Clave del diccionario (namespace importCsv). Las constantes de módulo no pueden usar hooks. */
+  labelKey: string;
   required?: boolean;
 }
 const STANDARD_TARGETS: StandardTarget[] = [
-  { key: 'name', label: 'Nombre', required: true },
-  { key: 'lastName', label: 'Apellido' },
-  { key: 'email', label: 'Email' },
-  { key: 'phone', label: 'Teléfono' },
-  { key: 'status', label: 'Estado' },
-  { key: 'source', label: 'Fuente' },
+  { key: 'name', labelKey: 'fieldName', required: true },
+  { key: 'lastName', labelKey: 'fieldLastName' },
+  { key: 'email', labelKey: 'fieldEmail' },
+  { key: 'phone', labelKey: 'fieldPhone' },
+  { key: 'status', labelKey: 'fieldStatus' },
+  { key: 'source', labelKey: 'fieldSource' },
 ];
 
 const IGNORE_KEY = '__ignore__';
@@ -111,6 +116,7 @@ function validateRow(
   row: Record<string, string>,
   targets: Targets,
   customFields: CustomFieldDefinition[],
+  t: TFunc,
 ): string | null {
   // Build resolved values per target.
   const resolved: Record<string, string> = {};
@@ -122,48 +128,48 @@ function validateRow(
     else resolved[target] = raw;
   }
 
-  if (!resolved.name) return 'Falta el nombre.';
+  if (!resolved.name) return t('errMissingName');
   if (!resolved.email && !resolved.phone) {
-    return 'Hace falta email o teléfono (al menos uno).';
+    return t('errNeedEmailOrPhone');
   }
   if (resolved.email && !emailLooksValid(resolved.email)) {
-    return `Email no válido: "${resolved.email}".`;
+    return t('errInvalidEmail', { value: resolved.email });
   }
   if (resolved.status && !normaliseStatus(resolved.status)) {
-    return `Estado no reconocido: "${resolved.status}". Acepta Lead, Cliente o Perdido.`;
+    return t('errUnknownStatus', { value: resolved.status });
   }
 
   for (const def of customFields) {
     const v = cf[def.key];
     if (!v) {
-      if (def.required) return `Falta "${def.label}" (obligatorio).`;
+      if (def.required) return t('errMissingRequired', { label: def.label });
       continue;
     }
     switch (def.type) {
       case 'NUMBER':
         if (!Number.isFinite(Number(v.replace(',', '.')))) {
-          return `"${def.label}" debería ser un número: "${v}".`;
+          return t('errNumber', { label: def.label, value: v });
         }
         break;
       case 'EMAIL':
-        if (!emailLooksValid(v)) return `"${def.label}" no es un email válido: "${v}".`;
+        if (!emailLooksValid(v)) return t('errEmailField', { label: def.label, value: v });
         break;
       case 'URL':
         try {
           new URL(v);
         } catch {
-          return `"${def.label}" no es una URL válida: "${v}".`;
+          return t('errUrl', { label: def.label, value: v });
         }
         break;
       case 'DATE':
         if (!parseFlexibleDate(v)) {
-          return `"${def.label}" no es una fecha válida: "${v}". Usa DD/MM/AAAA o AAAA-MM-DD.`;
+          return t('errDate', { label: def.label, value: v });
         }
         break;
       case 'SELECT': {
         const opts = def.options ?? [];
         if (!opts.some((o) => o.value === v || o.label === v)) {
-          return `"${def.label}": "${v}" no está entre las opciones.`;
+          return t('errNotInOptions', { label: def.label, value: v });
         }
         break;
       }
@@ -175,7 +181,7 @@ function validateRow(
           .filter(Boolean);
         for (const p of parts) {
           if (!opts.some((o) => o.value === p || o.label === p)) {
-            return `"${def.label}": "${p}" no está entre las opciones.`;
+            return t('errNotInOptions', { label: def.label, value: p });
           }
         }
         break;
@@ -183,11 +189,11 @@ function validateRow(
       case 'BOOLEAN': {
         const s = v.toLowerCase();
         const valid = ['true', '1', 'yes', 'si', 'sí', 'x', 'false', '0', 'no'];
-        if (!valid.includes(s)) return `"${def.label}" debería ser sí/no: "${v}".`;
+        if (!valid.includes(s)) return t('errBoolean', { label: def.label, value: v });
         break;
       }
       case 'DOCUMENT':
-        return `"${def.label}" es un campo Documento — no se puede importar por CSV.`;
+        return t('errDocument', { label: def.label });
     }
   }
   return null;
@@ -201,9 +207,7 @@ function buildPayload(
   const leads: Record<string, unknown>[] = [];
   const rowOf: number[] = []; // payload[i] -> original row index
   rows.forEach((r, idx) => {
-    if (r.serverError === null && !validateRow(r.values, targets, [])) {
-      // (already pre-filtered by caller)
-    }
+    // Las filas ya llegan pre-filtradas por el caller (solo filas válidas).
     const lead: Record<string, unknown> = {};
     const cf: Record<string, unknown> = {};
     for (const [header, target] of Object.entries(targets)) {
@@ -226,6 +230,7 @@ function buildPayload(
 }
 
 export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDefinition[] }) {
+  const t = useTranslations('importCsv');
   const router = useRouter();
   const { toast } = useFeedback();
   const [parsed, setParsed] = useState<ParsedCsv | null>(null);
@@ -240,10 +245,10 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
   // Per-row validation — recomputed whenever rows / targets change.
   const rowErrors = useMemo(() => {
     return rows.map((r) => {
-      const local = validateRow(r.values, targets, customFields);
+      const local = validateRow(r.values, targets, customFields, t);
       return local ?? r.serverError;
     });
-  }, [rows, targets, customFields]);
+  }, [rows, targets, customFields, t]);
 
   const validCount = rowErrors.filter((e) => e === null).length;
   const errorCount = rowErrors.length - validCount;
@@ -252,12 +257,12 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
     if (!parsed) return [] as string[];
     const mapped = new Set(Object.values(targets));
     const issues: string[] = [];
-    if (!mapped.has('name')) issues.push('Nombre');
+    if (!mapped.has('name')) issues.push(t('fieldName'));
     for (const cf of customFields) {
       if (cf.required && !mapped.has(`cf:${cf.key}`)) issues.push(cf.label);
     }
     return issues;
-  }, [parsed, targets, customFields]);
+  }, [parsed, targets, customFields, t]);
 
   function onFile(file: File) {
     file
@@ -265,7 +270,7 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
       .then((text) => {
         const p = parseCsv(text);
         if (p.headers.length === 0) {
-          setError('El CSV está vacío o no tiene cabeceras.');
+          setError(t('emptyCsv'));
           setParsed(null);
           return;
         }
@@ -277,7 +282,7 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
         setError(null);
         setResult(null);
       })
-      .catch(() => setError('No se pudo leer el archivo.'));
+      .catch(() => setError(t('readError')));
   }
 
   function setCell(rowIdx: number, header: string, value: string) {
@@ -304,7 +309,7 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
       .map((e, i) => (e === null ? i : -1))
       .filter((i) => i >= 0);
     if (validRowsIdx.length === 0) {
-      setError('No hay filas válidas para importar.');
+      setError(t('noValidRows'));
       return;
     }
     // Build payload from VALID rows only.
@@ -332,14 +337,14 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
         }
         setRows(annotated);
         setResult(res);
-        if (res.imported > 0) toast.success(`${res.imported} leads importados`);
+        if (res.imported > 0) toast.success(t('toastImported', { n: res.imported }));
         if (res.errors.length > 0) {
-          toast.error(`${res.errors.length} ${res.errors.length === 1 ? 'fila con error' : 'filas con errores'}`);
+          toast.error(t('toastRowErrors', { n: res.errors.length }));
           setShowOnlyErrors(true);
         }
         router.refresh();
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Error al importar');
+        setError(e instanceof ApiError ? e.message : t('importError'));
       }
     });
   }
@@ -359,8 +364,9 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
           />
           {parsed && (
             <p className="mt-2 text-xs text-ink-500">
-              {parsed.rows.length} {parsed.rows.length === 1 ? 'fila' : 'filas'} · separador{' '}
-              <code className="font-mono">{parsed.separator}</code> · {parsed.headers.length} columnas.
+              {t('fileSummaryRows', { n: parsed.rows.length })}{' '}
+              <code className="font-mono">{parsed.separator}</code>{' '}
+              {t('fileSummaryColumns', { n: parsed.headers.length })}
             </p>
           )}
         </div>
@@ -370,34 +376,33 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
         <Card>
           <section className="space-y-3">
             <h3 className="text-sm font-mono uppercase tracking-wider text-ink-500">
-              1. Mapeo de columnas
+              {t('mappingTitle')}
             </h3>
             <p className="text-xs text-ink-500">
-              Cada columna del CSV se enlaza a un campo de Converflow. Lo que dejes en{' '}
-              <em>Ignorar</em> no se guarda.
+              {t.rich('mappingHelp', { em: (chunks) => <em>{chunks}</em> })}
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               {parsed.headers.map((h) => (
-                <Field key={h} label={h} help={`Ej.: "${parsed.rows[0]?.[h] ?? ''}"`}>
+                <Field key={h} label={h} help={t('exampleHelp', { value: parsed.rows[0]?.[h] ?? '' })}>
                   <Select
                     value={targets[h] ?? IGNORE_KEY}
                     onChange={(e) => setTarget(h, e.target.value)}
                   >
-                    <option value={IGNORE_KEY}>— Ignorar columna —</option>
-                    <optgroup label="Campos estándar">
-                      {STANDARD_TARGETS.map((t) => (
-                        <option key={t.key} value={t.key}>
-                          {t.label}
-                          {t.required ? ' (obligatorio)' : ''}
+                    <option value={IGNORE_KEY}>{t('ignoreColumn')}</option>
+                    <optgroup label={t('standardFields')}>
+                      {STANDARD_TARGETS.map((st) => (
+                        <option key={st.key} value={st.key}>
+                          {t(st.labelKey)}
+                          {st.required ? ` ${t('requiredSuffix')}` : ''}
                         </option>
                       ))}
                     </optgroup>
                     {customFields.length > 0 && (
-                      <optgroup label="Campos personalizados">
+                      <optgroup label={t('customFields')}>
                         {customFields.map((cf) => (
                           <option key={cf.id} value={`cf:${cf.key}`}>
                             {cf.label}
-                            {cf.required ? ' (obligatorio)' : ''} · {cf.type}
+                            {cf.required ? ` ${t('requiredSuffix')}` : ''} · {cf.type}
                           </option>
                         ))}
                       </optgroup>
@@ -408,7 +413,10 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
             </div>
             {missingMappingsRequired.length > 0 && (
               <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                Falta mapear: <strong>{missingMappingsRequired.join(', ')}</strong>.
+                {t.rich('missingMapping', {
+                  fields: missingMappingsRequired.join(', '),
+                  strong: (chunks) => <strong>{chunks}</strong>,
+                })}
               </div>
             )}
 
@@ -422,12 +430,10 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
                   className="mt-0.5 rounded border-ink-300 text-primary-600 focus:ring-primary-500"
                 />
                 <span className="text-ink-700">
-                  <strong>Asumir +34 para teléfonos españoles sin prefijo.</strong>
+                  <strong>{t('spainPrefixTitle')}</strong>
                   <br />
                   <span className="text-ink-500">
-                    Números de 9 dígitos que empiecen por 6, 7, 8 o 9 reciben el prefijo +34
-                    automáticamente. Los teléfonos que ya empiecen por <code>+</code> o por{' '}
-                    <code>00</code> se respetan tal cual.
+                    {t.rich('spainPrefixHelp', { code: (chunks) => <code>{chunks}</code> })}
                     {(() => {
                       // Live preview using the first non-empty phone cell we can find.
                       const phoneHeader = Object.entries(targets).find(
@@ -443,7 +449,7 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
                       return (
                         <>
                           {' '}
-                          Ejemplo: <code className="font-mono">{sample.trim()}</code> →{' '}
+                          {t('example')} <code className="font-mono">{sample.trim()}</code> →{' '}
                           <code className="font-mono text-primary-700">{norm}</code>
                         </>
                       );
@@ -461,15 +467,15 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
           <section className="space-y-3">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <h3 className="text-sm font-mono uppercase tracking-wider text-ink-500">
-                2. Filas — edita lo que haga falta
+                {t('rowsTitle')}
               </h3>
               <div className="flex items-center gap-3 text-xs">
                 <span className="rounded bg-green-100 px-2 py-0.5 font-medium text-green-800">
-                  {validCount} {validCount === 1 ? 'lista' : 'listas'}
+                  {t('readyCount', { n: validCount })}
                 </span>
                 {errorCount > 0 && (
                   <span className="rounded bg-red-100 px-2 py-0.5 font-medium text-red-800">
-                    {errorCount} con {errorCount === 1 ? 'error' : 'errores'}
+                    {t('errorCount', { n: errorCount })}
                   </span>
                 )}
                 {errorCount > 0 && (
@@ -480,35 +486,38 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
                       onChange={(e) => setShowOnlyErrors(e.target.checked)}
                       className="rounded border-ink-300 text-primary-600 focus:ring-primary-500"
                     />
-                    Mostrar solo errores
+                    {t('showOnlyErrors')}
                   </label>
                 )}
               </div>
             </div>
             <p className="text-xs text-ink-500">
-              Pincha cualquier celda para corregir el valor. La validación se actualiza al
-              instante; las filas válidas se importan, las que no se quedan aquí.
+              {t('rowsHelp')}
             </p>
             <div className="overflow-x-auto rounded-md border border-ink-100">
               <table className="w-full text-xs">
                 <thead className="bg-ink-100/50 text-ink-600">
                   <tr>
-                    <th className="px-2 py-2 text-left font-mono">Fila</th>
-                    <th className="px-2 py-2 text-left">Estado</th>
-                    {parsed.headers.map((h) => (
-                      <th key={h} className="px-2 py-2 text-left font-mono">
-                        <div>{h}</div>
-                        <div className="text-[10px] font-normal text-ink-500">
-                          {targets[h] === IGNORE_KEY
-                            ? '— ignorada —'
-                            : targets[h]?.startsWith('cf:')
-                            ? customFields.find((c) => c.key === targets[h]!.slice(3))?.label ??
-                              targets[h]
-                            : STANDARD_TARGETS.find((t) => t.key === targets[h])?.label ??
-                              targets[h]}
-                        </div>
-                      </th>
-                    ))}
+                    <th className="px-2 py-2 text-left font-mono">{t('thRow')}</th>
+                    <th className="px-2 py-2 text-left">{t('thStatus')}</th>
+                    {parsed.headers.map((h) => {
+                      const stdTarget = STANDARD_TARGETS.find((st) => st.key === targets[h]);
+                      return (
+                        <th key={h} className="px-2 py-2 text-left font-mono">
+                          <div>{h}</div>
+                          <div className="text-[10px] font-normal text-ink-500">
+                            {targets[h] === IGNORE_KEY
+                              ? t('ignoredColumn')
+                              : targets[h]?.startsWith('cf:')
+                              ? customFields.find((c) => c.key === targets[h]!.slice(3))?.label ??
+                                targets[h]
+                              : stdTarget
+                              ? t(stdTarget.labelKey)
+                              : targets[h]}
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -528,7 +537,7 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
                         <td className="px-2 py-1 align-top text-[11px]">
                           {err === null ? (
                             <span className="rounded bg-green-100 px-1.5 py-0.5 font-medium text-green-800">
-                              ✓ Lista
+                              {t('rowReady')}
                             </span>
                           ) : (
                             <div
@@ -560,7 +569,7 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
                   {rows.length === 0 && (
                     <tr>
                       <td colSpan={parsed.headers.length + 2} className="p-3 text-center text-ink-500">
-                        No hay filas para importar.
+                        {t('noRows')}
                       </td>
                     </tr>
                   )}
@@ -579,12 +588,11 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
 
       {result && (
         <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-          ✓ Importados: <strong>{result.imported}</strong>
+          ✓ {t.rich('resultImported', { n: result.imported, strong: (chunks) => <strong>{chunks}</strong> })}
           {result.errors.length > 0 && (
             <span className="text-amber-800">
               {' '}
-              · {result.errors.length} con errores (puedes corregirlas arriba y volver a
-              importar).
+              {t('resultErrors', { n: result.errors.length })}
             </span>
           )}
         </div>
@@ -597,7 +605,7 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
           className={buttonClass('secondary')}
           disabled={pending}
         >
-          {result && result.errors.length === 0 ? 'Volver a leads' : 'Cancelar'}
+          {result && result.errors.length === 0 ? t('backToLeads') : t('cancel')}
         </button>
         {parsed && (
           <button
@@ -611,23 +619,20 @@ export function ImportLeadsForm({ customFields }: { customFields: CustomFieldDef
             className={buttonClass('primary')}
             title={
               missingMappingsRequired.length > 0
-                ? `Falta mapear ${missingMappingsRequired.join(', ')}`
+                ? t('missingMappingTitle', { fields: missingMappingsRequired.join(', ') })
                 : validCount === 0
-                ? 'Corrige al menos una fila para importar'
+                ? t('fixOneRow')
                 : ''
             }
           >
-            {pending
-              ? 'Importando…'
-              : `Importar ${validCount} ${validCount === 1 ? 'fila' : 'filas'} listas`}
+            {pending ? t('importing') : t('importButton', { n: validCount })}
           </button>
         )}
       </div>
 
       {parsed && (
         <p className="text-[11px] text-ink-500">
-          Estado acepta: <strong>Lead</strong> · <strong>Cliente</strong> ·{' '}
-          <strong>Perdido</strong> (también alias en inglés: LEAD/NEW, CLIENT/WON, LOST).
+          {t.rich('statusHint', { strong: (chunks) => <strong>{chunks}</strong> })}
         </p>
       )}
     </div>

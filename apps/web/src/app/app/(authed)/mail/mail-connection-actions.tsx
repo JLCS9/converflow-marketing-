@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { useFeedback } from '@/components/ui/feedback';
@@ -14,6 +15,7 @@ interface RecentMsg {
 }
 
 export function MailConnectionActions({ id }: { id: string }) {
+  const t = useTranslations('mailboxes');
   const router = useRouter();
   const fb = useFeedback();
   const [busy, setBusy] = useState(false);
@@ -24,26 +26,26 @@ export function MailConnectionActions({ id }: { id: string }) {
     setRecent(null);
     try {
       const r = await apiFetch<{ ok: boolean; recent: RecentMsg[] }>(`/mail/connections/${id}/test-sync`, { method: 'POST' });
-      fb.toast.success(`Conexión OK · ${r.recent.length} mensajes recientes`);
+      fb.toast.success(t('syncOk', { count: r.recent.length }));
       setRecent(r.recent);
       router.refresh();
     } catch (err) {
-      fb.toast.error(err instanceof ApiError ? err.message : 'No se pudo conectar');
+      fb.toast.error(err instanceof ApiError ? err.message : t('syncError'));
     } finally {
       setBusy(false);
     }
   }
 
   async function testSend() {
-    const to = window.prompt('Enviar correo de prueba a:');
+    const to = window.prompt(t('testSendPrompt'));
     if (!to) return;
     setBusy(true);
     try {
       await apiFetch(`/mail/connections/${id}/test-send`, { method: 'POST', json: { to } });
-      fb.toast.success('Prueba enviada');
+      fb.toast.success(t('testSent'));
       router.refresh();
     } catch (err) {
-      fb.toast.error(err instanceof ApiError ? err.message : 'No se pudo enviar');
+      fb.toast.error(err instanceof ApiError ? err.message : t('sendError'));
     } finally {
       setBusy(false);
     }
@@ -51,19 +53,19 @@ export function MailConnectionActions({ id }: { id: string }) {
 
   async function del() {
     const ok = await fb.confirm({
-      title: 'Eliminar buzón',
-      description: 'Se desconectará esta cuenta de Converflow. Los correos ya recibidos se conservan.',
-      confirmLabel: 'Eliminar',
+      title: t('deleteTitle'),
+      description: t('deleteDescription'),
+      confirmLabel: t('delete'),
       danger: true,
     });
     if (!ok) return;
     setBusy(true);
     try {
       await apiFetch(`/mail/connections/${id}`, { method: 'DELETE' });
-      fb.toast.success('Buzón eliminado');
+      fb.toast.success(t('mailboxDeleted'));
       router.refresh();
     } catch {
-      fb.toast.error('No se pudo eliminar el buzón');
+      fb.toast.error(t('deleteError'));
     } finally {
       setBusy(false);
     }
@@ -72,15 +74,15 @@ export function MailConnectionActions({ id }: { id: string }) {
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-2">
-        <Link href={`/app/mail/${id}`} className="text-xs text-primary-700 hover:underline">Editar</Link>
-        <button type="button" onClick={() => void testSync()} disabled={busy} className={buttonClass('ghost', 'px-2 py-1 text-xs')}>Probar sync</button>
-        <button type="button" onClick={() => void testSend()} disabled={busy} className={buttonClass('ghost', 'px-2 py-1 text-xs')}>Probar envío</button>
-        <button type="button" onClick={() => void del()} disabled={busy} className={buttonClass('ghost', 'px-2 py-1 text-xs text-red-600')}>Eliminar</button>
+        <Link href={`/app/mail/${id}`} className="text-xs text-primary-700 hover:underline">{t('edit')}</Link>
+        <button type="button" onClick={() => void testSync()} disabled={busy} className={buttonClass('ghost', 'px-2 py-1 text-xs')}>{t('testSync')}</button>
+        <button type="button" onClick={() => void testSend()} disabled={busy} className={buttonClass('ghost', 'px-2 py-1 text-xs')}>{t('testSend')}</button>
+        <button type="button" onClick={() => void del()} disabled={busy} className={buttonClass('ghost', 'px-2 py-1 text-xs text-red-600')}>{t('delete')}</button>
       </div>
       {recent && recent.length > 0 && (
         <ul className="mt-1 max-w-xs space-y-0.5 text-left text-[11px] text-ink-500">
           {recent.map((m, i) => (
-            <li key={i} className="truncate">• {m.subject || '(sin asunto)'} — {m.from}</li>
+            <li key={i} className="truncate">• {m.subject || t('noSubject')} — {m.from}</li>
           ))}
         </ul>
       )}

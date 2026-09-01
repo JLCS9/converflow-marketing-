@@ -2,29 +2,24 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, Textarea, buttonClass } from '@/components/ui/primitives';
+import { useLabelMaps } from '@/lib/use-labels';
 import { AGENT_TOOLS, DEFAULT_AI_DISCLOSURE } from '@converflow/shared';
 
-const toolLabels: Record<string, string> = {
-  schedule_meeting: 'Agendar reuniones (Google Calendar)',
-  create_opportunity: 'Crear oportunidades',
-  update_opportunity: 'Actualizar oportunidades',
-  escalate_to_human: 'Escalar a una persona',
-  create_support_task: 'Crear tickets de soporte',
+const TOOL_LABEL_KEY: Record<string, string> = {
+  schedule_meeting: 'toolScheduleMeeting',
+  create_opportunity: 'toolCreateOpportunity',
+  update_opportunity: 'toolUpdateOpportunity',
+  escalate_to_human: 'toolEscalateToHuman',
+  create_support_task: 'toolCreateSupportTask',
 };
 
 // create_support_task is driven by the Soporte section toggle below, not the
 // generic tools checklist, to keep its routing config in one place.
-const CHECKLIST_TOOLS = AGENT_TOOLS.filter((t) => t !== 'create_support_task');
-
-const PRIORITY_LABELS: Record<string, string> = {
-  LOW: 'Baja',
-  MEDIUM: 'Media',
-  HIGH: 'Alta',
-  URGENT: 'Urgente',
-};
+const CHECKLIST_TOOLS = AGENT_TOOLS.filter((tool) => tool !== 'create_support_task');
 
 interface SupportRouteUI {
   topic: string;
@@ -73,24 +68,6 @@ export interface AgentData {
   config: AgentConfig | null;
 }
 
-// Generic skeleton for the system prompt when no template provides one.
-const DEFAULT_CONVERSATIONAL_PROMPT =
-  'Eres el asistente comercial de [Empresa]. Hablas en castellano, tono profesional pero cercano. Solo respondes con la información que aparece en "Información de empresa/producto" — si no lo sabes, lo dices y propones contactar con una persona.';
-
-const DEFAULT_OPPORTUNITIES_PROMPT = [
-  'Para cada lead, sigue estas reglas:',
-  '',
-  "- Si {field.<tu_campo_clave>} indica interés alto → statusDecision: CLIENT",
-  "- Si {field.<tu_campo_clave>} indica rechazo → statusDecision: LOST",
-  '- En cualquier otro caso → statusDecision: LEAD',
-  '',
-  'Crea oportunidad cuando:',
-  '- {lead.score} ≥ 70, o',
-  '- {field.<tu_otro_campo>} sea ...',
-  '',
-  'Nombre de la oportunidad: "{lead.name} · <descripción>"',
-].join('\n');
-
 export function AgentForm({
   agent,
   initialType,
@@ -106,6 +83,8 @@ export function AgentForm({
    *  + the "Plantilla X" banner come from here in Commit C. */
   template?: { id: string; label: string; defaults?: { name?: string; systemPrompt?: string; tools?: string[] } };
 }) {
+  const t = useTranslations('agents');
+  const { PRIORITY, AGENT_STATUS } = useLabelMaps();
   const router = useRouter();
   const cfg = agent?.config ?? {};
   const [type, setType] = useState<AgentType>(agent?.type ?? initialType ?? 'CONVERSATIONAL');
@@ -144,8 +123,8 @@ export function AgentForm({
     };
   }, []);
 
-  function toggleTool(t: string) {
-    setTools((v) => (v.includes(t) ? v.filter((x) => x !== t) : [...v, t]));
+  function toggleTool(tool: string) {
+    setTools((v) => (v.includes(tool) ? v.filter((x) => x !== tool) : [...v, tool]));
   }
 
   function addRoute() {
@@ -187,7 +166,7 @@ export function AgentForm({
   // generic skeleton per engine.
   const systemPromptSkeleton =
     template?.defaults?.systemPrompt ??
-    (isOpportunities ? DEFAULT_OPPORTUNITIES_PROMPT : DEFAULT_CONVERSATIONAL_PROMPT);
+    (isOpportunities ? t('defaultOpportunitiesPrompt') : t('defaultConversationalPrompt'));
   const nameSkeleton = template?.defaults?.name ?? '';
 
   return (
@@ -239,7 +218,7 @@ export function AgentForm({
                 router.push(`/app/agents/${created.id}`);
               }
             } catch (err) {
-              setError(err instanceof ApiError ? err.message : 'Error inesperado');
+              setError(err instanceof ApiError ? err.message : t('unexpectedError'));
             }
           });
         }}
@@ -250,18 +229,16 @@ export function AgentForm({
           <div className="flex items-start justify-between gap-3 rounded-md border border-primary-100 bg-primary-50/40 p-3 text-sm">
             <div>
               <div className="text-ink-900">
-                Plantilla <strong>{template.label}</strong> —{' '}
-                {isOpportunities
-                  ? 'agente de oportunidades preconfigurado.'
-                  : 'asistente conversacional preconfigurado.'}{' '}
-                <span className="text-ink-500">Puedes cambiar todo.</span>
+                {t('templateWord')} <strong>{template.label}</strong> —{' '}
+                {isOpportunities ? t('tplOppsPreconfigured') : t('tplConvPreconfigured')}{' '}
+                <span className="text-ink-500">{t('canChangeAll')}</span>
               </div>
             </div>
             <Link
               href="/app/agents/new"
               className="shrink-0 text-xs text-primary-700 hover:underline"
             >
-              Cambiar tipo →
+              {t('changeTypeArrow')}
             </Link>
           </div>
         )}
@@ -271,23 +248,19 @@ export function AgentForm({
             the user can re-classify an existing agent — but we only let them
             choose from the runtime-available purposes. */}
         {!lockType && (
-          <Field
-            label="Tipo de agente"
-            required
-            help="Solo se muestran los tipos que el runtime ya puede ejecutar. El resto del embudo está en construcción."
-          >
+          <Field label={t('typeLabel')} required help={t('typeHelp')}>
             <Select value={type} onChange={(e) => setType(e.target.value as AgentType)}>
-              <option value="CONVERSATIONAL">💬 Conversacional</option>
-              <option value="OPPORTUNITIES">🎯 Oportunidades</option>
+              <option value="CONVERSATIONAL">{t('optConversational')}</option>
+              <option value="OPPORTUNITIES">{t('optOpportunities')}</option>
               <option value="UTILITY" disabled>
-                ⚙️ Utilidad · próximamente
+                {t('optUtility')}
               </option>
             </Select>
           </Field>
         )}
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Nombre" required>
+          <Field label={t('nameLabel')} required>
             <Input
               name="name"
               defaultValue={agent?.name ?? nameSkeleton}
@@ -295,37 +268,37 @@ export function AgentForm({
               maxLength={80}
             />
           </Field>
-          <Field label="Descripción">
+          <Field label={t('descriptionLabel')}>
             <Input name="description" defaultValue={agent?.description ?? ''} maxLength={500} />
           </Field>
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Calidad de respuesta">
+          <Field label={t('qualityLabel')}>
             <Select name="model" defaultValue={agent?.model ?? 'claude-sonnet-4-6'}>
-              <option value="claude-sonnet-4-6">Estándar (más capaz)</option>
-              <option value="claude-haiku-4-5-20251001">Rápida</option>
+              <option value="claude-sonnet-4-6">{t('qualityStandard')}</option>
+              <option value="claude-haiku-4-5-20251001">{t('qualityFast')}</option>
             </Select>
           </Field>
-          <Field label="Estado">
+          <Field label={t('statusLabel')}>
             <Select name="status" defaultValue={agent?.status ?? 'DRAFT'}>
-              <option value="DRAFT">Borrador</option>
-              <option value="PUBLISHED">Publicado</option>
-              <option value="ARCHIVED">Archivado</option>
+              <option value="DRAFT">{AGENT_STATUS.DRAFT}</option>
+              <option value="PUBLISHED">{AGENT_STATUS.PUBLISHED}</option>
+              <option value="ARCHIVED">{AGENT_STATUS.ARCHIVED}</option>
             </Select>
           </Field>
         </div>
 
         {isConversational && (
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Idioma">
-              <Input name="language" defaultValue={cfg.language ?? 'español'} maxLength={20} />
+            <Field label={t('languageLabel')}>
+              <Input name="language" defaultValue={cfg.language ?? t('languageDefault')} maxLength={20} />
             </Field>
-            <Field label="Tono">
+            <Field label={t('toneLabel')}>
               <Input
                 name="tone"
                 defaultValue={cfg.tone ?? ''}
-                placeholder="profesional y cercano"
+                placeholder={t('tonePlaceholder')}
                 maxLength={160}
               />
             </Field>
@@ -333,17 +306,9 @@ export function AgentForm({
         )}
 
         <Field
-          label={
-            isOpportunities
-              ? 'Reglas del funnel (system prompt)'
-              : 'Instrucciones del agente (system prompt)'
-          }
+          label={isOpportunities ? t('funnelRulesLabel') : t('instructionsLabel')}
           required
-          help={
-            isOpportunities
-              ? 'Describe cómo categorizar tus leads y cuándo crear oportunidades. Puedes referenciar datos del lead con {lead.name}, {lead.email}, {field.<tu_campo>} (próximamente, también campos personalizados).'
-              : 'Quién es el agente y cómo debe comportarse. Puedes referenciar datos del lead con {lead.name}, {lead.email}, etc.'
-          }
+          help={isOpportunities ? t('promptHelpOpportunities') : t('promptHelpConversational')}
         >
           <Textarea
             name="systemPrompt"
@@ -356,44 +321,40 @@ export function AgentForm({
 
         {isConversational && (
           <>
-            <Field
-              label="Información de empresa / producto"
-              help="El agente responde SOLO con esto (no inventa). Pega aquí lo que pueda contar."
-            >
+            <Field label={t('businessInfoLabel')} help={t('businessInfoHelp')}>
               <Textarea name="businessInfo" rows={5} defaultValue={cfg.businessInfo ?? ''} />
             </Field>
 
-            <Field label="FAQs">
+            <Field label={t('faqsLabel')}>
               <Textarea
                 name="faqs"
                 rows={4}
                 defaultValue={cfg.faqs ?? ''}
-                placeholder={'P: ¿Horario?\nR: L-V 9-18'}
+                placeholder={t('faqsPlaceholder')}
               />
             </Field>
 
             <div>
-              <div className="text-sm font-medium text-ink-900">Herramientas que puede usar</div>
+              <div className="text-sm font-medium text-ink-900">{t('toolsTitle')}</div>
               <p className="mb-2 text-xs text-ink-500">
-                Marca las que el agente puede invocar. Las marcadas como{' '}
-                <em>núcleo de esta plantilla</em> vienen pre-activadas — puedes
-                desmarcarlas si no las necesitas.
+                {t('toolsHelp1')} <em>{t('coreOfTemplate')}</em> {t('toolsHelp2')}
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
-                {CHECKLIST_TOOLS.map((t) => {
-                  const isCore = templateCoreTools.has(t);
+                {CHECKLIST_TOOLS.map((tool) => {
+                  const isCore = templateCoreTools.has(tool);
+                  const labelKey = TOOL_LABEL_KEY[tool];
                   return (
-                    <label key={t} className="flex items-center gap-2 text-sm">
+                    <label key={tool} className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
-                        checked={tools.includes(t)}
-                        onChange={() => toggleTool(t)}
+                        checked={tools.includes(tool)}
+                        onChange={() => toggleTool(tool)}
                       />
                       <span>
-                        {toolLabels[t] ?? t}
+                        {labelKey ? t(labelKey) : tool}
                         {isCore && (
                           <span className="ml-1 text-[10px] uppercase tracking-wider text-primary-700">
-                            · núcleo de esta plantilla
+                            · {t('coreOfTemplate')}
                           </span>
                         )}
                       </span>
@@ -403,10 +364,7 @@ export function AgentForm({
               </div>
             </div>
 
-            <Field
-              label="Aviso de IA (obligatorio)"
-              help="Se envía al cliente en el primer contacto. Obligatorio por normativa (AI Act)."
-            >
+            <Field label={t('aiDisclosureLabel')} help={t('aiDisclosureHelp')}>
               <Textarea
                 name="aiDisclosure"
                 rows={2}
@@ -424,36 +382,31 @@ export function AgentForm({
                   className="mt-0.5 rounded border-ink-300 text-primary-600 focus:ring-primary-500"
                 />
                 <span className="text-sm">
-                  <strong>Soporte / tickets</strong> — cuando el agente detecte una incidencia (o
-                  escale a una persona), crea una tarea de soporte, la asigna al responsable y le
-                  avisa por email.
+                  <strong>{t('supportTitle')}</strong> {t('supportDesc')}
                 </span>
               </label>
 
               {supportEnabled && (
                 <div className="space-y-4 border-t border-ink-100 pt-3">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Prioridad por defecto">
+                    <Field label={t('defaultPriorityLabel')}>
                       <Select
                         value={supportPriority}
                         onChange={(e) => setSupportPriority(e.target.value)}
                       >
-                        {Object.entries(PRIORITY_LABELS).map(([v, l]) => (
+                        {Object.entries(PRIORITY).map(([v, l]) => (
                           <option key={v} value={v}>
                             {l}
                           </option>
                         ))}
                       </Select>
                     </Field>
-                    <Field
-                      label="Responsable por defecto"
-                      help="Recibe los tickets que no encajan en ninguna regla de tema."
-                    >
+                    <Field label={t('defaultOwnerLabel')} help={t('fallbackOwnerHelp')}>
                       <Select
                         value={fallbackOwnerId}
                         onChange={(e) => setFallbackOwnerId(e.target.value)}
                       >
-                        <option value="">— Sin asignar —</option>
+                        <option value="">{t('unassignedOption')}</option>
                         {users.map((u) => (
                           <option key={u.id} value={u.id}>
                             {u.name} ({u.email})
@@ -464,11 +417,8 @@ export function AgentForm({
                   </div>
 
                   <div>
-                    <div className="text-sm font-medium text-ink-900">Enrutado por tema</div>
-                    <p className="mb-2 text-xs text-ink-500">
-                      Cada regla asigna los tickets de un tema a una persona. Coincide por el tema
-                      que clasifica la IA o por palabras clave en el mensaje.
-                    </p>
+                    <div className="text-sm font-medium text-ink-900">{t('routingTitle')}</div>
+                    <p className="mb-2 text-xs text-ink-500">{t('routingHelp')}</p>
                     <div className="space-y-2">
                       {routes.map((r, i) => (
                         <div
@@ -476,13 +426,13 @@ export function AgentForm({
                           className="grid items-start gap-2 rounded-md border border-ink-100 bg-white p-2 sm:grid-cols-[1fr_1.2fr_1.4fr_auto]"
                         >
                           <Input
-                            placeholder="Tema (p. ej. Facturación)"
+                            placeholder={t('topicPlaceholder')}
                             value={r.topic}
                             maxLength={60}
                             onChange={(e) => updateRoute(i, { topic: e.target.value })}
                           />
                           <Input
-                            placeholder="Palabras clave (coma)"
+                            placeholder={t('keywordsPlaceholder')}
                             value={r.keywords}
                             onChange={(e) => updateRoute(i, { keywords: e.target.value })}
                           />
@@ -490,7 +440,7 @@ export function AgentForm({
                             value={r.ownerId}
                             onChange={(e) => updateRoute(i, { ownerId: e.target.value })}
                           >
-                            <option value="">— Responsable —</option>
+                            <option value="">{t('ownerOption')}</option>
                             {users.map((u) => (
                               <option key={u.id} value={u.id}>
                                 {u.name}
@@ -501,7 +451,7 @@ export function AgentForm({
                             type="button"
                             onClick={() => removeRoute(i)}
                             className={buttonClass('ghost', 'px-2')}
-                            aria-label="Eliminar regla"
+                            aria-label={t('removeRule')}
                           >
                             ✕
                           </button>
@@ -513,15 +463,15 @@ export function AgentForm({
                       onClick={addRoute}
                       className={buttonClass('secondary', 'mt-2')}
                     >
-                      + Añadir regla
+                      {t('addRule')}
                     </button>
                   </div>
 
                   {users.length === 0 && (
                     <p className="text-xs text-amber-700">
-                      No hay usuarios para asignar todavía. Invita a tu equipo en{' '}
+                      {t('noUsersYet')}{' '}
                       <Link href="/app/users" className="underline">
-                        Usuarios
+                        {t('usersLink')}
                       </Link>
                       .
                     </p>
@@ -535,7 +485,7 @@ export function AgentForm({
         {isOpportunities && (
           <div className="rounded-md border border-ink-100 bg-ink-100/40 p-3 space-y-2 text-sm">
             <div className="text-xs font-mono uppercase tracking-wider text-ink-500">
-              Defaults para el batch
+              {t('batchDefaultsTitle')}
             </div>
             <label className="flex items-start gap-2">
               <input
@@ -545,7 +495,7 @@ export function AgentForm({
                 className="mt-0.5 rounded border-ink-300 text-primary-600 focus:ring-primary-500"
               />
               <span>
-                <strong>Actualizar estado</strong> (Lead/Cliente/Perdido) según la decisión del agente.
+                <strong>{t('updateStatusStrong')}</strong> {t('updateStatusDesc')}
               </span>
             </label>
             <label className="flex items-start gap-2">
@@ -558,13 +508,10 @@ export function AgentForm({
                 className="mt-0.5 rounded border-ink-300 text-primary-600 focus:ring-primary-500"
               />
               <span>
-                <strong>Crear oportunidad</strong> cuando el agente identifique interés claro.
+                <strong>{t('createOppStrong')}</strong> {t('createOppDesc')}
               </span>
             </label>
-            <p className="text-xs text-ink-500">
-              Estos defaults solo se aplican cuando lanzas el batch desde la lista de Leads y el
-              usuario no los desmarca.
-            </p>
+            <p className="text-xs text-ink-500">{t('batchDefaultsNote')}</p>
           </div>
         )}
 
@@ -576,10 +523,10 @@ export function AgentForm({
 
         <div className="flex justify-end gap-2">
           <button type="button" onClick={() => router.push('/app/agents')} className={buttonClass('secondary')} disabled={pending}>
-            Cancelar
+            {t('cancel')}
           </button>
           <button type="submit" className={buttonClass('primary')} disabled={pending}>
-            {pending ? 'Guardando…' : agent ? 'Guardar cambios' : 'Crear agente'}
+            {pending ? t('saving') : agent ? t('saveChanges') : t('createAgent')}
           </button>
         </div>
       </form>

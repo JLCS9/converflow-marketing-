@@ -3,15 +3,17 @@
 import Link from 'next/link';
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { apiFetch } from '@/lib/api-client';
 import { buttonClass } from '@/components/ui/primitives';
 
 export function TemplateActions({ id }: { id: string }) {
+  const t = useTranslations('templates');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   function del() {
-    if (!window.confirm('¿Eliminar esta plantilla?')) return;
+    if (!window.confirm(t('confirmDelete'))) return;
     startTransition(async () => {
       try {
         await apiFetch(`/email-templates/${id}`, { method: 'DELETE' });
@@ -25,7 +27,7 @@ export function TemplateActions({ id }: { id: string }) {
   return (
     <span className="inline-flex items-center gap-3">
       <Link href={`/app/templates/${id}`} className="text-xs text-primary-700 hover:underline">
-        Editar
+        {t('edit')}
       </Link>
       <button
         type="button"
@@ -33,7 +35,7 @@ export function TemplateActions({ id }: { id: string }) {
         disabled={pending}
         className={buttonClass('ghost', 'px-2 py-1 text-xs text-red-600')}
       >
-        Eliminar
+        {t('delete')}
       </button>
     </span>
   );

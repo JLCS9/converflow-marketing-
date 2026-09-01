@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { apiFetch } from '@/lib/api-client';
 
 export interface EmailTemplate {
@@ -21,12 +22,13 @@ export function TemplatePicker({
   onPick: (t: EmailTemplate) => void;
   className?: string;
 }) {
+  const t = useTranslations('uiBits');
   const [tpls, setTpls] = useState<EmailTemplate[]>([]);
 
   useEffect(() => {
     let active = true;
     apiFetch<EmailTemplate[]>('/email-templates')
-      .then((t) => active && setTpls(Array.isArray(t) ? t : []))
+      .then((list) => active && setTpls(Array.isArray(list) ? list : []))
       .catch(() => undefined);
     return () => {
       active = false;
@@ -39,19 +41,19 @@ export function TemplatePicker({
     <select
       value=""
       onChange={(e) => {
-        const t = tpls.find((x) => x.id === e.target.value);
-        if (t) onPick(t);
+        const tpl = tpls.find((x) => x.id === e.target.value);
+        if (tpl) onPick(tpl);
         e.currentTarget.value = '';
       }}
       className={
         className ?? 'rounded-md border border-ink-300 px-2 py-1 text-xs text-ink-700'
       }
-      title="Insertar una plantilla"
+      title={t('insertTemplate')}
     >
-      <option value="">Usar plantilla…</option>
-      {tpls.map((t) => (
-        <option key={t.id} value={t.id}>
-          {t.name}
+      <option value="">{t('useTemplate')}</option>
+      {tpls.map((tpl) => (
+        <option key={tpl.id} value={tpl.id}>
+          {tpl.name}
         </option>
       ))}
     </select>

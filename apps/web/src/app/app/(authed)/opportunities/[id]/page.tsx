@@ -86,7 +86,10 @@ interface OppDetail {
   stageHistory: StageHistoryRow[];
 }
 
-export const metadata = { title: 'Oportunidad' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('titles.opportunity') };
+}
 export const dynamic = 'force-dynamic';
 
 export default async function OpportunityDetailPage({

@@ -25,6 +25,7 @@ export function CreateOpportunityForm({
   customFields,
   pipelines,
 }: Props) {
+  const tOpp = useTranslations('opportunities');
   const tToasts = useTranslations('toasts');
   const router = useRouter();
   const { confirm, toast } = useFeedback();
@@ -39,9 +40,9 @@ export function CreateOpportunityForm({
   async function handleCancel() {
     if (dirty) {
       const ok = await confirm({
-        title: 'Descartar cambios',
-        description: 'Se perderá lo que has escrito.',
-        confirmLabel: 'Descartar',
+        title: tOpp('discardTitle'),
+        description: tOpp('discardBody'),
+        confirmLabel: tOpp('discard'),
         danger: true,
       });
       if (!ok) return;
@@ -99,7 +100,7 @@ export function CreateOpportunityForm({
               router.push(`/app/opportunities/${opp.id}`);
             } catch (err) {
               setSubmitting(false);
-              setError(err instanceof ApiError ? err.message : 'Error inesperado');
+              setError(err instanceof ApiError ? err.message : tOpp('unexpected'));
             }
           });
         }}
@@ -119,7 +120,7 @@ export function CreateOpportunityForm({
               label="Lead vinculado"
               defaultId={prefillLead?.id}
               defaultName={prefillLead?.name}
-              placeholder="Buscar lead por nombre…"
+              placeholder={tOpp('searchLead')}
             />
             <EntityPicker
               endpoint="/clients"
@@ -127,7 +128,7 @@ export function CreateOpportunityForm({
               label="Cliente vinculado"
               defaultId={prefillClient?.id}
               defaultName={prefillClient?.name}
-              placeholder="Buscar cliente por nombre…"
+              placeholder={tOpp('searchClient')}
             />
           </div>
         </div>
@@ -206,7 +207,7 @@ export function CreateOpportunityForm({
             Cancelar
           </button>
           <button type="submit" className={buttonClass('primary')} disabled={pending}>
-            {pending ? 'Creando…' : 'Crear oportunidad'}
+            {pending ? tOpp('creating') : tOpp('create')}
           </button>
         </div>
       </form>

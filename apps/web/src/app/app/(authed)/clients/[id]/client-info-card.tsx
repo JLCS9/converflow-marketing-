@@ -22,6 +22,7 @@ interface ClientInfo {
 const STATUSES = ['ACTIVE', 'INACTIVE', 'ARCHIVED'] as const;
 
 export function ClientInfoCard({ client }: { client: ClientInfo }) {
+  const tf = useTranslations('crmForms');
   const tToasts = useTranslations('toasts');
   const { CLIENT_STATUS } = useLabelMaps();
   const router = useRouter();
@@ -58,7 +59,7 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
       setEditing(false);
       router.refresh();
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : 'No se pudo guardar';
+      const msg = e instanceof ApiError ? e.message : tf('saveError');
       setErr(msg);
       toast.error(msg);
     } finally {
@@ -70,41 +71,41 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
     return (
       <Card>
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Información</h2>
+          <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{tf('infoTitle')}</h2>
           <button type="button" className="text-xs text-ink-500" onClick={() => setEditing(false)}>
-            Cancelar
+            {tf('cancel')}
           </button>
         </div>
         <div className="mt-4 space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Nombre" required>
+            <Field label={tf('firstName')} required>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </Field>
-            <Field label="Apellido">
+            <Field label={tf('lastName')}>
               <Input
                 value={form.lastName}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })}
               />
             </Field>
           </div>
-          <Field label="Email">
+          <Field label={tf('email')}>
             <Input
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
           </Field>
-          <Field label="Teléfono">
+          <Field label={tf('phone')}>
             <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </Field>
-          <Field label="Fuente">
+          <Field label={tf('source')}>
             <Input
               value={form.source}
               onChange={(e) => setForm({ ...form, source: e.target.value })}
-              placeholder="manual, web, evento, referido…"
+              placeholder={tf('sourcePlaceholder')}
             />
           </Field>
-          <Field label="Estado">
+          <Field label={tf('status')}>
             <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
@@ -122,7 +123,7 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
             onClick={save}
             disabled={busy}
           >
-            {busy ? 'Guardando…' : 'Guardar'}
+            {busy ? tf('saving') : tf('save')}
           </button>
         </div>
       </Card>
@@ -132,29 +133,29 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
   async function remove() {
     const fullName = [client.name, client.lastName].filter(Boolean).join(' ').trim();
     const ok = await confirm({
-      title: `Eliminar permanentemente${fullName ? ` "${fullName}"` : ' este cliente'}`,
+      title: fullName
+        ? tf('deleteTitleNamed', { name: fullName })
+        : tf('deleteTitleGeneric'),
       description: (
         <div className="space-y-3">
           <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
-            <strong>Esta acción es irreversible.</strong> Se procesa como una solicitud
-            de supresión y borra los datos sin posibilidad de recuperación.
+            <strong>{tf('deleteIrreversibleTitle')}</strong> {tf('deleteIrreversibleBody')}
           </div>
-          <p>Se eliminarán de forma permanente:</p>
+          <p>{tf('deleteIntro')}</p>
           <ul className="ml-4 list-disc space-y-1 text-xs text-ink-700">
-            <li>Los datos identificativos del cliente (nombre, email, teléfono).</li>
-            <li>Sus campos personalizados.</li>
-            <li>Notas, tareas y documentos asociados.</li>
-            <li>Oportunidades vinculadas a este contacto.</li>
-            <li>Conversaciones y mensajes recibidos en cualquier canal.</li>
+            <li>{tf('deleteIdentity')}</li>
+            <li>{tf('deleteCustomFields')}</li>
+            <li>{tf('deleteNotes')}</li>
+            <li>{tf('deleteOpps')}</li>
+            <li>{tf('deleteConversations')}</li>
           </ul>
           <p className="text-xs text-ink-500">
-            El registro de auditoría de la cuenta conserva una entrada técnica de esta
-            supresión sin datos personales, conforme al artículo 17 del RGPD.
+            {tf('deleteAudit')}
           </p>
         </div>
       ),
-      confirmLabel: 'Eliminar permanentemente',
-      cancelLabel: 'Cancelar',
+      confirmLabel: tf('deletePermanently'),
+      cancelLabel: tf('cancel'),
       danger: true,
     });
     if (!ok) return;
@@ -164,7 +165,7 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
         toast.success(tToasts('clientDeleted'));
         router.replace('/app/clients');
       } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'No se pudo eliminar');
+        toast.error(err instanceof ApiError ? err.message : tf('deleteError'));
       }
     });
   }
@@ -172,17 +173,17 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
   return (
     <Card>
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Información</h2>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{tf('infoTitle')}</h2>
         <button type="button" className="text-xs text-primary-700 hover:underline" onClick={() => setEditing(true)}>
-          Editar
+          {tf('edit')}
         </button>
       </div>
       <dl className="mt-4 space-y-2 text-sm">
-        {client.lastName && <Row label="Apellido" value={client.lastName} />}
-        <Row label="Email" value={client.email ?? '—'} />
-        <Row label="Teléfono" value={client.phone ?? '—'} />
-        <Row label="Fuente" value={client.source ?? '—'} />
-        <Row label="Alta" value={new Date(client.createdAt).toLocaleString('es-ES')} />
+        {client.lastName && <Row label={tf('lastName')} value={client.lastName} />}
+        <Row label={tf('email')} value={client.email ?? '—'} />
+        <Row label={tf('phone')} value={client.phone ?? '—'} />
+        <Row label={tf('source')} value={client.source ?? '—'} />
+        <Row label={tf('registeredAt')} value={new Date(client.createdAt).toLocaleString('es-ES')} />
       </dl>
       <div className="mt-5 border-t border-ink-100 pt-4">
         <button
@@ -191,11 +192,10 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
           onClick={remove}
           className={buttonClass('danger', 'text-xs')}
         >
-          {deleting ? 'Eliminando…' : 'Eliminar cliente'}
+          {deleting ? tf('deleting') : tf('deleteClient')}
         </button>
         <p className="mt-2 text-xs text-ink-500">
-          La eliminación es definitiva y no se puede deshacer. Cumple con el derecho de
-          supresión del RGPD (art. 17).
+          {tf('deleteFooter')}
         </p>
       </div>
     </Card>

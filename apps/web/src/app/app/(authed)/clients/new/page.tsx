@@ -1,9 +1,13 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { serverApiFetch } from '@/lib/server-api';
 import { CreateClientForm } from './create-form';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
-export const metadata = { title: 'Nuevo cliente' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('titles.newClient') };
+}
 export const dynamic = 'force-dynamic';
 
 export default async function NewClientPage() {

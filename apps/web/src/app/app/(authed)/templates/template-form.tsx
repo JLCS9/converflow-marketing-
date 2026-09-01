@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, buttonClass } from '@/components/ui/primitives';
 import { MjmlEmailBuilder } from '@/components/ui/mjml-email-builder';
@@ -15,6 +16,7 @@ export interface TemplateData {
 }
 
 export function TemplateForm({ template }: { template?: TemplateData }) {
+  const t = useTranslations('templates');
   const router = useRouter();
   const [name, setName] = useState(template?.name ?? '');
   const [subject, setSubject] = useState(template?.subject ?? '');
@@ -32,20 +34,20 @@ export function TemplateForm({ template }: { template?: TemplateData }) {
         method: 'POST',
         json: { to: testTo.trim() },
       });
-      setTestMsg('✓ Enviada');
+      setTestMsg(t('testSent'));
     } catch (err) {
-      setTestMsg(err instanceof ApiError ? err.message : 'No se pudo enviar');
+      setTestMsg(err instanceof ApiError ? err.message : t('testFailed'));
     }
   }
 
   function save() {
     setError(null);
     if (!name.trim()) {
-      setError('Ponle un nombre a la plantilla.');
+      setError(t('nameRequired'));
       return;
     }
     if (!mjml.trim()) {
-      setError('El diseño está vacío. Arrastra al menos un bloque al lienzo.');
+      setError(t('emptyDesign'));
       return;
     }
     startTransition(async () => {
@@ -59,7 +61,7 @@ export function TemplateForm({ template }: { template?: TemplateData }) {
         router.push('/app/mail/ajustes/plantillas');
         router.refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Error inesperado');
+        setError(err instanceof ApiError ? err.message : t('unexpectedError'));
       }
     });
   }
@@ -68,19 +70,19 @@ export function TemplateForm({ template }: { template?: TemplateData }) {
     <div className="space-y-4">
       <Card>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nombre" required help="Solo para identificarla internamente.">
+          <Field label={t('name')} required help={t('nameHelp')}>
             <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
           </Field>
-          <Field label="Asunto" help="Opcional. Se rellena al usar la plantilla.">
+          <Field label={t('subject')} help={t('subjectHelp')}>
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={200} />
           </Field>
         </div>
         <p className="mt-3 text-xs text-ink-500">
-          Arrastra bloques desde la derecha. Para personalizar, escribe variables en el texto:{' '}
+          {t('variablesIntro')}{' '}
           <code className="rounded bg-ink-100 px-1">{'{nombre}'}</code>,{' '}
           <code className="rounded bg-ink-100 px-1">{'{first_name}'}</code>,{' '}
           <code className="rounded bg-ink-100 px-1">{'{email}'}</code>,{' '}
-          <code className="rounded bg-ink-100 px-1">{'{telefono}'}</code>. Se sustituyen al enviar.
+          <code className="rounded bg-ink-100 px-1">{'{telefono}'}</code>. {t('variablesOutro')}
         </p>
       </Card>
 
@@ -96,12 +98,12 @@ export function TemplateForm({ template }: { template?: TemplateData }) {
       {template && (
         <Card>
           <div className="flex flex-wrap items-end gap-2">
-            <Field label="Enviar prueba a" help="Te llega el diseño con datos de ejemplo.">
+            <Field label={t('sendTestTo')} help={t('sendTestHelp')}>
               <Input
                 type="email"
                 value={testTo}
                 onChange={(e) => setTestTo(e.target.value)}
-                placeholder="tu@correo.com"
+                placeholder={t('testPlaceholder')}
               />
             </Field>
             <button
@@ -110,7 +112,7 @@ export function TemplateForm({ template }: { template?: TemplateData }) {
               className={buttonClass('secondary')}
               disabled={!testTo.trim()}
             >
-              Enviar prueba
+              {t('sendTest')}
             </button>
             {testMsg && <span className="pb-2 text-sm text-ink-600">{testMsg}</span>}
           </div>
@@ -124,10 +126,10 @@ export function TemplateForm({ template }: { template?: TemplateData }) {
           className={buttonClass('secondary')}
           disabled={pending}
         >
-          Cancelar
+          {t('cancel')}
         </button>
         <button type="button" onClick={save} className={buttonClass('primary')} disabled={pending}>
-          {pending ? 'Guardando…' : template ? 'Guardar' : 'Crear plantilla'}
+          {pending ? t('saving') : template ? t('save') : t('create')}
         </button>
       </div>
     </div>

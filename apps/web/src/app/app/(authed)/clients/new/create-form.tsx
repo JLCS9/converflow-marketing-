@@ -12,6 +12,7 @@ import { useLabelMaps } from '@/lib/use-labels';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
 export function CreateClientForm({ customFields }: { customFields: CustomFieldDefinition[] }) {
+  const tf = useTranslations('crmForms');
   const tToasts = useTranslations('toasts');
   const { CLIENT_STATUS } = useLabelMaps();
   const router = useRouter();
@@ -27,9 +28,9 @@ export function CreateClientForm({ customFields }: { customFields: CustomFieldDe
   async function handleCancel() {
     if (dirty) {
       const ok = await confirm({
-        title: 'Descartar cambios',
-        description: 'Se perderá lo que has escrito.',
-        confirmLabel: 'Descartar',
+        title: tf('discardTitle'),
+        description: tf('discardBody'),
+        confirmLabel: tf('discard'),
         danger: true,
       });
       if (!ok) return;
@@ -66,32 +67,32 @@ export function CreateClientForm({ customFields }: { customFields: CustomFieldDe
               router.push(`/app/clients/${c.id}`);
             } catch (err) {
               setSubmitting(false);
-              setError(err instanceof ApiError ? err.message : 'Error inesperado');
+              setError(err instanceof ApiError ? err.message : tf('unexpectedError'));
             }
           });
         }}
       >
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Nombre" required>
+          <Field label={tf('firstName')} required>
             <Input name="name" type="text" required minLength={1} maxLength={150} />
           </Field>
-          <Field label="Apellido">
+          <Field label={tf('lastName')}>
             <Input name="lastName" type="text" maxLength={150} />
           </Field>
         </div>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Email">
+          <Field label={tf('email')}>
             <Input name="email" type="email" />
           </Field>
-          <Field label="Teléfono">
+          <Field label={tf('phone')}>
             <Input name="phone" type="tel" />
           </Field>
         </div>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Fuente">
-            <Input name="source" type="text" placeholder="manual, web, evento, referido…" />
+          <Field label={tf('source')}>
+            <Input name="source" type="text" placeholder={tf('sourcePlaceholder')} />
           </Field>
-          <Field label="Estado">
+          <Field label={tf('status')}>
             <Select name="status" defaultValue="ACTIVE">
               {Object.entries(CLIENT_STATUS).map(([k, v]) => (
                 <option key={k} value={k}>
@@ -105,7 +106,7 @@ export function CreateClientForm({ customFields }: { customFields: CustomFieldDe
         {visibleCustom.length > 0 && (
           <div className="border-t border-ink-100 pt-4">
             <h3 className="text-xs font-mono uppercase tracking-wider text-ink-500">
-              Campos personalizados
+              {tf('customFields')}
             </h3>
             <div className="mt-3">
               <CustomFieldsForm
@@ -125,10 +126,10 @@ export function CreateClientForm({ customFields }: { customFields: CustomFieldDe
 
         <div className="flex justify-end gap-2">
           <button type="button" onClick={handleCancel} className={buttonClass('secondary')} disabled={pending}>
-            Cancelar
+            {tf('cancel')}
           </button>
           <button type="submit" className={buttonClass('primary')} disabled={pending}>
-            {pending ? 'Creando…' : 'Crear cliente'}
+            {pending ? tf('creating') : tf('createClient')}
           </button>
         </div>
       </form>

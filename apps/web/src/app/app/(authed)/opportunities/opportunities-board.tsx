@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function OpportunitiesBoard({ pipeline, initialOpps }: Props) {
+  const tOpp = useTranslations('opportunities');
   const router = useRouter();
   const [opps, setOpps] = useState(initialOpps);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -63,7 +65,7 @@ export function OpportunitiesBoard({ pipeline, initialOpps }: Props) {
       router.refresh();
     } catch (e) {
       setOpps(prev);
-      setErr(e instanceof ApiError ? e.message : 'No se pudo mover la oportunidad');
+      setErr(e instanceof ApiError ? e.message : tOpp('moveError'));
     }
   }
 

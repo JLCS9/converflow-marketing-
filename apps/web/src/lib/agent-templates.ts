@@ -16,6 +16,7 @@ export type AgentFamily = 'PEOPLE' | 'DECIDE' | 'DATA';
 
 export interface AgentTemplate {
   id: string;
+  /** Clave i18n derivada: agentTemplates.<id>Label / <id>Subtitle (ver purpose-wizard). */
   label: string;
   /** Two- to four-word "what it does" used as the card tagline. */
   subtitle: string;

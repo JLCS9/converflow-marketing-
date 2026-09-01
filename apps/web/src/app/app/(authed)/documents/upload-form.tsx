@@ -2,12 +2,14 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { ApiError } from '@/lib/api-client';
 import { Field, Input, buttonClass } from '@/components/ui/primitives';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 export function UploadForm() {
+  const t = useTranslations('documents');
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -22,11 +24,13 @@ export function UploadForm() {
         const data = new FormData(form);
         const file = data.get('file') as File | null;
         if (!file || file.size === 0) {
-          setError('Selecciona un fichero');
+          setError(t('selectFile'));
           return;
         }
         setError(null);
-        setProgress(`Subiendo ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)…`);
+        setProgress(
+          t('uploading', { name: file.name, size: (file.size / 1024 / 1024).toFixed(2) }),
+        );
 
         startTransition(async () => {
           try {
@@ -54,18 +58,18 @@ export function UploadForm() {
               }
               throw new ApiError(res.status, msg, text);
             }
-            setProgress('✓ Subido');
+            setProgress(t('uploaded'));
             form.reset();
             router.refresh();
             setTimeout(() => setProgress(null), 2000);
           } catch (err) {
             setProgress(null);
-            setError(err instanceof ApiError ? err.message : 'Error al subir');
+            setError(err instanceof ApiError ? err.message : t('uploadError'));
           }
         });
       }}
     >
-      <Field label="Fichero" required>
+      <Field label={t('fileLabel')} required>
         <input
           name="file"
           type="file"
@@ -74,10 +78,10 @@ export function UploadForm() {
         />
       </Field>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Cliente ID (opcional)">
+        <Field label={t('clientIdLabel')}>
           <Input name="clientId" type="text" className="font-mono text-xs" />
         </Field>
-        <Field label="Oportunidad ID (opcional)">
+        <Field label={t('opportunityIdLabel')}>
           <Input name="opportunityId" type="text" className="font-mono text-xs" />
         </Field>
       </div>
@@ -95,7 +99,7 @@ export function UploadForm() {
 
       <div className="flex justify-end">
         <button type="submit" className={buttonClass('primary')} disabled={pending}>
-          {pending ? 'Subiendo…' : 'Subir'}
+          {pending ? t('uploadingBtn') : t('upload')}
         </button>
       </div>
     </form>

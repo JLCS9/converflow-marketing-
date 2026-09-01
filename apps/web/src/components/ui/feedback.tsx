@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useTranslations } from 'next-intl';
 import { buttonClass } from './primitives';
 
 // =====================================================================
@@ -143,32 +144,34 @@ function Toaster({
   toasts: Toast[];
   onDismiss: (id: number) => void;
 }) {
+  // Ojo: la variable del map se llama `item`, no `t`, para no pisar el traductor.
+  const t = useTranslations('uiBits');
   return (
     <div className="pointer-events-none fixed right-4 top-4 z-50 flex w-[320px] max-w-[calc(100vw-2rem)] flex-col gap-2">
-      {toasts.map((t) => (
+      {toasts.map((item) => (
         <div
-          key={t.id}
+          key={item.id}
           role="status"
-          className={`pointer-events-auto flex items-start gap-2 rounded-md border px-3 py-2 text-sm shadow-md transition-all ${toneStyles[t.tone]}`}
+          className={`pointer-events-auto flex items-start gap-2 rounded-md border px-3 py-2 text-sm shadow-md transition-all ${toneStyles[item.tone]}`}
         >
           <span
             aria-hidden
             className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-              t.tone === 'success'
+              item.tone === 'success'
                 ? 'bg-green-600 text-white'
-                : t.tone === 'error'
+                : item.tone === 'error'
                   ? 'bg-red-600 text-white'
                   : 'bg-ink-200 text-ink-900'
             }`}
           >
-            {toneIcon[t.tone]}
+            {toneIcon[item.tone]}
           </span>
-          <span className="flex-1 leading-snug">{t.message}</span>
+          <span className="flex-1 leading-snug">{item.message}</span>
           <button
             type="button"
-            aria-label="Cerrar notificación"
+            aria-label={t('closeNotification')}
             className="text-xs text-ink-500 hover:text-ink-900"
-            onClick={() => onDismiss(t.id)}
+            onClick={() => onDismiss(item.id)}
           >
             ✕
           </button>
@@ -191,6 +194,7 @@ function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations('uiBits');
   const confirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -212,7 +216,7 @@ function ConfirmDialog({
     >
       <button
         type="button"
-        aria-label="Cancelar"
+        aria-label={t('cancel')}
         className="absolute inset-0 cursor-default bg-ink-900/40 backdrop-blur-sm"
         onClick={onCancel}
       />
@@ -228,7 +232,7 @@ function ConfirmDialog({
           ))}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className={buttonClass('secondary', 'text-sm')} onClick={onCancel}>
-            {opts.cancelLabel ?? 'Cancelar'}
+            {opts.cancelLabel ?? t('cancel')}
           </button>
           <button
             type="button"
@@ -236,7 +240,7 @@ function ConfirmDialog({
             className={buttonClass(opts.danger ? 'danger' : 'primary', 'text-sm')}
             onClick={onConfirm}
           >
-            {opts.confirmLabel ?? (opts.danger ? 'Eliminar' : 'Aceptar')}
+            {opts.confirmLabel ?? (opts.danger ? t('delete') : t('accept'))}
           </button>
         </div>
       </div>

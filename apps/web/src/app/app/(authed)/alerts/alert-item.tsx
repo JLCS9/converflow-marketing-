@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { apiFetch } from '@/lib/api-client';
 import { Badge } from '@/components/ui/primitives';
 
@@ -28,11 +29,14 @@ const typeIcon: Record<string, string> = {
   OTHER: '🔔',
 };
 
-const severityBadge: Record<Alert['severity'], { color: 'blue' | 'yellow' | 'red'; label: string }> = {
-  INFO: { color: 'blue', label: 'Info' },
-  WARNING: { color: 'yellow', label: 'Aviso' },
-  CRITICAL: { color: 'red', label: 'Crítico' },
-};
+const severityBadge = {
+  INFO: { color: 'blue', labelKey: 'severityInfo' },
+  WARNING: { color: 'yellow', labelKey: 'severityWarning' },
+  CRITICAL: { color: 'red', labelKey: 'severityCritical' },
+} as const satisfies Record<
+  Alert['severity'],
+  { color: 'blue' | 'yellow' | 'red'; labelKey: string }
+>;
 
 function resourceHref(resourceType: string, resourceId: string): string | null {
   switch (resourceType) {
@@ -48,6 +52,7 @@ function resourceHref(resourceType: string, resourceId: string): string | null {
 }
 
 export function AlertItem({ alert }: { alert: Alert }) {
+  const t = useTranslations('alerts');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
@@ -76,17 +81,19 @@ export function AlertItem({ alert }: { alert: Alert }) {
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge color={sev.color}>{sev.label}</Badge>
+          <Badge color={sev.color}>{t(sev.labelKey)}</Badge>
           <span className={`text-sm ${unread ? 'font-semibold text-ink-900' : 'text-ink-700'}`}>
             {alert.title}
           </span>
-          {unread && <span className="h-2 w-2 rounded-full bg-primary-500" aria-label="No leída" />}
+          {unread && (
+            <span className="h-2 w-2 rounded-full bg-primary-500" aria-label={t('unreadAria')} />
+          )}
         </div>
         {alert.description && <p className="mt-1 text-sm text-ink-600">{alert.description}</p>}
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
           {href && (
             <Link href={href} className="text-primary-700 hover:underline">
-              Ver detalle →
+              {t('viewDetail')}
             </Link>
           )}
           {unread && (
@@ -96,7 +103,7 @@ export function AlertItem({ alert }: { alert: Alert }) {
               disabled={busy || pending}
               className="text-ink-500 hover:text-ink-900 disabled:opacity-50"
             >
-              Marcar leída
+              {t('markRead')}
             </button>
           )}
           <button
@@ -105,7 +112,7 @@ export function AlertItem({ alert }: { alert: Alert }) {
             disabled={busy || pending}
             className="text-ink-500 hover:text-red-600 disabled:opacity-50"
           >
-            Descartar
+            {t('dismiss')}
           </button>
           <span className="ml-auto font-mono text-ink-400">
             {new Date(alert.createdAt).toLocaleDateString('es-ES', {
@@ -120,6 +127,7 @@ export function AlertItem({ alert }: { alert: Alert }) {
 }
 
 export function MarkAllReadButton({ disabled }: { disabled?: boolean }) {
+  const t = useTranslations('alerts');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
@@ -141,7 +149,7 @@ export function MarkAllReadButton({ disabled }: { disabled?: boolean }) {
       disabled={disabled || busy || pending}
       className="text-sm text-primary-700 hover:underline disabled:opacity-50"
     >
-      Marcar todas como leídas
+      {t('markAllRead')}
     </button>
   );
 }

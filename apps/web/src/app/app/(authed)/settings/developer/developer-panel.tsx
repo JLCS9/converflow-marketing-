@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   PERMISSION_MODULES,
   type ApiKeyCreated,
@@ -13,7 +14,7 @@ import { CopyButton } from '@/components/ui/copy-button';
 import { useFeedback } from '@/components/ui/feedback';
 import {
   PermissionsEditor,
-  PERMISSION_LABELS,
+  PERMISSION_LABEL_KEYS,
 } from '@/components/permissions-editor';
 
 interface Props {
@@ -33,6 +34,8 @@ interface Props {
  * so users see it immediately after closing the success view.
  */
 export function DeveloperPanel({ initialKeys, apiBaseHint }: Props) {
+  const t = useTranslations('settings');
+  const tUi = useTranslations('uiBits');
   const { toast, confirm } = useFeedback();
   const [keys, setKeys] = useState<ApiKeySummary[]>(initialKeys);
   const [creating, setCreating] = useState(false);
@@ -43,31 +46,25 @@ export function DeveloperPanel({ initialKeys, apiBaseHint }: Props) {
     label: string;
     tone: 'green' | 'red' | 'amber' | 'gray';
   } {
-    if (k.revokedAt) return { label: 'Revocada', tone: 'red' };
+    if (k.revokedAt) return { label: t('developer.statusRevoked'), tone: 'red' };
     if (k.expiresAt && new Date(k.expiresAt) < new Date()) {
-      return { label: 'Caducada', tone: 'red' };
+      return { label: t('developer.statusExpired'), tone: 'red' };
     }
-    if (!k.lastUsedAt) return { label: 'Nueva', tone: 'amber' };
-    return { label: 'Activa', tone: 'green' };
+    if (!k.lastUsedAt) return { label: t('developer.statusNew'), tone: 'amber' };
+    return { label: t('developer.statusActive'), tone: 'green' };
   }
 
   async function revoke(k: ApiKeySummary) {
     const ok = await confirm({
-      title: `Revocar "${k.name}"`,
+      title: t('developer.revokeTitle', { name: k.name }),
       description: (
         <div className="space-y-2">
-          <p>
-            La key dejará de funcionar de inmediato. Cualquier integración que
-            la esté usando dejará de poder leer o escribir.
-          </p>
-          <p className="text-xs text-ink-500">
-            Esta acción es irreversible. Si necesitas seguir usándola, genera
-            una nueva con los mismos permisos antes de revocar la actual.
-          </p>
+          <p>{t('developer.revokeDesc1')}</p>
+          <p className="text-xs text-ink-500">{t('developer.revokeDesc2')}</p>
         </div>
       ),
-      confirmLabel: 'Revocar definitivamente',
-      cancelLabel: 'Cancelar',
+      confirmLabel: t('developer.revokeConfirm'),
+      cancelLabel: t('developer.cancel'),
       danger: true,
     });
     if (!ok) return;
@@ -78,9 +75,9 @@ export function DeveloperPanel({ initialKeys, apiBaseHint }: Props) {
           row.id === k.id ? { ...row, revokedAt: new Date().toISOString() } : row,
         ),
       );
-      toast.success('API key revocada');
+      toast.success(t('developer.keyRevoked'));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'No se pudo revocar');
+      toast.error(err instanceof ApiError ? err.message : t('developer.revokeError'));
     }
   }
 
@@ -92,36 +89,32 @@ export function DeveloperPanel({ initialKeys, apiBaseHint }: Props) {
             <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
               API keys
             </h2>
-            <p className="mt-1 text-xs text-ink-500">
-              Cada key habilita el acceso completo a los módulos que selecciones
-              durante su creación.
-            </p>
+            <p className="mt-1 text-xs text-ink-500">{t('developer.keysDesc')}</p>
           </div>
           <button
             type="button"
             onClick={() => setCreating(true)}
             className={buttonClass('primary')}
           >
-            + Nueva API key
+            {t('developer.newKey')}
           </button>
         </div>
 
         {keys.length === 0 ? (
           <p className="mt-4 rounded-md border border-dashed border-ink-200 bg-ink-100/40 p-4 text-sm text-ink-500">
-            Aún no tienes API keys. Crea una para empezar a conectar Converflow
-            con otras herramientas.
+            {t('developer.noKeys')}
           </p>
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
                 <tr>
-                  <th className="py-3 pr-3">Nombre</th>
-                  <th className="hidden py-3 pr-3 md:table-cell">Prefijo</th>
-                  <th className="hidden py-3 pr-3 lg:table-cell">Permisos</th>
-                  <th className="hidden py-3 pr-3 md:table-cell">Último uso</th>
-                  <th className="py-3 pr-3">Estado</th>
-                  <th className="py-3 pr-0 text-right">Acciones</th>
+                  <th className="py-3 pr-3">{t('developer.colName')}</th>
+                  <th className="hidden py-3 pr-3 md:table-cell">{t('developer.colPrefix')}</th>
+                  <th className="hidden py-3 pr-3 lg:table-cell">{t('developer.colScopes')}</th>
+                  <th className="hidden py-3 pr-3 md:table-cell">{t('developer.colLastUsed')}</th>
+                  <th className="py-3 pr-3">{t('developer.colStatus')}</th>
+                  <th className="py-3 pr-0 text-right">{t('developer.colActions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -143,13 +136,13 @@ export function DeveloperPanel({ initialKeys, apiBaseHint }: Props) {
                       </td>
                       <td className="hidden py-3 pr-3 align-top text-xs text-ink-700 lg:table-cell">
                         <span className="line-clamp-2">
-                          {k.scopes.map((s) => PERMISSION_LABELS[s]).join(' · ')}
+                          {k.scopes.map((s) => tUi(PERMISSION_LABEL_KEYS[s])).join(' · ')}
                         </span>
                       </td>
                       <td className="hidden py-3 pr-3 align-top text-xs text-ink-500 md:table-cell">
                         {k.lastUsedAt
                           ? new Date(k.lastUsedAt).toLocaleString('es-ES')
-                          : 'Nunca'}
+                          : t('developer.never')}
                       </td>
                       <td className="py-3 pr-3 align-top">
                         <span
@@ -175,7 +168,7 @@ export function DeveloperPanel({ initialKeys, apiBaseHint }: Props) {
                             onClick={() => revoke(k)}
                             className="text-xs text-red-600 hover:text-red-800"
                           >
-                            Revocar
+                            {t('developer.revoke')}
                           </button>
                         )}
                       </td>
@@ -190,32 +183,28 @@ export function DeveloperPanel({ initialKeys, apiBaseHint }: Props) {
 
       <Card>
         <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
-          Primeros pasos
+          {t('developer.gettingStarted')}
         </h2>
         <div className="mt-3 space-y-3 text-sm text-ink-700">
           <p>
-            La API expone los recursos del CRM bajo <code>{apiBase}/v1/</code>.
-            Identifícate enviando la cabecera{' '}
-            <code>Authorization: Bearer cfai_…</code> en cada petición.
+            {t.rich('developer.apiIntro', {
+              base: `${apiBase}/v1/`,
+              code: (chunks) => <code>{chunks}</code>,
+            })}
           </p>
           <pre className="overflow-x-auto rounded-md border border-ink-100 bg-ink-900 p-3 text-xs text-emerald-100">
-{`# Listar los últimos 50 leads
+{`${t('developer.curlListComment')}
 curl -s "${apiBase}/v1/leads?limit=50" \\
   -H "Authorization: Bearer cfai_XXXXXXXXXXXXXXXXXXXXXXXXXXXX" \\
   | jq .
 
-# Crear un lead nuevo
+${t('developer.curlCreateComment')}
 curl -s -X POST "${apiBase}/v1/leads" \\
   -H "Authorization: Bearer cfai_XXXXXXXXXXXXXXXXXXXXXXXXXXXX" \\
   -H "Content-Type: application/json" \\
   -d '{"name":"Marta","email":"marta@example.com","source":"web"}'`}
           </pre>
-          <p className="text-xs text-ink-500">
-            Los códigos de error son los habituales: 401 (key inválida o
-            revocada), 403 (la key no incluye el permiso para esa acción),
-            404 (recurso no encontrado), 422 (datos inválidos). Las respuestas
-            son JSON.
-          </p>
+          <p className="text-xs text-ink-500">{t('developer.errorCodes')}</p>
         </div>
       </Card>
 
@@ -256,6 +245,7 @@ function CreateKeyModal({
   onClose: () => void;
   onCreated: (k: ApiKeyCreated) => void;
 }) {
+  const t = useTranslations('settings');
   const { toast } = useFeedback();
   const [name, setName] = useState('');
   const [scopes, setScopes] = useState<PermissionModule[]>([
@@ -269,11 +259,11 @@ function CreateKeyModal({
 
   function submit() {
     if (!name.trim()) {
-      toast.error('Pon un nombre a la key');
+      toast.error(t('developer.nameRequired'));
       return;
     }
     if (scopes.length === 0) {
-      toast.error('Selecciona al menos un permiso');
+      toast.error(t('developer.scopeRequired'));
       return;
     }
     startTransition(async () => {
@@ -288,7 +278,7 @@ function CreateKeyModal({
         });
         onCreated(res);
       } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'No se pudo crear');
+        toast.error(err instanceof ApiError ? err.message : t('developer.createError'));
       }
     });
   }
@@ -299,16 +289,13 @@ function CreateKeyModal({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold tracking-tight">
-              Nueva API key
+              {t('developer.createTitle')}
             </h2>
-            <p className="mt-1 text-sm text-ink-500">
-              La key se mostrará una sola vez tras crearla. Guárdala en un sitio
-              seguro (gestor de contraseñas, vault).
-            </p>
+            <p className="mt-1 text-sm text-ink-500">{t('developer.createDesc')}</p>
           </div>
           <button
             type="button"
-            aria-label="Cerrar"
+            aria-label={t('developer.close')}
             onClick={onClose}
             className="text-ink-500 hover:text-ink-900"
           >
@@ -317,19 +304,19 @@ function CreateKeyModal({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nombre" required help="Para qué la usas (p. ej. Zapier · Formulario web).">
+          <Field label={t('developer.nameLabel')} required help={t('developer.nameHelp')}>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Zapier producción"
+              placeholder={t('developer.namePlaceholder')}
               required
               minLength={2}
               maxLength={80}
             />
           </Field>
           <Field
-            label="Caduca el (opcional)"
-            help="Vacío = no caduca. Recomendado para keys de terceros."
+            label={t('developer.expiresLabel')}
+            help={t('developer.expiresHelp')}
           >
             <Input
               type="date"
@@ -341,13 +328,9 @@ function CreateKeyModal({
 
         <div className="rounded-md border border-ink-100 bg-ink-100/30 p-4">
           <div className="text-xs font-mono uppercase tracking-wider text-ink-500">
-            Permisos de la key
+            {t('developer.keyScopes')}
           </div>
-          <p className="mt-1 text-xs text-ink-600">
-            La key podrá hacer todo lo que permitan los módulos marcados.
-            Para el caso típico de integración con Zapier basta con CRM y
-            Conversaciones.
-          </p>
+          <p className="mt-1 text-xs text-ink-600">{t('developer.keyScopesHelp')}</p>
           <div className="mt-3">
             <PermissionsEditor
               value={scopes}
@@ -364,7 +347,7 @@ function CreateKeyModal({
             disabled={pending}
             className={buttonClass('secondary')}
           >
-            Cancelar
+            {t('developer.cancel')}
           </button>
           <button
             type="button"
@@ -372,7 +355,7 @@ function CreateKeyModal({
             disabled={pending}
             className={buttonClass('primary')}
           >
-            {pending ? 'Creando…' : 'Crear y revelar'}
+            {pending ? t('developer.creating') : t('developer.createAndReveal')}
           </button>
         </div>
       </div>
@@ -387,18 +370,21 @@ function RevealKeyModal({
   data: ApiKeyCreated;
   onClose: () => void;
 }) {
+  const t = useTranslations('settings');
+  const tUi = useTranslations('uiBits');
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 p-4">
       <div className="w-full max-w-xl space-y-5 rounded-lg bg-white p-6 shadow-xl">
         <h2 className="text-lg font-semibold tracking-tight">
-          API key creada
+          {t('developer.createdTitle')}
         </h2>
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-          <strong>Cópiala ahora.</strong> Por seguridad solo se muestra una vez.
-          Si la pierdes tendrás que generar una nueva.
+          {t.rich('developer.copyNow', {
+            strong: (chunks) => <strong>{chunks}</strong>,
+          })}
         </div>
         <div>
-          <div className="text-xs text-ink-500">Nombre</div>
+          <div className="text-xs text-ink-500">{t('developer.nameLabel')}</div>
           <div className="font-medium text-ink-900">{data.name}</div>
         </div>
         <div>
@@ -411,17 +397,21 @@ function RevealKeyModal({
           </code>
         </div>
         <div className="text-xs text-ink-500">
-          Permisos: {data.scopes.map((s) => PERMISSION_LABELS[s]).join(' · ')}.
+          {t('developer.scopesList', {
+            list: data.scopes.map((s) => tUi(PERMISSION_LABEL_KEYS[s])).join(' · '),
+          })}
           {data.expiresAt && (
             <>
               {' '}
-              Caduca el {new Date(data.expiresAt).toLocaleDateString('es-ES')}.
+              {t('developer.expiresOn', {
+                date: new Date(data.expiresAt).toLocaleDateString('es-ES'),
+              })}
             </>
           )}
         </div>
         <div className="flex justify-end">
           <button type="button" onClick={onClose} className={buttonClass('primary')}>
-            Cerrar
+            {t('developer.close')}
           </button>
         </div>
       </div>

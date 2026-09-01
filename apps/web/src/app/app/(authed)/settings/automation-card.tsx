@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card } from '@/components/ui/primitives';
@@ -79,6 +80,7 @@ function Toggle({
 }
 
 export function AutomationCard() {
+  const t = useTranslations('settings');
   const [data, setData] = useState<Automation | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,8 +89,8 @@ export function AutomationCard() {
   useEffect(() => {
     apiFetch<Automation>('/me/automation')
       .then(setData)
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cargar'));
-  }, []);
+      .catch((err) => setError(err instanceof ApiError ? err.message : t('automation.loadError')));
+  }, [t]);
 
   const save = useCallback(async (patch: Partial<Automation>) => {
     setSaving(true);
@@ -99,11 +101,11 @@ export function AutomationCard() {
       setData(next);
       setSaved(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo guardar');
+      setError(err instanceof ApiError ? err.message : t('automation.saveError'));
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [t]);
 
   if (!data) {
     return (
@@ -115,7 +117,7 @@ export function AutomationCard() {
             </>
           ) : (
             <>
-              <Loader2 size={14} className="animate-spin" /> Cargando…
+              <Loader2 size={14} className="animate-spin" /> {t('automation.loading')}
             </>
           )}
         </div>
@@ -131,20 +133,17 @@ export function AutomationCard() {
     <Card>
       <div className="space-y-4">
         <div>
-          <h2 className="text-base font-semibold text-ink-900">IA y automatización</h2>
-          <p className="mt-0.5 text-xs text-ink-500">
-            Decides tú qué hace la IA por su cuenta y cuánto puede gastar. Nada de esto afecta a
-            las funciones que pides a mano (resumir, traducir, redactar).
-          </p>
+          <h2 className="text-base font-semibold text-ink-900">{t('automation.title')}</h2>
+          <p className="mt-0.5 text-xs text-ink-500">{t('automation.intro')}</p>
         </div>
 
         <section>
           <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-400">
-            Inteligencia artificial
+            {t('automation.aiSection')}
           </h3>
           <Row
-            title="Analizar automáticamente los mensajes que llegan"
-            help="Clasifica cada mensaje entrante y prepara una sugerencia de respuesta. Es lo que más consume: se ejecuta en cada mensaje. Apagarlo no afecta a los agentes que ya tengas en modo Auto."
+            title={t('automation.inboundTitle')}
+            help={t('automation.inboundHelp')}
           >
             <Toggle
               on={data.aiInboundAnalysis}
@@ -153,8 +152,8 @@ export function AutomationCard() {
             />
           </Row>
           <Row
-            title="Límite mensual de uso de IA"
-            help={`Consumo de este mes: ${fmt(data.tokensThisMonth)} unidades. Al alcanzar el límite, la IA se detiene en lugar de seguir gastando. Vacío = sin límite.`}
+            title={t('automation.capTitle')}
+            help={t('automation.capHelp', { used: fmt(data.tokensThisMonth) })}
           >
             <div className="flex items-center gap-1.5">
               <input
@@ -162,7 +161,7 @@ export function AutomationCard() {
                 min={0}
                 step={100000}
                 defaultValue={data.aiMonthlyTokenCap ?? ''}
-                placeholder="sin límite"
+                placeholder={t('automation.noLimit')}
                 disabled={saving}
                 onBlur={(e) => {
                   const raw = e.target.value.trim();
@@ -177,11 +176,11 @@ export function AutomationCard() {
 
         <section>
           <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-400">
-            Alertas automáticas
+            {t('automation.alertsSection')}
           </h3>
           <Row
-            title="Lead sin contactar"
-            help="Avisa cuando un lead lleva demasiados días sin primer contacto."
+            title={t('automation.staleLeadTitle')}
+            help={t('automation.staleLeadHelp')}
           >
             <div className="flex items-center gap-2">
               <input
@@ -198,7 +197,7 @@ export function AutomationCard() {
                 }}
                 className="w-16 rounded border border-ink-200 px-1.5 py-1 text-right text-xs disabled:opacity-50"
               />
-              <span className="text-xs text-ink-400">días</span>
+              <span className="text-xs text-ink-400">{t('automation.days')}</span>
               <Toggle
                 on={rules.staleLead.enabled}
                 disabled={saving}
@@ -206,14 +205,14 @@ export function AutomationCard() {
               />
             </div>
           </Row>
-          <Row title="Oportunidad con cierre vencido" help="Avisa cuando pasa la fecha prevista de cierre.">
+          <Row title={t('automation.oppOverdueTitle')} help={t('automation.oppOverdueHelp')}>
             <Toggle
               on={rules.oppOverdue.enabled}
               disabled={saving}
               onChange={(v) => setRules({ oppOverdue: { enabled: v } })}
             />
           </Row>
-          <Row title="Tarea vencida" help="Avisa cuando una tarea pasa su fecha de vencimiento.">
+          <Row title={t('automation.taskOverdueTitle')} help={t('automation.taskOverdueHelp')}>
             <Toggle
               on={rules.taskOverdue.enabled}
               disabled={saving}
@@ -221,8 +220,8 @@ export function AutomationCard() {
             />
           </Row>
           <Row
-            title="Lead de alta prioridad"
-            help="Avisa cuando un lead supera la puntuación indicada y sigue sin convertir."
+            title={t('automation.hotLeadTitle')}
+            help={t('automation.hotLeadHelp')}
           >
             <div className="flex items-center gap-2">
               <input
@@ -247,18 +246,17 @@ export function AutomationCard() {
             </div>
           </Row>
           <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800">
-            Las alertas gráficas son uno de los requisitos de Kit Digital. Si desactivas todas,
-            tu instalación deja de cumplir ese punto.
+            {t('automation.kitDigitalWarning')}
           </p>
         </section>
 
         <div className="flex items-center gap-2 text-xs">
           {saving && (
             <span className="inline-flex items-center gap-1 text-ink-500">
-              <Loader2 size={12} className="animate-spin" /> Guardando…
+              <Loader2 size={12} className="animate-spin" /> {t('automation.saving')}
             </span>
           )}
-          {saved && !saving && <span className="text-green-700">Guardado</span>}
+          {saved && !saving && <span className="text-green-700">{t('automation.saved')}</span>}
           {error && (
             <span className="inline-flex items-center gap-1 text-red-700">
               <AlertTriangle size={12} /> {error}

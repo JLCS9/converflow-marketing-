@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Field, Input, buttonClass } from '@/components/ui/primitives';
@@ -13,6 +14,7 @@ interface Status {
 }
 
 export function BotEmailConnect({ botId }: { botId: string }) {
+  const t = useTranslations('bots');
   const router = useRouter();
   const [status, setStatus] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,7 +53,7 @@ export function BotEmailConnect({ botId }: { botId: string }) {
       await load();
       router.refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Error inesperado');
+      setError(err instanceof ApiError ? err.message : t('unexpectedError'));
     } finally {
       setBusy(false);
     }
@@ -73,13 +75,13 @@ export function BotEmailConnect({ botId }: { botId: string }) {
     return (
       <div className="space-y-3">
         <p className="text-sm text-green-700">
-          ✓ Email conectado: <strong>{status.email}</strong>
+          {t('emailConnected')} <strong>{status.email}</strong>
           {status.status === 'ERROR' && (
-            <span className="text-red-600"> · error de sincronización: {status.lastError}</span>
+            <span className="text-red-600"> {t('syncError', { error: status.lastError ?? '' })}</span>
           )}
         </p>
         <button type="button" disabled={busy} className={buttonClass('secondary')} onClick={disconnect}>
-          {busy ? '…' : 'Desconectar'}
+          {busy ? '…' : t('disconnect')}
         </button>
       </div>
     );
@@ -88,30 +90,30 @@ export function BotEmailConnect({ botId }: { botId: string }) {
   return (
     <form className="space-y-4" onSubmit={connect}>
       <p className="text-xs text-ink-500">
-        Conecta tu buzón por IMAP/SMTP. Si tu proveedor lo exige (Gmail, Microsoft 365), genera una
-        <strong> contraseña de aplicación</strong> y úsala aquí.
+        {t('imapIntro1')}
+        <strong> {t('appPassword')}</strong> {t('imapIntro2')}
       </p>
-      <Field label="Email" required>
-        <Input name="email" type="email" required placeholder="ventas@tuempresa.com" />
+      <Field label={t('emailLabel')} required>
+        <Input name="email" type="email" required placeholder={t('emailPlaceholder')} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Servidor IMAP (entrante)" required>
+        <Field label={t('imapHostLabel')} required>
           <Input name="imapHost" required placeholder="imap.gmail.com" />
         </Field>
-        <Field label="Puerto IMAP">
+        <Field label={t('imapPortLabel')}>
           <Input name="imapPort" type="number" defaultValue={993} />
         </Field>
-        <Field label="Servidor SMTP (saliente)" required>
+        <Field label={t('smtpHostLabel')} required>
           <Input name="smtpHost" required placeholder="smtp.gmail.com" />
         </Field>
-        <Field label="Puerto SMTP">
+        <Field label={t('smtpPortLabel')}>
           <Input name="smtpPort" type="number" defaultValue={465} />
         </Field>
       </div>
-      <Field label="Usuario" help="Normalmente tu email. Déjalo vacío para usar el email.">
-        <Input name="username" placeholder="(igual que el email)" />
+      <Field label={t('usernameLabel')} help={t('usernameHelp')}>
+        <Input name="username" placeholder={t('usernamePlaceholder')} />
       </Field>
-      <Field label="Contraseña / contraseña de aplicación" required>
+      <Field label={t('passwordLabel')} required>
         <Input name="password" type="password" required />
       </Field>
 
@@ -120,7 +122,7 @@ export function BotEmailConnect({ botId }: { botId: string }) {
       )}
 
       <button type="submit" disabled={busy} className={buttonClass('primary')}>
-        {busy ? 'Verificando…' : 'Conectar email'}
+        {busy ? t('verifying') : t('connectEmail')}
       </button>
     </form>
   );

@@ -36,7 +36,7 @@ export function TabBar({ items, className, action }: Props) {
   const pathname = usePathname() ?? '';
   return (
     <nav
-      aria-label="Secciones"
+      aria-label={t('uiBits.sections')}
       className={cn(
         '-mx-4 -mt-2 mb-2 flex items-center gap-1 overflow-x-auto border-b border-ink-100 px-4 pb-0 sm:mx-0 sm:px-0',
         className,
@@ -88,15 +88,15 @@ export const CRM_TABS: TabItem[] = [
 ];
 
 export const IA_TABS: TabItem[] = [
-  { href: '/app/bots', label: 'Bots' },
-  { href: '/app/agents', label: 'Agentes IA' },
+  { href: '/app/bots', label: 'Bots', labelKey: 'uiBits.tabBots' },
+  { href: '/app/agents', label: 'Agentes IA', labelKey: 'uiBits.tabAgents' },
 ];
 
 export const SETTINGS_TABS: TabItem[] = [
-  { href: '/app/settings', label: 'Ajustes' },
-  { href: '/app/users', label: 'Usuarios' },
-  { href: '/app/profile', label: 'Perfil' },
-  { href: '/app/settings/custom-fields', label: 'Campos personalizados' },
-  { href: '/app/settings/pipelines', label: 'Tableros' },
-  { href: '/app/settings/developer', label: 'Desarrollador' },
+  { href: '/app/settings', label: 'Ajustes', labelKey: 'uiBits.tabSettings' },
+  { href: '/app/users', label: 'Usuarios', labelKey: 'uiBits.tabUsers' },
+  { href: '/app/profile', label: 'Perfil', labelKey: 'uiBits.tabProfile' },
+  { href: '/app/settings/custom-fields', label: 'Campos personalizados', labelKey: 'uiBits.tabCustomFields' },
+  { href: '/app/settings/pipelines', label: 'Tableros', labelKey: 'uiBits.tabPipelines' },
+  { href: '/app/settings/developer', label: 'Desarrollador', labelKey: 'uiBits.tabDeveloper' },
 ];

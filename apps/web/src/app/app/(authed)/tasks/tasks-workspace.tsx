@@ -89,6 +89,7 @@ export function TasksWorkspace({
   initialStats: Stats;
   assignees: Ref[];
 }) {
+  const tf = useTranslations('crmForms');
   const t = useTranslations();
   const { TASK_STATUS, TASK_TYPE, PRIORITY } = useLabelMaps();
   const session = useSession();
@@ -108,18 +109,19 @@ export function TasksWorkspace({
 
   const load = useCallback(async () => {
     try {
-      const [t, s] = await Promise.all([
+      // Ojo: no llamar `t` a la lista — colisionaría con el traductor.
+      const [taskList, statsRes] = await Promise.all([
         apiFetch<Task[]>('/tasks?limit=200'),
         apiFetch<Stats>('/tasks/stats').catch(() => initialStats),
       ]);
-      setTasks(t);
-      setStats(s);
+      setTasks(taskList);
+      setStats(statsRes);
     } catch {
       /* keep last */
     }
   }, [initialStats]);
 
-  const nameOf = (id: string | null) => (id ? assignees.find((a) => a.id === id)?.name ?? 'Asignado' : '');
+  const nameOf = (id: string | null) => (id ? assignees.find((a) => a.id === id)?.name ?? tf('assigned') : '');
 
   async function patch(id: string, data: Record<string, unknown>) {
     setBusyId(id);
@@ -133,7 +135,7 @@ export function TasksWorkspace({
     }
   }
   async function remove(task: Task) {
-    const ok = await fb.confirm({ title: 'Eliminar tarea', description: task.title, confirmLabel: 'Eliminar', danger: true });
+    const ok = await fb.confirm({ title: tf('deleteTaskTitle'), description: task.title, confirmLabel: tf('delete'), danger: true });
     if (!ok) return;
     try {
       await apiFetch(`/tasks/${task.id}`, { method: 'DELETE' });
@@ -212,8 +214,8 @@ export function TasksWorkspace({
           <option value="">{t('taskBoard.allTypes')}</option>
           {Object.entries(TASK_TYPE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <input type="date" value={dueFrom} onChange={(e) => setDueFrom(e.target.value)} title="Vence desde" className="rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-600" />
-          <input type="date" value={dueTo} onChange={(e) => setDueTo(e.target.value)} title="Vence hasta" className="rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-600" />
+        <input type="date" value={dueFrom} onChange={(e) => setDueFrom(e.target.value)} title={tf('dueFrom')} className="rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-600" />
+          <input type="date" value={dueTo} onChange={(e) => setDueTo(e.target.value)} title={tf('dueTo')} className="rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-600" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('taskBoard.searchPlaceholder')} className="rounded border border-ink-200 py-1 pl-2 pr-7 text-xs" />
       </div>
 
@@ -230,7 +232,7 @@ export function TasksWorkspace({
                 return (
                   <tr key={task.id} className="border-b border-ink-100 last:border-0 hover:bg-ink-100/30">
                     <td className="py-2.5 pl-4 pr-2">
-                      <button type="button" onClick={() => void patch(task.id, { status: task.status === 'DONE' ? 'PENDING' : 'DONE' })} disabled={busyId === task.id} title={task.status === 'DONE' ? 'Reabrir' : 'Completar'}
+                      <button type="button" onClick={() => void patch(task.id, { status: task.status === 'DONE' ? 'PENDING' : 'DONE' })} disabled={busyId === task.id} title={task.status === 'DONE' ? tf('reopen') : tf('complete')}
                         className={`flex h-5 w-5 items-center justify-center rounded-full border ${task.status === 'DONE' ? 'border-green-500 bg-green-500 text-white' : 'border-ink-300 hover:border-green-500'}`}>
                         {task.status === 'DONE' && <Check size={13} />}
                       </button>
@@ -239,7 +241,7 @@ export function TasksWorkspace({
                       <div className="flex items-center gap-2">
                         <Icon size={15} className="shrink-0 text-ink-400" />
                         <button type="button" onClick={() => setModal({ task })} className={`truncate text-left font-medium hover:text-primary-700 ${task.status === 'DONE' ? 'text-ink-400 line-through' : 'text-ink-900'}`}>{task.title}</button>
-                        {task.source === 'agent' && <span title="Creada por IA"><Sparkles size={13} className="shrink-0 text-primary-500" /></span>}
+                        {task.source === 'agent' && <span title={tf('createdByAi')}><Sparkles size={13} className="shrink-0 text-primary-500" /></span>}
                       </div>
                       {linked && <Link href={linked.href} className="ml-7 block truncate text-xs text-primary-700 hover:underline">{linked.name}</Link>}
                     </td>
@@ -259,8 +261,8 @@ export function TasksWorkspace({
                     </td>
                     <td className="hidden py-2.5 pr-2 lg:table-cell"><span className={`text-xs ${overdue ? 'font-medium text-red-600' : 'text-ink-500'}`}>{dueLabel(task.dueAt) || '—'}</span></td>
                     <td className="py-2.5 pr-4 text-right">
-                      <button type="button" onClick={() => setModal({ task })} className="rounded p-1 text-ink-400 hover:text-ink-800" aria-label="Editar"><Pencil size={14} /></button>
-                      <button type="button" onClick={() => void remove(task)} className="rounded p-1 text-ink-400 hover:text-red-600" aria-label="Eliminar"><Trash2 size={14} /></button>
+                      <button type="button" onClick={() => setModal({ task })} className="rounded p-1 text-ink-400 hover:text-ink-800" aria-label={tf('edit')}><Pencil size={14} /></button>
+                      <button type="button" onClick={() => void remove(task)} className="rounded p-1 text-ink-400 hover:text-red-600" aria-label={tf('delete')}><Trash2 size={14} /></button>
                     </td>
                   </tr>
                 );
@@ -291,7 +293,7 @@ export function TasksWorkspace({
                             <span className="text-sm font-medium text-ink-900 hover:text-primary-700">{task.title}</span>
                           </button>
                           {NEXT_STATUS[task.status] && (
-                            <button type="button" onClick={() => void patch(task.id, { status: NEXT_STATUS[task.status] })} disabled={busyId === task.id} title={`Mover a ${TASK_STATUS[NEXT_STATUS[task.status]!]}`} className="shrink-0 rounded p-0.5 text-ink-400 hover:text-primary-700">→</button>
+                            <button type="button" onClick={() => void patch(task.id, { status: NEXT_STATUS[task.status] })} disabled={busyId === task.id} title={tf('moveTo', { status: TASK_STATUS[NEXT_STATUS[task.status]!] ?? '' })} className="shrink-0 rounded p-0.5 text-ink-400 hover:text-primary-700">→</button>
                           )}
                         </div>
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">

@@ -56,7 +56,7 @@ const EVENT_META: Record<string, EventMeta> = {
     icon: Sparkles,
     tone: 'bg-blue-100 text-blue-700',
     title: 'Lead creado',
-    detail: (p) => (str(p.channel) ? <>vía <span className="font-medium">{str(p.channel)}</span></> : null),
+    detail: (p) => (str(p.channel) ? <span className="font-medium">{str(p.channel)}</span> : null),
   },
   contacted: { icon: PhoneCall, tone: 'bg-sky-100 text-sky-700', title: 'Primer contacto' },
   qualified: { icon: BadgeCheck, tone: 'bg-violet-100 text-violet-700', title: 'Cualificado' },

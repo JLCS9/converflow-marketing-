@@ -1,11 +1,15 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { AgentForm } from '../agent-form';
 import { OpportunitiesAgentForm } from '../opportunities-agent-form';
 import { AgentTemplateWizard } from './purpose-wizard';
 import { findTemplate } from '@/lib/agent-templates';
 
-export const metadata = { title: 'Nuevo agente' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('agents.newTitle') };
+}
 
 /**
  * Two-step new-agent flow:
@@ -18,6 +22,7 @@ export default async function NewAgentPage({
 }: {
   searchParams: Promise<{ template?: string }>;
 }) {
+  const t = await getTranslations('agents');
   const { template: tplId } = await searchParams;
   const tpl = findTemplate(tplId);
 
@@ -27,15 +32,15 @@ export default async function NewAgentPage({
       <div className="mx-auto max-w-6xl space-y-6">
         <div>
           <Link href="/app/agents" className="text-sm text-ink-500 hover:text-ink-900">
-            ← Volver a agentes
+            {t('backToAgents')}
           </Link>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-            ¿Qué quieres automatizar en tu embudo?
+            {t('wizardTitle')}
           </h1>
           <p className="mt-1 text-sm text-ink-500">
-            Elige una pieza del embudo. Las marcadas como{' '}
-            <span className="font-medium text-emerald-700">✓ Disponible</span> ya están
-            listas para usarse.
+            {t('wizardIntro1')}{' '}
+            <span className="font-medium text-emerald-700">{t('availableCheck')}</span>{' '}
+            {t('wizardIntro2')}
           </p>
         </div>
         <AgentTemplateWizard />
@@ -53,7 +58,7 @@ export default async function NewAgentPage({
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <Link href="/app/agents/new" className="text-sm text-ink-500 hover:text-ink-900">
-          ← Cambiar tipo
+          {t('backChangeType')}
         </Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">{tpl.label}</h1>
         <p className="mt-1 text-sm text-ink-500">{tpl.subtitle}</p>

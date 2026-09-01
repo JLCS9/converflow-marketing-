@@ -37,7 +37,7 @@ export function LanguageCard({ current }: { current: UiLocale }) {
         router.refresh();
       } catch (err) {
         setLocale(previous);
-        setError(err instanceof ApiError ? err.message : 'No se pudo cambiar el idioma');
+        setError(err instanceof ApiError ? err.message : t('localeError'));
       }
     });
   }

@@ -42,6 +42,8 @@ export function OpportunityEdit({
   opp: Opp;
   pipeline: Pipeline | null;
 }) {
+  const tCommon2 = useTranslations('common');
+  const tOpp = useTranslations('opportunities');
   const tToasts = useTranslations('toasts');
   const router = useRouter();
   const { toast } = useFeedback();
@@ -78,7 +80,7 @@ export function OpportunityEdit({
       setEditing(false);
       router.refresh();
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : 'No se pudo guardar';
+      const msg = e instanceof ApiError ? e.message : tOpp('saveErrorMsg');
       setErr(msg);
       toast.error(msg);
     } finally {
@@ -98,7 +100,7 @@ export function OpportunityEdit({
       toast.success(tToasts('stageUpdated'));
       router.refresh();
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : 'No se pudo mover';
+      const msg = e instanceof ApiError ? e.message : tOpp('moveError');
       setErr(msg);
       toast.error(msg);
     } finally {
@@ -219,7 +221,7 @@ export function OpportunityEdit({
               onClick={save}
               disabled={busy}
             >
-              {busy ? 'Guardando…' : 'Guardar'}
+              {busy ? tCommon2('saving') : tCommon2('save')}
             </button>
           </>
         ) : (

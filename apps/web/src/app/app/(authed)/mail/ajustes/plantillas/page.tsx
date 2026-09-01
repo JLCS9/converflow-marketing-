@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
@@ -7,9 +8,9 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { TemplateActions } from '../../../templates/template-actions';
 
 const AJUSTES_TABS = [
-  { href: '/app/mail/ajustes', label: 'Buzones' },
-  { href: '/app/mail/ajustes/plantillas', label: 'Plantillas' },
-];
+  { href: '/app/mail/ajustes', labelKey: 'tabMailboxes' },
+  { href: '/app/mail/ajustes/plantillas', labelKey: 'tabTemplates' },
+] as const;
 
 interface TemplateRow {
   id: string;
@@ -18,34 +19,38 @@ interface TemplateRow {
   updatedAt: string;
 }
 
-export const metadata = { title: 'Correo · Plantillas' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('mailboxes.templatesMetaTitle') };
+}
 
 export default async function MailTemplatesSettingsPage() {
+  const t = await getTranslations('mailboxes');
   const templates = await serverApiFetch<TemplateRow[]>('/email-templates').catch(
     () => [] as TemplateRow[],
   );
 
   return (
     <div className="space-y-6">
-      <TabBar items={AJUSTES_TABS} />
+      <TabBar items={AJUSTES_TABS.map((tab) => ({ href: tab.href, label: t(tab.labelKey) }))} />
       <PageHeader
-        title="Plantillas de email"
-        description="Plantillas HTML reutilizables en el compositor de correo y en las campañas."
-        back={{ href: '/app/mail', label: 'Correo' }}
+        title={t('templatesTitle')}
+        description={t('templatesDescription')}
+        back={{ href: '/app/mail', label: t('backToMail') }}
         action={
           <Link href="/app/templates/new" className={buttonClass('primary')}>
-            + Nueva plantilla
+            {t('newTemplate')}
           </Link>
         }
       />
 
       {templates.length === 0 ? (
         <EmptyState
-          title="Sin plantillas"
-          description="Crea tu primera plantilla de email para reutilizarla en respuestas y campañas."
+          title={t('templatesEmptyTitle')}
+          description={t('templatesEmptyDescription')}
           cta={
             <Link href="/app/templates/new" className={buttonClass('primary', 'text-xs')}>
-              + Nueva plantilla
+              {t('newTemplate')}
             </Link>
           }
         />
@@ -54,26 +59,26 @@ export default async function MailTemplatesSettingsPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
               <tr>
-                <th className="px-4 py-3">Nombre</th>
-                <th className="hidden px-4 py-3 md:table-cell">Asunto</th>
-                <th className="hidden px-4 py-3 md:table-cell">Actualizada</th>
-                <th className="px-4 py-3 text-right">Acciones</th>
+                <th className="px-4 py-3">{t('colName')}</th>
+                <th className="hidden px-4 py-3 md:table-cell">{t('colSubject')}</th>
+                <th className="hidden px-4 py-3 md:table-cell">{t('colUpdated')}</th>
+                <th className="px-4 py-3 text-right">{t('colActions')}</th>
               </tr>
             </thead>
             <tbody>
-              {templates.map((t) => (
-                <tr key={t.id} className="border-b border-ink-100 last:border-0 hover:bg-ink-100/40">
+              {templates.map((tpl) => (
+                <tr key={tpl.id} className="border-b border-ink-100 last:border-0 hover:bg-ink-100/40">
                   <td className="px-4 py-3 font-medium">
-                    <Link href={`/app/templates/${t.id}`} className="hover:text-primary-700">
-                      {t.name}
+                    <Link href={`/app/templates/${tpl.id}`} className="hover:text-primary-700">
+                      {tpl.name}
                     </Link>
                   </td>
-                  <td className="hidden px-4 py-3 text-ink-600 md:table-cell">{t.subject ?? '—'}</td>
+                  <td className="hidden px-4 py-3 text-ink-600 md:table-cell">{tpl.subject ?? '—'}</td>
                   <td className="hidden px-4 py-3 text-xs text-ink-500 md:table-cell">
-                    {new Date(t.updatedAt).toLocaleDateString('es-ES')}
+                    {new Date(tpl.updatedAt).toLocaleDateString('es-ES')}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <TemplateActions id={t.id} />
+                    <TemplateActions id={tpl.id} />
                   </td>
                 </tr>
               ))}

@@ -1,10 +1,14 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { serverApiFetch } from '@/lib/server-api';
 import { CreateOpportunityForm } from './create-form';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 import type { Pipeline } from '../types';
 
-export const metadata = { title: 'Nueva oportunidad' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('titles.newOpportunity') };
+}
 export const dynamic = 'force-dynamic';
 
 export default async function NewOpportunityPage({

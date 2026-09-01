@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
@@ -29,13 +30,17 @@ interface GoogleStatus {
   connectedAt: string | null;
 }
 
-export const metadata = { title: 'Ajustes' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('settings.title') };
+}
 
 export default async function SettingsPage({
   searchParams,
 }: {
   searchParams: Promise<{ google?: string }>;
 }) {
+  const t = await getTranslations('settings');
   const { google } = await searchParams;
   const [tenant, googleStatus] = await Promise.all([
     serverApiFetch<TenantDetail>('/me/tenant'),
@@ -46,70 +51,73 @@ export default async function SettingsPage({
     <div className="space-y-6">
       <TabBar items={SETTINGS_TABS} />
       <PageHeader
-        title="Ajustes"
+        title={t('title')}
         description={
           <>
-            Configuración del tenant. Los límites los gestiona el equipo de converflow — si
-            necesitas cambiarlos,{' '}
+            {t('description')}{' '}
             <a
               href="mailto:hola@converflow.ai?subject=Ampliar%20l%C3%ADmites%20del%20tenant"
               className="text-primary-700 hover:underline"
             >
-              escríbenos
+              {t('writeUs')}
             </a>
             .
           </>
         }
         breadcrumbs={[
-          { href: '/app/settings', label: 'Configuración' },
-          { label: 'Ajustes' },
+          { href: '/app/settings', label: t('breadcrumbSettings') },
+          { label: t('title') },
         ]}
       />
 
       <Card>
         <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
-          Información general
+          {t('generalInfo')}
         </h2>
         <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field label="Nombre">{tenant.name}</Field>
-          <Field label="Identificador" mono>
+          <Field label={t('name')}>{tenant.name}</Field>
+          <Field label={t('identifier')} mono>
             {tenant.slug}
           </Field>
-          <Field label="Email de contacto">{tenant.contactEmail}</Field>
-          <Field label="Teléfono">{tenant.contactPhone ?? '—'}</Field>
-          <Field label="Zona horaria" mono>
+          <Field label={t('contactEmail')}>{tenant.contactEmail}</Field>
+          <Field label={t('phone')}>{tenant.contactPhone ?? '—'}</Field>
+          <Field label={t('timezone')} mono>
             {tenant.timezone}
           </Field>
-          <Field label="Idioma" mono>
+          <Field label={t('language')} mono>
             {tenant.locale}
           </Field>
-          <Field label="Creado">{new Date(tenant.createdAt).toLocaleString('es-ES')}</Field>
-          <Field label="Estado" mono>
+          <Field label={t('createdAt')}>{new Date(tenant.createdAt).toLocaleString('es-ES')}</Field>
+          <Field label={t('status')} mono>
             {tenant.status}
           </Field>
         </dl>
       </Card>
 
       <Card>
-        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Plan y límites</h2>
+        <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
+          {t('planLimits')}
+        </h2>
         <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Usuarios" mono>
+          <Field label={t('users')} mono>
             {tenant.maxUsers}
           </Field>
-          <Field label="Bots" mono>
+          <Field label={t('bots')} mono>
             {tenant.maxBots}
           </Field>
-          <Field label="Conversaciones / mes" mono>
+          <Field label={t('conversationsPerMonth')} mono>
             {tenant.maxConversationsPerMonth}
           </Field>
-          <Field label="Almacenamiento" mono>
+          <Field label={t('storage')} mono>
             {tenant.maxStorageGb} GB
           </Field>
         </dl>
         {tenant.kitDigitalSegment && (
           <p className="mt-4 text-xs text-ink-500">
-            Tenant adherido a <strong>Kit Digital · Segmento {tenant.kitDigitalSegment}</strong>.
-            Tus logs de acceso quedan registrados y exportables a CSV para evidencias.
+            {t.rich('kitDigital', {
+              segment: tenant.kitDigitalSegment,
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
           </p>
         )}
       </Card>

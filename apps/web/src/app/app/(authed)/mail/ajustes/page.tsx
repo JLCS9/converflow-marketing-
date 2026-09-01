@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { Lock, Users } from 'lucide-react';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
@@ -8,9 +9,9 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { MailConnectionActions } from '../mail-connection-actions';
 
 const AJUSTES_TABS = [
-  { href: '/app/mail/ajustes', label: 'Buzones' },
-  { href: '/app/mail/ajustes/plantillas', label: 'Plantillas' },
-];
+  { href: '/app/mail/ajustes', labelKey: 'tabMailboxes' },
+  { href: '/app/mail/ajustes/plantillas', labelKey: 'tabTemplates' },
+] as const;
 
 interface ConnRow {
   id: string;
@@ -23,40 +24,44 @@ interface ConnRow {
   lastSyncedAt: string | null;
 }
 
-export const metadata = { title: 'Correo · Buzones' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('mailboxes.metaTitle') };
+}
 
-const STATUS: Record<string, { label: string; color: 'gray' | 'green' | 'red' | 'yellow' }> = {
-  PENDING: { label: 'Pendiente', color: 'yellow' },
-  CONNECTED: { label: 'Conectado', color: 'green' },
+const STATUS = {
+  PENDING: { labelKey: 'statusPending', color: 'yellow' },
+  CONNECTED: { labelKey: 'statusConnected', color: 'green' },
   // Fallo transitorio: se sigue sincronizando con reintentos, no requiere acción.
-  DEGRADED: { label: 'Reintentando', color: 'yellow' },
-  ERROR: { label: 'Requiere acción', color: 'red' },
-};
+  DEGRADED: { labelKey: 'statusRetrying', color: 'yellow' },
+  ERROR: { labelKey: 'statusActionRequired', color: 'red' },
+} as const;
 
 export default async function MailConnectionsSettingsPage() {
+  const t = await getTranslations('mailboxes');
   const conns = await serverApiFetch<ConnRow[]>('/mail/connections').catch(() => [] as ConnRow[]);
 
   return (
     <div className="space-y-6">
-      <TabBar items={AJUSTES_TABS} />
+      <TabBar items={AJUSTES_TABS.map((tab) => ({ href: tab.href, label: t(tab.labelKey) }))} />
       <PageHeader
-        title="Buzones conectados"
-        description="Conecta los buzones del equipo (compartidos) o tu buzón privado. Cada tenant usa sus propias cuentas — el correo se envía desde tu dominio, nunca desde Converflow."
-        back={{ href: '/app/mail', label: 'Correo' }}
+        title={t('title')}
+        description={t('description')}
+        back={{ href: '/app/mail', label: t('backToMail') }}
         action={
           <Link href="/app/mail/new" className={buttonClass('primary')}>
-            + Conectar buzón
+            {t('connectMailbox')}
           </Link>
         }
       />
 
       {conns.length === 0 ? (
         <EmptyState
-          title="Sin buzones conectados"
-          description="Conecta tu primer buzón (Gmail, Outlook, IONOS o cualquier IMAP/SMTP) para enviar y recibir desde Converflow."
+          title={t('emptyTitle')}
+          description={t('emptyDescription')}
           cta={
             <Link href="/app/mail/new" className={buttonClass('primary', 'text-xs')}>
-              + Conectar buzón
+              {t('connectMailbox')}
             </Link>
           }
         />
@@ -65,15 +70,17 @@ export default async function MailConnectionsSettingsPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
               <tr>
-                <th className="px-4 py-3">Buzón</th>
-                <th className="px-4 py-3">Visibilidad</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3 text-right">Acciones</th>
+                <th className="px-4 py-3">{t('colMailbox')}</th>
+                <th className="px-4 py-3">{t('colVisibility')}</th>
+                <th className="px-4 py-3">{t('colStatus')}</th>
+                <th className="px-4 py-3 text-right">{t('colActions')}</th>
               </tr>
             </thead>
             <tbody>
               {conns.map((c) => {
-                const st = STATUS[c.status] ?? { label: c.status, color: 'gray' as const };
+                const st =
+                  STATUS[c.status as keyof typeof STATUS] ??
+                  ({ labelKey: null, color: 'gray' } as const);
                 return (
                   <tr key={c.id} className="border-b border-ink-100 last:border-0 hover:bg-ink-100/40">
                     <td className="px-4 py-3">
@@ -83,11 +90,11 @@ export default async function MailConnectionsSettingsPage() {
                     <td className="px-4 py-3 text-xs">
                       <span className="inline-flex items-center gap-1 text-ink-600">
                         {c.visibility === 'PRIVATE' ? <Lock size={12} /> : <Users size={12} />}
-                        {c.visibility === 'PRIVATE' ? 'Privado' : 'Compartido'}
+                        {c.visibility === 'PRIVATE' ? t('private') : t('shared')}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge color={st.color}>{st.label}</Badge>
+                      <Badge color={st.color}>{st.labelKey ? t(st.labelKey) : c.status}</Badge>
                       {(c.status === 'ERROR' || c.status === 'DEGRADED') && c.lastError && (
                         <div className="mt-0.5 max-w-xs truncate text-[11px] text-red-600" title={c.lastError}>
                           {c.lastError}

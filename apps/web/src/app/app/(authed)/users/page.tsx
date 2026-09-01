@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import {
   effectivePermissions,
   type PermissionModule,
@@ -9,7 +10,7 @@ import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TabBar, SETTINGS_TABS } from '@/components/ui/tab-bar';
-import { PERMISSION_LABELS } from '@/components/permissions-editor';
+import { PERMISSION_LABEL_KEYS } from '@/components/permissions-editor';
 import { UserActions } from './user-actions';
 
 interface UserRow {
@@ -24,22 +25,27 @@ interface UserRow {
   createdAt: string;
 }
 
-const ROLE_LABEL: Record<string, string> = {
-  OWNER: 'Propietario',
-  ADMIN: 'Admin',
-  BUILDER: 'Builder',
-  AGENT_USER: 'Agente',
+const ROLE_KEY: Record<string, string> = {
+  OWNER: 'roleShortOwner',
+  ADMIN: 'roleShortAdmin',
+  BUILDER: 'roleShortBuilder',
+  AGENT_USER: 'roleShortAgent',
 };
 
-const USER_STATUS_LABEL: Record<string, string> = {
-  ACTIVE: 'Activo',
-  PENDING: 'Pendiente',
-  SUSPENDED: 'Suspendido',
+const USER_STATUS_KEY: Record<string, string> = {
+  ACTIVE: 'statusActive',
+  PENDING: 'statusPending',
+  SUSPENDED: 'statusSuspended',
 };
 
-export const metadata = { title: 'Usuarios' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('users.title') };
+}
 
 export default async function UsersPage() {
+  const t = await getTranslations('users');
+  const tUi = await getTranslations('uiBits');
   const [users, me] = await Promise.all([
     serverApiFetch<UserRow[]>('/users'),
     serverApiFetch<{ user: { userId: string; role: string } }>('/auth/me'),
@@ -51,12 +57,12 @@ export default async function UsersPage() {
     <div className="space-y-6">
       <TabBar items={SETTINGS_TABS} />
       <PageHeader
-        title="Usuarios"
-        description={`${users.length} ${users.length === 1 ? 'usuario' : 'usuarios'} en tu cuenta.`}
+        title={t('title')}
+        description={t('countInAccount', { count: users.length })}
         action={
           canManage ? (
             <Link href="/app/users/new" className={buttonClass('primary')}>
-              + Invitar usuario
+              {t('inviteUser')}
             </Link>
           ) : undefined
         }
@@ -64,12 +70,12 @@ export default async function UsersPage() {
 
       {users.length === 0 ? (
         <EmptyState
-          title="Sin usuarios todavía"
-          description="Invita a tu equipo para colaborar en la gestión de leads, conversaciones y agentes."
+          title={t('emptyTitle')}
+          description={t('emptyDescription')}
           cta={
             canManage ? (
               <Link href="/app/users/new" className={buttonClass('primary', 'text-xs')}>
-                + Invitar usuario
+                {t('inviteUser')}
               </Link>
             ) : undefined
           }
@@ -79,13 +85,13 @@ export default async function UsersPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
               <tr>
-                <th className="px-4 py-3">Email</th>
-                <th className="hidden px-4 py-3 md:table-cell">Nombre</th>
-                <th className="px-4 py-3">Rol</th>
-                <th className="hidden px-4 py-3 lg:table-cell">Permisos efectivos</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="hidden px-4 py-3 md:table-cell">Último login</th>
-                {canManage && <th className="px-4 py-3 text-right">Acciones</th>}
+                <th className="px-4 py-3">{t('colEmail')}</th>
+                <th className="hidden px-4 py-3 md:table-cell">{t('colName')}</th>
+                <th className="px-4 py-3">{t('colRole')}</th>
+                <th className="hidden px-4 py-3 lg:table-cell">{t('colPermissions')}</th>
+                <th className="px-4 py-3">{t('colStatus')}</th>
+                <th className="hidden px-4 py-3 md:table-cell">{t('colLastLogin')}</th>
+                {canManage && <th className="px-4 py-3 text-right">{t('colActions')}</th>}
               </tr>
             </thead>
             <tbody>
@@ -101,7 +107,7 @@ export default async function UsersPage() {
                       {u.email}
                       {u.id === me.user.userId && (
                         <span className="ml-2">
-                          <Badge color="blue">tú</Badge>
+                          <Badge color="blue">{t('youBadge')}</Badge>
                         </span>
                       )}
                       <div className="mt-0.5 text-xs text-ink-500 md:hidden">{u.name}</div>
@@ -109,18 +115,18 @@ export default async function UsersPage() {
                     <td className="hidden px-4 py-3 md:table-cell">{u.name}</td>
                     <td className="px-4 py-3">
                       <Badge color={u.role === 'OWNER' ? 'blue' : 'gray'}>
-                        {ROLE_LABEL[u.role] ?? u.role}
+                        {ROLE_KEY[u.role] ? t(ROLE_KEY[u.role]!) : u.role}
                       </Badge>
                     </td>
                     <td className="hidden px-4 py-3 text-xs text-ink-700 lg:table-cell">
                       {u.role === 'OWNER' ? (
-                        <span className="text-ink-500">Acceso completo</span>
+                        <span className="text-ink-500">{t('fullAccess')}</span>
                       ) : (
                         <span className="block max-w-md truncate">
-                          {effective.map((p) => PERMISSION_LABELS[p]).join(' · ')}
+                          {effective.map((p) => tUi(PERMISSION_LABEL_KEYS[p])).join(' · ')}
                           {isOverride && (
                             <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-amber-900">
-                              personalizado
+                              {t('customBadge')}
                             </span>
                           )}
                         </span>
@@ -136,7 +142,7 @@ export default async function UsersPage() {
                               : 'red'
                         }
                       >
-                        {USER_STATUS_LABEL[u.status] ?? u.status}
+                        {USER_STATUS_KEY[u.status] ? t(USER_STATUS_KEY[u.status]!) : u.status}
                       </Badge>
                     </td>
                     <td className="hidden px-4 py-3 text-xs text-ink-500 md:table-cell">

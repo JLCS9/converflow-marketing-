@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { apiFetch } from '@/lib/api-client';
 
 interface Entity {
@@ -34,10 +35,11 @@ export function EntityPicker({
   label,
   defaultId,
   defaultName,
-  placeholder = 'Buscar por nombre…',
+  placeholder,
   required,
   searchParam = 'search',
 }: EntityPickerProps) {
+  const t = useTranslations('uiBits');
   const [selected, setSelected] = useState<Entity | null>(
     defaultId && defaultName ? { id: defaultId, name: defaultName } : null,
   );
@@ -93,7 +95,7 @@ export function EntityPicker({
             }}
             className="text-xs text-red-600 hover:underline"
           >
-            Quitar
+            {t('remove')}
           </button>
         </div>
       </label>
@@ -109,7 +111,7 @@ export function EntityPicker({
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => results.length > 0 && setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('searchByName')}
         required={required}
         autoComplete="off"
         className="mt-1 w-full rounded-md border-ink-300"
@@ -118,7 +120,7 @@ export function EntityPicker({
       <input type="hidden" name={name} value="" />
       {open && (results.length > 0 || loading) && (
         <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border border-ink-200 bg-white text-sm shadow-lg">
-          {loading && <li className="px-3 py-2 text-ink-500">Buscando…</li>}
+          {loading && <li className="px-3 py-2 text-ink-500">{t('searching')}</li>}
           {!loading &&
             results.map((r) => (
               <li
@@ -141,12 +143,12 @@ export function EntityPicker({
               </li>
             ))}
           {!loading && results.length === 0 && query.length >= 2 && (
-            <li className="px-3 py-2 text-ink-500">Sin resultados.</li>
+            <li className="px-3 py-2 text-ink-500">{t('noResults')}</li>
           )}
         </ul>
       )}
       {query.length > 0 && query.length < 2 && (
-        <p className="mt-1 text-xs text-ink-500">Escribe al menos 2 caracteres.</p>
+        <p className="mt-1 text-xs text-ink-500">{t('minChars')}</p>
       )}
     </label>
   );

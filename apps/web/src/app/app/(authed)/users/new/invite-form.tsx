@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   PERMISSION_MODULES,
   ROLE_DEFAULTS,
@@ -12,7 +13,7 @@ import {
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
 import { CopyButton } from '@/components/ui/copy-button';
-import { PermissionsEditor, PERMISSION_LABELS } from '@/components/permissions-editor';
+import { PermissionsEditor, PERMISSION_LABEL_KEYS } from '@/components/permissions-editor';
 
 interface InviteResponse {
   user: { id: string; email: string };
@@ -20,6 +21,8 @@ interface InviteResponse {
 }
 
 export function InviteUserForm() {
+  const t = useTranslations('users');
+  const tUi = useTranslations('uiBits');
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<InviteResponse | null>(null);
@@ -49,14 +52,14 @@ export function InviteUserForm() {
   if (result) {
     return (
       <Card className="space-y-4">
-        <h2 className="text-base font-semibold">Usuario creado</h2>
+        <h2 className="text-base font-semibold">{t('created')}</h2>
         <dl className="space-y-2 rounded-md bg-ink-100/60 p-4 font-mono text-sm">
           <div>
-            <dt className="text-xs text-ink-500">Email</dt>
+            <dt className="text-xs text-ink-500">{t('colEmail')}</dt>
             <dd>{result.user.email}</dd>
           </div>
           <div>
-            <dt className="text-xs text-ink-500">Contraseña temporal</dt>
+            <dt className="text-xs text-ink-500">{t('tempPassword')}</dt>
             <dd className="mt-1 flex items-center gap-2">
               <code className="flex-1 select-all rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-900">
                 {result.tempPassword}
@@ -65,17 +68,14 @@ export function InviteUserForm() {
             </dd>
           </div>
         </dl>
-        <p className="text-xs text-ink-500">
-          Comunica esta contraseña al usuario por un canal seguro. Cuando entre por
-          primera vez la plataforma le pedirá cambiarla.
-        </p>
+        <p className="text-xs text-ink-500">{t('tempPasswordHelp')}</p>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => router.push('/app/users')}
             className={buttonClass('primary')}
           >
-            Volver a usuarios
+            {t('backToUsers')}
           </button>
           <button
             type="button"
@@ -89,7 +89,7 @@ export function InviteUserForm() {
             }}
             className={buttonClass('secondary')}
           >
-            Invitar otro
+            {t('inviteAnother')}
           </button>
         </div>
       </Card>
@@ -123,13 +123,13 @@ export function InviteUserForm() {
               });
               setResult(res);
             } catch (err) {
-              setError(err instanceof ApiError ? err.message : 'Error inesperado');
+              setError(err instanceof ApiError ? err.message : t('unexpectedError'));
             }
           });
         }}
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Email" required>
+          <Field label={t('colEmail')} required>
             <Input
               type="email"
               required
@@ -137,7 +137,7 @@ export function InviteUserForm() {
               onChange={(e) => setEmail(e.target.value)}
             />
           </Field>
-          <Field label="Nombre" required>
+          <Field label={t('colName')} required>
             <Input
               type="text"
               required
@@ -149,12 +149,12 @@ export function InviteUserForm() {
           </Field>
         </div>
 
-        <Field label="Rol" required help="Determina los permisos por defecto.">
+        <Field label={t('roleLabel')} required help={t('roleHelp')}>
           <Select value={role} onChange={(e) => changeRole(e.target.value as UserRole)}>
-            <option value="AGENT_USER">Agente — uso operativo (CRM y conversaciones)</option>
-            <option value="BUILDER">Constructor — diseña agentes y bots</option>
-            <option value="ADMIN">Administrador — gestión completa del tenant</option>
-            <option value="OWNER">Propietario — control total, no se puede limitar</option>
+            <option value="AGENT_USER">{t('roleAgentDesc')}</option>
+            <option value="BUILDER">{t('roleBuilderDesc')}</option>
+            <option value="ADMIN">{t('roleAdminDesc')}</option>
+            <option value="OWNER">{t('roleOwnerDesc')}</option>
           </Select>
         </Field>
 
@@ -163,14 +163,14 @@ export function InviteUserForm() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-xs font-mono uppercase tracking-wider text-ink-500">
-                Permisos
+                {t('permissions')}
               </div>
               <p className="mt-1 text-xs text-ink-600">
                 {role === 'OWNER'
-                  ? 'Los propietarios siempre tienen acceso completo. No se pueden limitar permisos a un OWNER.'
+                  ? t('ownerNoLimit')
                   : usingDefaults
-                    ? `Este usuario tendrá los permisos por defecto del rol ${role}. Activa la personalización para ajustar módulos concretos.`
-                    : 'Permisos personalizados — solo los módulos marcados estarán disponibles.'}
+                    ? t('willUseRoleDefaults', { role })
+                    : t('customPerms')}
               </p>
             </div>
             {role !== 'OWNER' && (
@@ -181,15 +181,17 @@ export function InviteUserForm() {
                   onChange={(e) => toggleOverride(e.target.checked)}
                   className="rounded border-ink-300 text-primary-600 focus:ring-primary-500"
                 />
-                Personalizar
+                {t('customize')}
               </label>
             )}
           </div>
 
           {role === 'OWNER' ? (
             <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              Acceso completo a {PERMISSION_MODULES.length} módulos:{' '}
-              {PERMISSION_MODULES.map((m) => PERMISSION_LABELS[m]).join(' · ')}.
+              {t('fullAccessCount', {
+                count: PERMISSION_MODULES.length,
+                list: PERMISSION_MODULES.map((m) => tUi(PERMISSION_LABEL_KEYS[m])).join(' · '),
+              })}
             </div>
           ) : (
             <PermissionsEditor
@@ -214,10 +216,10 @@ export function InviteUserForm() {
             className={buttonClass('secondary')}
             disabled={pending}
           >
-            Cancelar
+            {t('cancel')}
           </button>
           <button type="submit" className={buttonClass('primary')} disabled={pending}>
-            {pending ? 'Creando…' : 'Crear usuario'}
+            {pending ? t('creating') : t('createUser')}
           </button>
         </div>
       </form>

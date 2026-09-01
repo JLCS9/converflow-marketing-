@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { serverApiFetch } from '@/lib/server-api';
+import { getLabelMaps } from '@/lib/get-labels';
 import { Card, Badge, StatCard } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { CampaignForm, type CampaignData } from '../campaign-form';
@@ -23,13 +25,13 @@ interface CampaignDetail extends CampaignData {
   recipients: Recipient[];
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  DRAFT: 'Borrador',
-  SCHEDULED: 'Programada',
-  SENDING: 'Enviando',
-  SENT: 'Enviada',
-  CANCELLED: 'Cancelada',
-  FAILED: 'Fallida',
+const STATUS_KEY: Record<string, string> = {
+  DRAFT: 'statusDraft',
+  SCHEDULED: 'statusScheduled',
+  SENDING: 'statusSending',
+  SENT: 'statusSent',
+  CANCELLED: 'statusCancelled',
+  FAILED: 'statusFailed',
 };
 type BadgeColor = 'gray' | 'blue' | 'green' | 'red' | 'yellow';
 const STATUS_COLOR: Record<string, BadgeColor> = {
@@ -52,6 +54,8 @@ export default async function CampaignDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = await getTranslations('campaigns');
+  const { CHANNEL } = await getLabelMaps();
   const { id } = await params;
   const c = await serverApiFetch<CampaignDetail>(`/campaigns/${id}`).catch(() => null);
   if (!c) notFound();
@@ -65,12 +69,12 @@ export default async function CampaignDetailPage({
         description={
           <span className="inline-flex items-center gap-2">
             <Badge color={STATUS_COLOR[c.status] ?? 'gray'}>
-              {STATUS_LABEL[c.status] ?? c.status}
+              {STATUS_KEY[c.status] ? t(STATUS_KEY[c.status]!) : c.status}
             </Badge>
-            <span className="text-ink-500">{c.channel === 'EMAIL' ? 'Email' : 'WhatsApp'}</span>
+            <span className="text-ink-500">{CHANNEL[c.channel] ?? c.channel}</span>
           </span>
         }
-        back={{ href: '/app/campaigns', label: 'Campañas' }}
+        back={{ href: '/app/campaigns', label: t('title') }}
         action={<CampaignActions id={c.id} status={c.status} />}
       />
 
@@ -79,14 +83,16 @@ export default async function CampaignDetailPage({
       ) : (
         <>
           <section className="grid gap-4 sm:grid-cols-4">
-            <StatCard label="Destinatarios" value={c.totalRecipients} />
-            <StatCard label="Enviados" value={c.sentCount} />
-            <StatCard label="Aperturas" value={c.recipients.filter((r) => r.openedAt).length} />
-            <StatCard label="Fallidos" value={c.failedCount} />
+            <StatCard label={t('statRecipients')} value={c.totalRecipients} />
+            <StatCard label={t('statSent')} value={c.sentCount} />
+            <StatCard label={t('statOpens')} value={c.recipients.filter((r) => r.openedAt).length} />
+            <StatCard label={t('statFailed')} value={c.failedCount} />
           </section>
 
           <Card>
-            <h3 className="mb-3 text-sm font-mono uppercase tracking-wider text-ink-500">Mensaje</h3>
+            <h3 className="mb-3 text-sm font-mono uppercase tracking-wider text-ink-500">
+              {t('message')}
+            </h3>
             {c.subject && <div className="mb-1 text-sm font-medium">{c.subject}</div>}
             <pre className="whitespace-pre-wrap font-sans text-sm text-ink-700">{c.body}</pre>
           </Card>
@@ -95,11 +101,11 @@ export default async function CampaignDetailPage({
             <table className="w-full text-sm">
               <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
                 <tr>
-                  <th className="px-4 py-3">Destinatario</th>
-                  <th className="px-4 py-3">Dirección</th>
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3">Abierto</th>
-                  <th className="hidden px-4 py-3 md:table-cell">Detalle</th>
+                  <th className="px-4 py-3">{t('colRecipient')}</th>
+                  <th className="px-4 py-3">{t('colAddress')}</th>
+                  <th className="px-4 py-3">{t('colStatus')}</th>
+                  <th className="px-4 py-3">{t('colOpened')}</th>
+                  <th className="hidden px-4 py-3 md:table-cell">{t('colDetail')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -131,7 +137,7 @@ export default async function CampaignDetailPage({
                 {c.recipients.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-4 py-6 text-center text-sm text-ink-500">
-                      Sin destinatarios registrados.
+                      {t('noRecipients')}
                     </td>
                   </tr>
                 )}

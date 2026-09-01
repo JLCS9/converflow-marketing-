@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Field, Input, buttonClass } from '@/components/ui/primitives';
@@ -25,14 +26,15 @@ export interface Pipeline {
   stages: PipelineStage[];
 }
 
-const DEFAULT_NEW_STAGES: PipelineStage[] = [
-  { key: 'OPEN', label: 'Inicio', color: '#64748B', order: 0, isWon: false, isLost: false },
-  { key: 'QUALIFIED', label: 'Cualificada', color: '#3B82F6', order: 1, isWon: false, isLost: false },
-  { key: 'WON', label: 'Ganada', color: '#16A34A', order: 2, isWon: true, isLost: false },
-  { key: 'LOST', label: 'Perdida', color: '#DC2626', order: 3, isWon: false, isLost: true },
-];
+const DEFAULT_NEW_STAGES = [
+  { key: 'OPEN', labelKey: 'pipelines.stageOpen', color: '#64748B', order: 0, isWon: false, isLost: false },
+  { key: 'QUALIFIED', labelKey: 'pipelines.stageQualified', color: '#3B82F6', order: 1, isWon: false, isLost: false },
+  { key: 'WON', labelKey: 'pipelines.stageWon', color: '#16A34A', order: 2, isWon: true, isLost: false },
+  { key: 'LOST', labelKey: 'pipelines.stageLost', color: '#DC2626', order: 3, isWon: false, isLost: true },
+] as const;
 
 export function PipelinesAdmin({ initial }: { initial: Pipeline[] }) {
+  const t = useTranslations('settings');
   const router = useRouter();
   const [pipelines, setPipelines] = useState(initial);
   const [creating, setCreating] = useState(false);
@@ -49,22 +51,27 @@ export function PipelinesAdmin({ initial }: { initial: Pipeline[] }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between">
-        <p className="text-xs text-ink-500">
-          El tablero por defecto se usa para oportunidades nuevas si no eliges otro.
-        </p>
+        <p className="text-xs text-ink-500">{t('pipelines.defaultHint')}</p>
         <button
           type="button"
           className={buttonClass('primary', 'text-xs px-3 py-1.5')}
           onClick={() => setCreating(true)}
         >
-          + Nuevo tablero
+          {t('pipelines.newBoard')}
         </button>
       </div>
 
       {creating && (
         <PipelineEditor
           mode="create"
-          initial={{ name: 'Tablero nuevo', isDefault: false, stages: DEFAULT_NEW_STAGES }}
+          initial={{
+            name: t('pipelines.newBoardName'),
+            isDefault: false,
+            stages: DEFAULT_NEW_STAGES.map(({ labelKey, ...stage }) => ({
+              ...stage,
+              label: t(labelKey),
+            })),
+          }}
           onCancel={() => setCreating(false)}
           onSaved={async () => {
             setCreating(false);
@@ -82,7 +89,7 @@ export function PipelinesAdmin({ initial }: { initial: Pipeline[] }) {
       {archived.length > 0 && (
         <div>
           <h3 className="text-xs font-mono uppercase tracking-wider text-ink-500">
-            Archivados
+            {t('pipelines.archived')}
           </h3>
           <div className="mt-2 space-y-2">
             {archived.map((p) => (
@@ -102,7 +109,7 @@ export function PipelinesAdmin({ initial }: { initial: Pipeline[] }) {
                     await refresh();
                   }}
                 >
-                  Restaurar
+                  {t('pipelines.restore')}
                 </button>
               </div>
             ))}
@@ -120,6 +127,7 @@ function PipelineCard({
   pipeline: Pipeline;
   onChanged: () => Promise<void> | void;
 }) {
+  const t = useTranslations('settings');
   const { confirm, toast } = useFeedback();
   const [editing, setEditing] = useState(false);
   return (
@@ -130,7 +138,7 @@ function PipelineCard({
             {pipeline.name}
             {pipeline.isDefault && (
               <span className="rounded bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-700">
-                Por defecto
+                {t('pipelines.defaultBadge')}
               </span>
             )}
           </div>
@@ -140,7 +148,7 @@ function PipelineCard({
                 key={s.key}
                 className="rounded px-2 py-0.5 text-[11px] font-medium text-white"
                 style={{ backgroundColor: s.color }}
-                title={`${s.label}${s.isWon ? ' · ganada' : s.isLost ? ' · perdida' : ''}`}
+                title={`${s.label}${s.isWon ? ` · ${t('pipelines.wonTag')}` : s.isLost ? ` · ${t('pipelines.lostTag')}` : ''}`}
               >
                 {s.label}
               </span>
@@ -153,7 +161,7 @@ function PipelineCard({
             className="text-xs text-ink-600 hover:text-ink-900"
             onClick={() => setEditing((v) => !v)}
           >
-            {editing ? 'Cerrar' : 'Editar'}
+            {editing ? t('pipelines.close') : t('pipelines.edit')}
           </button>
           {!pipeline.isDefault && (
             <button
@@ -161,9 +169,9 @@ function PipelineCard({
               className="text-xs text-red-600 hover:underline"
               onClick={async () => {
                 const ok = await confirm({
-                  title: `Archivar "${pipeline.name}"`,
-                  description: 'Las oportunidades que vivan en este tablero seguirán existiendo, pero el tablero dejará de aparecer.',
-                  confirmLabel: 'Archivar',
+                  title: t('pipelines.archiveTitle', { name: pipeline.name }),
+                  description: t('pipelines.archiveDescription'),
+                  confirmLabel: t('pipelines.archive'),
                   danger: true,
                 });
                 if (!ok) return;
@@ -172,14 +180,14 @@ function PipelineCard({
                     method: 'PATCH',
                     json: { archived: true },
                   });
-                  toast.success('Tablero archivado');
+                  toast.success(t('pipelines.boardArchived'));
                   await onChanged();
                 } catch (e) {
-                  toast.error(e instanceof ApiError ? e.message : 'No se pudo archivar');
+                  toast.error(e instanceof ApiError ? e.message : t('pipelines.archiveError'));
                 }
               }}
             >
-              Archivar
+              {t('pipelines.archive')}
             </button>
           )}
         </div>
@@ -213,6 +221,7 @@ function PipelineEditor({
   onCancel: () => void;
   onSaved: () => Promise<void> | void;
 }) {
+  const t = useTranslations('settings');
   const [name, setName] = useState(initial.name);
   const [isDefault, setIsDefault] = useState(initial.isDefault);
   const [stages, setStages] = useState<PipelineStage[]>(initial.stages);
@@ -242,7 +251,7 @@ function PipelineEditor({
       ...arr,
       {
         key: `STAGE_${arr.length + 1}`,
-        label: `Etapa ${arr.length + 1}`,
+        label: t('pipelines.stageN', { n: arr.length + 1 }),
         color: '#94A3B8',
         order: arr.length,
         isWon: false,
@@ -267,7 +276,7 @@ function PipelineEditor({
       }
       await onSaved();
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Error');
+      setErr(e instanceof ApiError ? e.message : t('pipelines.error'));
     } finally {
       setBusy(false);
     }
@@ -276,7 +285,7 @@ function PipelineEditor({
   return (
     <div className="space-y-4 border-t border-ink-100 bg-ink-50 px-4 py-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Nombre del tablero" required>
+        <Field label={t('pipelines.boardName')} required>
           <Input value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
         <label className="mt-6 inline-flex items-center gap-2 text-sm">
@@ -286,12 +295,12 @@ function PipelineEditor({
             checked={isDefault}
             onChange={(e) => setIsDefault(e.target.checked)}
           />
-          Usar como tablero por defecto
+          {t('pipelines.useAsDefault')}
         </label>
       </div>
 
       <div>
-        <div className="text-xs font-mono uppercase tracking-wider text-ink-500">Etapas</div>
+        <div className="text-xs font-mono uppercase tracking-wider text-ink-500">{t('pipelines.stages')}</div>
         <div className="mt-2 space-y-2">
           {stages.map((s, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2 rounded border border-ink-100 bg-white p-2">
@@ -323,7 +332,7 @@ function PipelineEditor({
                 value={s.label}
                 onChange={(e) => updateStage(i, { label: e.target.value })}
                 className="flex-1"
-                placeholder="Nombre de la etapa"
+                placeholder={t('pipelines.stageNamePlaceholder')}
               />
               <Input
                 value={s.key}
@@ -339,7 +348,7 @@ function PipelineEditor({
                     updateStage(i, { isWon: e.target.checked, isLost: e.target.checked ? false : s.isLost })
                   }
                 />
-                Ganada
+                {t('pipelines.won')}
               </label>
               <label className="inline-flex items-center gap-1 text-xs">
                 <input
@@ -349,7 +358,7 @@ function PipelineEditor({
                     updateStage(i, { isLost: e.target.checked, isWon: e.target.checked ? false : s.isWon })
                   }
                 />
-                Perdida
+                {t('pipelines.lost')}
               </label>
               <button
                 type="button"
@@ -366,7 +375,7 @@ function PipelineEditor({
           className="mt-2 text-xs text-primary-700 hover:underline"
           onClick={addStage}
         >
-          + Añadir etapa
+          {t('pipelines.addStage')}
         </button>
       </div>
 
@@ -375,10 +384,10 @@ function PipelineEditor({
       )}
       <div className="flex gap-2">
         <button type="button" className={buttonClass('primary', 'text-xs')} onClick={save} disabled={busy}>
-          {busy ? 'Guardando…' : mode === 'create' ? 'Crear tablero' : 'Guardar cambios'}
+          {busy ? t('pipelines.saving') : mode === 'create' ? t('pipelines.createBoard') : t('pipelines.saveChanges')}
         </button>
         <button type="button" className={buttonClass('secondary', 'text-xs')} onClick={onCancel}>
-          Cancelar
+          {t('pipelines.cancel')}
         </button>
       </div>
     </div>

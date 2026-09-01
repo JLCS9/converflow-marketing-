@@ -1,11 +1,15 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { LeadCard, type LeadCardData } from '@/components/lead/lead-card';
 import type { TimelineEvent } from '@/components/lead/lead-timeline';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
-export const metadata = { title: 'Lead' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('titles.lead') };
+}
 
 export default async function LeadDetailPage({
   params,

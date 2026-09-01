@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Textarea, buttonClass } from '@/components/ui/primitives';
 
@@ -12,6 +13,7 @@ interface TestResponse {
 }
 
 export function AgentPlayground({ agentId }: { agentId: string }) {
+  const t = useTranslations('agents');
   const [message, setMessage] = useState('');
   const [result, setResult] = useState<TestResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -21,21 +23,17 @@ export function AgentPlayground({ agentId }: { agentId: string }) {
     <Card>
       <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">
         <span className="mr-2 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[9px] tracking-wider text-amber-900">
-          IA
+          {t('aiBadge')}
         </span>
-        Probar agente
+        {t('testAgentTitle')}
       </h2>
-      <p className="mt-1 text-xs text-ink-500">
-        Escribe un mensaje como si fueras un cliente y mira cómo respondería el agente con su
-        prompt + conocimiento actuales. La respuesta la genera un asistente de IA y puede
-        contener errores. (Guarda los cambios antes de probar.)
-      </p>
+      <p className="mt-1 text-xs text-ink-500">{t('testAgentIntro')}</p>
       <div className="mt-4 space-y-3">
         <Textarea
           rows={2}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Hola, ¿cuánto cuesta el plan básico?"
+          placeholder={t('testPlaceholder')}
         />
         <button
           type="button"
@@ -52,20 +50,20 @@ export function AgentPlayground({ agentId }: { agentId: string }) {
                   }),
                 );
               } catch (err) {
-                setError(err instanceof ApiError ? err.message : 'Error inesperado');
+                setError(err instanceof ApiError ? err.message : t('unexpectedError'));
               }
             });
           }}
         >
-          {pending ? 'Probando…' : 'Probar'}
+          {pending ? t('testing') : t('test')}
         </button>
 
         {result && (
           <div className="rounded-md border border-ink-200 bg-ink-100/40 p-3">
             <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-ink-500">
-              <span>Respuesta del agente</span>
+              <span>{t('agentReply')}</span>
               <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-amber-900">
-                Generado por IA
+                {t('generatedByAi')}
               </span>
             </div>
             <p className="mt-1 whitespace-pre-wrap text-sm text-ink-900">{result.reply}</p>

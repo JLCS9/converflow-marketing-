@@ -1,15 +1,20 @@
+import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@/components/ui/page-header';
 import { CampaignForm } from '../campaign-form';
 
-export const metadata = { title: 'Nueva campaña' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('campaigns.newTitle') };
+}
 
-export default function NewCampaignPage() {
+export default async function NewCampaignPage() {
+  const t = await getTranslations('campaigns');
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Nueva campaña"
-        description="Define el canal, el mensaje y la audiencia. Puedes previsualizar a cuántos contactos llegará antes de enviar."
-        back={{ href: '/app/campaigns', label: 'Campañas' }}
+        title={t('newTitle')}
+        description={t('newDescription')}
+        back={{ href: '/app/campaigns', label: t('title') }}
       />
       <CampaignForm />
     </div>

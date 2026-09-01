@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
@@ -28,6 +29,7 @@ interface ScheduleResponse {
 }
 
 export function MeetingScheduler({ leadId }: { leadId: string }) {
+  const t = useTranslations('uiBits');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -51,14 +53,14 @@ export function MeetingScheduler({ leadId }: { leadId: string }) {
           json: { leadId, durationMin },
         });
         setProposal(res);
-        setTitle(res.title ?? `Reunión con lead`);
+        setTitle(res.title ?? t('meetingWithLead'));
         setAgenda(res.agenda ?? '');
         setSelected(0);
       } catch (err) {
         if (err instanceof ApiError && (err.status === 404 || err.status === 503)) {
           setNotConnected(true);
         } else {
-          setError(err instanceof ApiError ? err.message : 'Error inesperado');
+          setError(err instanceof ApiError ? err.message : t('unexpectedError'));
         }
       }
     });
@@ -76,7 +78,7 @@ export function MeetingScheduler({ leadId }: { leadId: string }) {
             leadId,
             startIso: slot.startIso,
             durationMin: proposal.durationMin,
-            title: title.trim() || 'Reunión',
+            title: title.trim() || t('meetingDefault'),
             description: agenda.trim() || undefined,
           },
         });
@@ -84,7 +86,7 @@ export function MeetingScheduler({ leadId }: { leadId: string }) {
         setProposal(null);
         router.refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Error inesperado');
+        setError(err instanceof ApiError ? err.message : t('unexpectedError'));
       }
     });
   }
@@ -92,11 +94,13 @@ export function MeetingScheduler({ leadId }: { leadId: string }) {
   if (notConnected) {
     return (
       <p className="text-sm text-ink-500">
-        Conecta tu Google Calendar en{' '}
-        <Link href="/app/settings" className="text-primary-700 hover:underline">
-          Ajustes
-        </Link>{' '}
-        para proponer y agendar reuniones con IA.
+        {t.rich('connectCalendar', {
+          link: (chunks) => (
+            <Link href="/app/settings" className="text-primary-700 hover:underline">
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
     );
   }
@@ -105,8 +109,8 @@ export function MeetingScheduler({ leadId }: { leadId: string }) {
     return (
       <div className="space-y-3 text-sm">
         <div className="rounded-md border border-green-200 bg-green-50 p-3 text-green-700">
-          ✓ Reunión creada en tu Google Calendar
-          {scheduled.task && ' · tarea de seguimiento añadida'}.
+          ✓ {t('meetingCreated')}
+          {scheduled.task && ` · ${t('followUpAdded')}`}.
         </div>
         <div className="flex flex-wrap gap-3">
           <a
@@ -115,7 +119,7 @@ export function MeetingScheduler({ leadId }: { leadId: string }) {
             rel="noopener noreferrer"
             className={buttonClass('secondary')}
           >
-            Abrir en Google Calendar →
+            {t('openInCalendar')}
           </a>
           <button
             type="button"
@@ -125,7 +129,7 @@ export function MeetingScheduler({ leadId }: { leadId: string }) {
               propose();
             }}
           >
-            Agendar otra
+            {t('scheduleAnother')}
           </button>
         </div>
       </div>
@@ -136,9 +140,9 @@ export function MeetingScheduler({ leadId }: { leadId: string }) {
     if (proposal.slots.length === 0) {
       return (
         <div className="space-y-3 text-sm">
-          <p className="text-ink-600">{proposal.message ?? 'No hay huecos disponibles.'}</p>
+          <p className="text-ink-600">{proposal.message ?? t('noSlots')}</p>
           <button type="button" className={buttonClass('secondary')} onClick={propose}>
-            Reintentar
+            {t('retry')}
           </button>
         </div>
       );
@@ -147,21 +151,21 @@ export function MeetingScheduler({ leadId }: { leadId: string }) {
       <div className="space-y-4 text-sm">
         <div>
           <label className="text-xs font-mono uppercase tracking-wider text-ink-500">
-            Título
+            {t('meetingTitle')}
           </label>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} />
         </div>
         {agenda && (
           <div>
             <label className="text-xs font-mono uppercase tracking-wider text-ink-500">
-              Agenda propuesta
+              {t('proposedAgenda')}
             </label>
             <p className="mt-1 text-ink-700">{agenda}</p>
           </div>
         )}
         <div className="space-y-2">
           <div className="text-xs font-mono uppercase tracking-wider text-ink-500">
-            Huecos propuestos por la IA ({proposal.durationMin} min)
+            {t('aiSlots', { n: proposal.durationMin })}
           </div>
           {proposal.slots.map((slot, i) => (
             <label
@@ -191,7 +195,7 @@ export function MeetingScheduler({ leadId }: { leadId: string }) {
             className={buttonClass('primary')}
             onClick={schedule}
           >
-            {pending ? 'Agendando…' : 'Agendar reunión'}
+            {pending ? t('scheduling') : t('scheduleMeeting')}
           </button>
           <button
             type="button"
@@ -199,7 +203,7 @@ export function MeetingScheduler({ leadId }: { leadId: string }) {
             className={buttonClass('ghost')}
             onClick={() => setProposal(null)}
           >
-            Cancelar
+            {t('cancel')}
           </button>
         </div>
         {error && (
@@ -214,7 +218,7 @@ export function MeetingScheduler({ leadId }: { leadId: string }) {
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="text-xs font-mono uppercase tracking-wider text-ink-500">
-            Duración
+            {t('duration')}
           </label>
           <select
             value={durationMin}
@@ -232,7 +236,7 @@ export function MeetingScheduler({ leadId }: { leadId: string }) {
           className={buttonClass('primary')}
           onClick={propose}
         >
-          {pending ? 'Consultando tu agenda…' : '📅 Proponer horarios con IA'}
+          {pending ? t('checkingCalendar') : t('proposeWithAi')}
         </button>
       </div>
       {error && (

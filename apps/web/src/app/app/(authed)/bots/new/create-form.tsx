@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
 
 export function CreateBotForm() {
+  const t = useTranslations('bots');
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [channel, setChannel] = useState('WEBCHAT');
@@ -30,42 +32,35 @@ export function CreateBotForm() {
               await apiFetch('/bots', { method: 'POST', json: payload });
               router.push('/app/bots');
             } catch (err) {
-              setError(err instanceof ApiError ? err.message : 'Error inesperado');
+              setError(err instanceof ApiError ? err.message : t('unexpectedError'));
             }
           });
         }}
       >
-        <Field label="Nombre" required help="Ej. 'Ventas WhatsApp principal' o 'Soporte web'.">
+        <Field label={t('nameLabel')} required help={t('nameHelp')}>
           <Input name="name" type="text" required minLength={2} maxLength={60} />
         </Field>
-        <Field label="Canal" required>
+        <Field label={t('channelLabel')} required>
           <Select name="channel" defaultValue="WEBCHAT" onChange={(e) => setChannel(e.target.value)}>
-            <option value="WEBCHAT">Web Chat (embebido en tu web)</option>
-            <option value="WHATSAPP">WhatsApp (QR)</option>
-            <option value="EMAIL">Email</option>
-            <option value="INSTAGRAM">Instagram (próximamente)</option>
-            <option value="MESSENGER">Messenger (próximamente)</option>
+            <option value="WEBCHAT">{t('channelWebchat')}</option>
+            <option value="WHATSAPP">{t('channelWhatsapp')}</option>
+            <option value="EMAIL">{t('channelEmail')}</option>
+            <option value="INSTAGRAM">{t('channelInstagram')}</option>
+            <option value="MESSENGER">{t('channelMessenger')}</option>
           </Select>
         </Field>
 
         {channel === 'EMAIL' && (
-          <Field
-            label="Dirección de email entrante"
-            required
-            help="La dirección donde recibes los emails de clientes (y desde la que se responde). Configura el reenvío/webhook de tu proveedor hacia ella."
-          >
-            <Input name="phoneNumber" type="email" placeholder="ventas@tuempresa.com" />
+          <Field label={t('inboundEmailLabel')} required help={t('inboundEmailHelp')}>
+            <Input name="phoneNumber" type="email" placeholder={t('emailPlaceholder')} />
           </Field>
         )}
 
-        <Field
-          label="Modo de respuesta"
-          help="Sugerir = una persona revisa y envía (recomendado para WhatsApp). Auto = la IA responde sola con su aviso (recomendado para Web Chat). Apagado = solo registra mensajes."
-        >
+        <Field label={t('replyModeLabel')} help={t('replyModeHelp')}>
           <Select name="replyMode" defaultValue={channel === 'WEBCHAT' ? 'AUTO' : 'SUGGEST'}>
-            <option value="OFF">⏸ Apagado · solo registra mensajes</option>
-            <option value="SUGGEST">🟡 Sugerir · una persona revisa y envía</option>
-            <option value="AUTO">🟢 Responder solo · la IA contesta directamente</option>
+            <option value="OFF">{t('replyOptOff')}</option>
+            <option value="SUGGEST">{t('replyOptSuggest')}</option>
+            <option value="AUTO">{t('replyOptAuto')}</option>
           </Select>
         </Field>
 
@@ -82,10 +77,10 @@ export function CreateBotForm() {
             className={buttonClass('secondary')}
             disabled={pending}
           >
-            Cancelar
+            {t('cancel')}
           </button>
           <button type="submit" className={buttonClass('primary')} disabled={pending}>
-            {pending ? 'Creando…' : 'Crear bot'}
+            {pending ? t('creating') : t('createBot')}
           </button>
         </div>
       </form>

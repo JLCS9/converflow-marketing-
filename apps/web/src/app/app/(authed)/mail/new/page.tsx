@@ -1,15 +1,20 @@
+import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@/components/ui/page-header';
 import { MailConnectionForm } from '../mail-connection-form';
 
-export const metadata = { title: 'Conectar buzón' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('mailboxes.newTitle') };
+}
 
-export default function NewMailConnectionPage() {
+export default async function NewMailConnectionPage() {
+  const t = await getTranslations('mailboxes');
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Conectar buzón"
-        description="Conecta un buzón IMAP/SMTP. Converflow verificará la conexión al guardar."
-        back={{ href: '/app/mail/ajustes', label: 'Buzones' }}
+        title={t('newTitle')}
+        description={t('newDescription')}
+        back={{ href: '/app/mail/ajustes', label: t('backToMailboxes') }}
       />
       <MailConnectionForm />
     </div>

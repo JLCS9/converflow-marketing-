@@ -62,13 +62,17 @@ function toLocalInput(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function dueBadge(dueAt: string, status: string): { text: string; cls: string } | null {
+// Traductor mínimo que se pasa desde el componente (las funciones de módulo no
+// pueden usar hooks).
+type TFunc = (key: string, values?: Record<string, string | number>) => string;
+
+function dueBadge(dueAt: string, status: string, t: TFunc): { text: string; cls: string } | null {
   if (status === 'DONE' || status === 'CANCELLED') return null;
   const start = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.round((start(new Date(dueAt)) - start(new Date())) / 86400000);
-  if (days < 0) return { text: days === -1 ? 'venció ayer' : `vencida hace ${-days} días`, cls: 'bg-red-100 text-red-700' };
-  if (days === 0) return { text: 'vence hoy', cls: 'bg-amber-100 text-amber-800' };
-  if (days <= 3) return { text: days === 1 ? 'vence mañana' : `vence en ${days} días`, cls: 'bg-amber-50 text-amber-700' };
+  if (days < 0) return { text: days === -1 ? t('dueYesterday') : t('dueOverdueDays', { n: -days }), cls: 'bg-red-100 text-red-700' };
+  if (days === 0) return { text: t('dueToday'), cls: 'bg-amber-100 text-amber-800' };
+  if (days <= 3) return { text: days === 1 ? t('dueTomorrow') : t('dueInDays', { n: days }), cls: 'bg-amber-50 text-amber-700' };
   return null;
 }
 
@@ -84,6 +88,7 @@ export function TaskDrawer({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const tf = useTranslations('crmForms');
   const { TASK_TYPE, TASK_STATUS, PRIORITY } = useLabelMaps();
   const t = useTranslations();
   const fb = useFeedback();
@@ -108,7 +113,7 @@ export function TaskDrawer({
   }, [onClose]);
 
   const owner = assignees.find((a) => a.id === ownerId) ?? null;
-  const due = dueAt ? dueBadge(new Date(dueAt).toISOString(), status) : null;
+  const due = dueAt ? dueBadge(new Date(dueAt).toISOString(), status, tf) : null;
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -134,7 +139,7 @@ export function TaskDrawer({
       try {
         if (editing) await apiFetch(`/tasks/${task!.id}`, { method: 'PATCH', json: payload });
         else await apiFetch('/tasks', { method: 'POST', json: payload });
-        fb.toast.success(editing ? 'Tarea actualizada' : 'Tarea creada');
+        fb.toast.success(editing ? tf('taskUpdated') : tf('taskCreated'));
         onSaved();
       } catch {
         fb.toast.error(t('toasts.taskSaveError'));
@@ -186,7 +191,7 @@ export function TaskDrawer({
               autoFocus={!editing}
               className="min-w-0 flex-1 border-0 bg-transparent p-0 text-lg font-semibold text-ink-900 placeholder:font-normal placeholder:text-ink-300 focus:outline-none focus:ring-0"
             />
-            <button type="button" onClick={onClose} aria-label="Cerrar" className="mt-1 shrink-0 rounded p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-700">
+            <button type="button" onClick={onClose} aria-label={tf('close')} className="mt-1 shrink-0 rounded p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-700">
               <X size={18} />
             </button>
           </div>
@@ -200,7 +205,7 @@ export function TaskDrawer({
 
             {/* Vencimiento + asignado + tipo. */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Vence">
+              <Field label={tf('dueAt')}>
                 <div className="space-y-1">
                   <Input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
                   {due && (
@@ -226,7 +231,7 @@ export function TaskDrawer({
                 </div>
               </Field>
             </div>
-            <Field label="Tipo">
+            <Field label={tf('type')}>
               <Select value={type} onChange={(e) => setType(e.target.value)}>
                 {Object.entries(TASK_TYPE).map(([k, v]) => (
                   <option key={k} value={k}>{v}</option>
@@ -241,24 +246,25 @@ export function TaskDrawer({
             {/* Vínculos con el CRM. */}
             <div className="space-y-3 rounded-lg border border-ink-100 bg-ink-100/20 p-3">
               <p className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-600">
-                <Link2 size={13} /> Vinculada a
+                <Link2 size={13} /> {tf('linkedTo')}
               </p>
-              <EntityPicker endpoint="/leads" name="leadId" label="Lead" defaultId={task?.lead?.id} defaultName={task?.lead?.name} placeholder="Buscar lead…" />
-              <EntityPicker endpoint="/clients" name="clientId" label="Cliente" defaultId={task?.client?.id} defaultName={task?.client?.name} placeholder="Buscar cliente…" />
-              <EntityPicker endpoint="/opportunities" name="opportunityId" label="Oportunidad" defaultId={task?.opportunity?.id} defaultName={task?.opportunity?.name} placeholder="Buscar oportunidad…" />
+              <EntityPicker endpoint="/leads" name="leadId" label={tf('lead')} defaultId={task?.lead?.id} defaultName={task?.lead?.name} placeholder={tf('searchLead')} />
+              <EntityPicker endpoint="/clients" name="clientId" label={tf('client')} defaultId={task?.client?.id} defaultName={task?.client?.name} placeholder={tf('searchClient')} />
+              <EntityPicker endpoint="/opportunities" name="opportunityId" label={tf('opportunity')} defaultId={task?.opportunity?.id} defaultName={task?.opportunity?.name} placeholder={tf('searchOpp')} />
             </div>
 
             {/* Actividad: lo que se sabe de la vida de la tarea. */}
             {editing && (
               <div className="space-y-1 border-t border-ink-100 pt-3 text-[11px] text-ink-500">
                 <p className="inline-flex items-center gap-1.5 font-medium text-ink-600">
-                  <History size={12} /> Actividad
+                  <History size={12} /> {tf('activity')}
                 </p>
                 {task?.createdAt && (
                   <p>
-                    Creada el{' '}
-                    {new Date(task.createdAt).toLocaleString('es-ES', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })}
-                    {task.source && task.source !== 'manual' ? ` · origen: ${task.source}` : ''}
+                    {tf('createdOn', {
+                      date: new Date(task.createdAt).toLocaleString('es-ES', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' }),
+                    })}
+                    {task.source && task.source !== 'manual' ? ` · ${tf('origin', { source: task.source })}` : ''}
                   </p>
                 )}
               </div>

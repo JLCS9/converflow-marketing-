@@ -7,6 +7,7 @@ import { apiFetch, ApiError } from '@/lib/api-client';
 import { useFeedback } from '@/components/ui/feedback';
 
 export function TaskActions({ taskId, status }: { taskId: string; status: string }) {
+  const tf = useTranslations('crmForms');
   const tToasts = useTranslations('toasts');
   const router = useRouter();
   const { confirm, toast } = useFeedback();
@@ -25,13 +26,13 @@ export function TaskActions({ taskId, status }: { taskId: string; status: string
                 toast.success(tToasts('taskDone'));
                 router.refresh();
               } catch (e) {
-                toast.error(e instanceof ApiError ? e.message : 'No se pudo completar');
+                toast.error(e instanceof ApiError ? e.message : tf('completeError'));
               }
             })
           }
           className="text-xs text-primary-700 hover:underline disabled:opacity-60"
         >
-          {pending ? '…' : 'Completar'}
+          {pending ? '…' : tf('complete')}
         </button>
       )}
       <button
@@ -39,8 +40,8 @@ export function TaskActions({ taskId, status }: { taskId: string; status: string
         disabled={pending}
         onClick={async () => {
           const ok = await confirm({
-            title: 'Eliminar tarea',
-            description: 'Esta acción no se puede deshacer.',
+            title: tf('deleteTaskTitle'),
+            description: tf('deleteTaskBody'),
             danger: true,
           });
           if (!ok) return;
@@ -50,13 +51,13 @@ export function TaskActions({ taskId, status }: { taskId: string; status: string
               toast.success(tToasts('taskDeleted'));
               router.refresh();
             } catch (e) {
-              toast.error(e instanceof ApiError ? e.message : 'No se pudo eliminar');
+              toast.error(e instanceof ApiError ? e.message : tf('deleteError'));
             }
           });
         }}
         className="text-xs text-red-600 hover:underline disabled:opacity-60"
       >
-        Eliminar
+        {tf('delete')}
       </button>
     </div>
   );

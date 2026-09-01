@@ -1,33 +1,36 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import 'grapesjs/dist/css/grapes.min.css';
 import './grapesjs-theme.css';
 
-const DEFAULT_MJML =
+// El texto del cuerpo se traduce en render (constante de módulo: sin hooks aquí).
+const defaultMjml = (placeholder: string) =>
   '<mjml><mj-body background-color="#f4f4f5">' +
   '<mj-section background-color="#ffffff" padding="24px">' +
   '<mj-column>' +
-  '<mj-text font-size="16px" color="#1a1a1a" line-height="1.5">Escribe aquí tu mensaje…</mj-text>' +
+  `<mj-text font-size="16px" color="#1a1a1a" line-height="1.5">${placeholder}</mj-text>` +
   '</mj-column></mj-section></mj-body></mjml>';
 
-// Spanish labels for the MJML preset blocks (default labels are English/terse).
-const BLOCK_LABELS: Record<string, string> = {
-  'mj-1-column': '1 Columna',
-  'mj-2-columns': '2 Columnas',
-  'mj-3-columns': '3 Columnas',
-  'mj-text': 'Texto',
-  'mj-image': 'Imagen',
-  'mj-button': 'Botón',
-  'mj-divider': 'Separador',
-  'mj-spacer': 'Espacio',
-  'mj-social-group': 'Redes sociales',
-  'mj-social-element': 'Red social',
-  'mj-navbar': 'Menú',
-  'mj-hero': 'Cabecera',
-  'mj-wrapper': 'Contenedor',
-  'mj-section': 'Sección',
-  'mj-column': 'Columna',
+// Translated labels for the MJML preset blocks (default labels are terse).
+// Constante de módulo: guarda claves de diccionario y se traduce en render.
+const BLOCK_LABEL_KEYS: Record<string, string> = {
+  'mj-1-column': 'blockOneColumn',
+  'mj-2-columns': 'blockTwoColumns',
+  'mj-3-columns': 'blockThreeColumns',
+  'mj-text': 'blockText',
+  'mj-image': 'blockImage',
+  'mj-button': 'blockButton',
+  'mj-divider': 'blockDivider',
+  'mj-spacer': 'blockSpacer',
+  'mj-social-group': 'blockSocialGroup',
+  'mj-social-element': 'blockSocialElement',
+  'mj-navbar': 'blockNavbar',
+  'mj-hero': 'blockHero',
+  'mj-wrapper': 'blockWrapper',
+  'mj-section': 'blockSection',
+  'mj-column': 'blockColumn',
 };
 
 /**
@@ -42,6 +45,7 @@ export function MjmlEmailBuilder({
   initialMjml?: string;
   onChange: (v: { mjml: string }) => void;
 }) {
+  const t = useTranslations('uiBits');
   const containerRef = useRef<HTMLDivElement>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -66,20 +70,20 @@ export function MjmlEmailBuilder({
         plugins: [mjmlPlugin],
         deviceManager: {
           devices: [
-            { id: 'desktop', name: 'Escritorio', width: '' },
-            { id: 'mobile', name: 'Móvil', width: '375px', widthMedia: '480px' },
+            { id: 'desktop', name: t('deviceDesktop'), width: '' },
+            { id: 'mobile', name: t('deviceMobile'), width: '375px', widthMedia: '480px' },
           ],
         },
-        components: initialRef.current || DEFAULT_MJML,
+        components: initialRef.current || defaultMjml(t('emailPlaceholder')),
       });
       editor = ed;
 
-      // Relabel the blocks in Spanish for a clearer panel.
+      // Relabel the blocks in the user's language for a clearer panel.
       try {
         const bm = ed.BlockManager;
-        for (const [id, label] of Object.entries(BLOCK_LABELS)) {
+        for (const [id, labelKey] of Object.entries(BLOCK_LABEL_KEYS)) {
           const b = bm.get(id);
-          if (b) b.set('label', label);
+          if (b) b.set('label', t(labelKey));
         }
       } catch {
         /* block ids vary by plugin version — best effort */

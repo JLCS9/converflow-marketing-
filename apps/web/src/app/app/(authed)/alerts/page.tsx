@@ -1,12 +1,17 @@
+import { getTranslations } from 'next-intl/server';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { AlertItem, MarkAllReadButton, type Alert } from './alert-item';
 
-export const metadata = { title: 'Alertas' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('alerts.title') };
+}
 
 export default async function AlertsPage() {
+  const t = await getTranslations('alerts');
   const alerts = await serverApiFetch<Alert[]>('/alerts');
   const unread = alerts.filter((a) => !a.readAt).length;
   const critical = alerts.filter((a) => a.severity === 'CRITICAL').length;
@@ -14,22 +19,28 @@ export default async function AlertsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Alertas"
-        description="Avisos automáticos cuando un lead lleva días sin contactar, una oportunidad se acerca a su fecha de cierre o una tarea se pasa. Se recalculan en cada carga."
+        title={t('title')}
+        description={t('description')}
         action={unread > 0 ? <MarkAllReadButton /> : undefined}
       />
 
       <section className="grid gap-4 sm:grid-cols-3">
         <Card className="p-4">
-          <div className="text-xs font-mono uppercase tracking-wider text-ink-500">Activas</div>
+          <div className="text-xs font-mono uppercase tracking-wider text-ink-500">
+            {t('active')}
+          </div>
           <div className="mt-1 text-2xl font-semibold">{alerts.length}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs font-mono uppercase tracking-wider text-ink-500">Sin leer</div>
+          <div className="text-xs font-mono uppercase tracking-wider text-ink-500">
+            {t('unread')}
+          </div>
           <div className="mt-1 text-2xl font-semibold">{unread}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs font-mono uppercase tracking-wider text-ink-500">Críticas</div>
+          <div className="text-xs font-mono uppercase tracking-wider text-ink-500">
+            {t('critical')}
+          </div>
           <div className={`mt-1 text-2xl font-semibold ${critical > 0 ? 'text-red-600' : ''}`}>
             {critical}
           </div>
@@ -40,15 +51,15 @@ export default async function AlertsPage() {
         <EmptyState
           tone="positive"
           icon={<span className="text-base">✓</span>}
-          title="Todo al día"
+          title={t('allClearTitle')}
           description={
             <>
-              No tienes alertas activas. Te avisaremos aquí cuando:
+              {t('allClearIntro')}
               <ul className="mx-auto mt-2 max-w-md list-disc text-left text-xs text-ink-500 sm:mt-3">
-                <li>un lead lleve más de 14 días sin que lo contactes,</li>
-                <li>una oportunidad se acerque a su fecha de cierre,</li>
-                <li>una tarea se pase de fecha,</li>
-                <li>aparezca un lead con score alto (≥ 75) listo para contactar.</li>
+                <li>{t('allClearItem1')}</li>
+                <li>{t('allClearItem2')}</li>
+                <li>{t('allClearItem3')}</li>
+                <li>{t('allClearItem4')}</li>
               </ul>
             </>
           }

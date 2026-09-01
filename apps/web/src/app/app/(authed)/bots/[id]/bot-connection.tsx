@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Badge, buttonClass } from '@/components/ui/primitives';
 
@@ -21,17 +22,18 @@ const statusColor: Record<string, 'gray' | 'green' | 'yellow' | 'red' | 'blue'> 
   ERROR: 'red',
 };
 
-const statusLabel: Record<string, string> = {
-  PENDING: 'Sin conectar',
-  AWAITING_QR: 'Esperando escaneo del QR',
-  CONNECTING: 'Conectando…',
-  CONNECTED: 'Conectado',
-  DISCONNECTED: 'Desconectado',
-  BANNED: 'Bloqueado por WhatsApp',
-  ERROR: 'Error de conexión',
-};
+const statusLabelKey = {
+  PENDING: 'connStatusPending',
+  AWAITING_QR: 'connStatusAwaitingQr',
+  CONNECTING: 'connStatusConnecting',
+  CONNECTED: 'connStatusConnected',
+  DISCONNECTED: 'connStatusDisconnected',
+  BANNED: 'connStatusBanned',
+  ERROR: 'connStatusError',
+} as const;
 
 export function BotConnection({ botId, initialStatus }: { botId: string; initialStatus: string }) {
+  const t = useTranslations('bots');
   const [status, setStatus] = useState(initialStatus);
   const [qr, setQr] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
@@ -51,8 +53,8 @@ export function BotConnection({ botId, initialStatus }: { botId: string; initial
 
   useEffect(() => {
     void poll();
-    const t = setInterval(() => void poll(), 2500);
-    return () => clearInterval(t);
+    const timer = setInterval(() => void poll(), 2500);
+    return () => clearInterval(timer);
   }, [poll]);
 
   async function connect() {
@@ -62,7 +64,7 @@ export function BotConnection({ botId, initialStatus }: { botId: string; initial
       await apiFetch(`/bots/${botId}/connect`, { method: 'POST' });
       await poll();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Error inesperado');
+      setError(err instanceof ApiError ? err.message : t('unexpectedError'));
     } finally {
       setBusy(false);
     }
@@ -76,7 +78,7 @@ export function BotConnection({ botId, initialStatus }: { botId: string; initial
       setQr(null);
       await poll();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Error inesperado');
+      setError(err instanceof ApiError ? err.message : t('unexpectedError'));
     } finally {
       setBusy(false);
     }
@@ -84,11 +86,12 @@ export function BotConnection({ botId, initialStatus }: { botId: string; initial
 
   const connected = status === 'CONNECTED';
   const active = connected || status === 'CONNECTING' || status === 'AWAITING_QR';
+  const labelKey = statusLabelKey[status as keyof typeof statusLabelKey];
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Badge color={statusColor[status] ?? 'gray'}>{statusLabel[status] ?? status}</Badge>
+        <Badge color={statusColor[status] ?? 'gray'}>{labelKey ? t(labelKey) : status}</Badge>
         {active ? (
           <button
             type="button"
@@ -96,7 +99,7 @@ export function BotConnection({ botId, initialStatus }: { botId: string; initial
             className={buttonClass('secondary')}
             onClick={disconnect}
           >
-            {busy ? '…' : 'Desconectar'}
+            {busy ? '…' : t('disconnect')}
           </button>
         ) : (
           <button
@@ -105,7 +108,7 @@ export function BotConnection({ botId, initialStatus }: { botId: string; initial
             className={buttonClass('primary')}
             onClick={connect}
           >
-            {busy ? 'Iniciando…' : 'Conectar WhatsApp'}
+            {busy ? t('starting') : t('connectWhatsapp')}
           </button>
         )}
       </div>
@@ -113,34 +116,33 @@ export function BotConnection({ botId, initialStatus }: { botId: string; initial
       {status === 'AWAITING_QR' && (
         <div className="rounded-lg border border-ink-200 bg-white p-4">
           <p className="mb-3 text-sm text-ink-700">
-            En tu teléfono: <strong>WhatsApp → Ajustes → Dispositivos vinculados → Vincular
-            un dispositivo</strong>, y escanea este código. Se actualiza solo.
+            {t('qrInstrPrefix')} <strong>{t('qrInstrPath')}</strong>
+            {t('qrInstrSuffix')}
           </p>
           {qr ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={qr} alt="Código QR de WhatsApp" className="h-64 w-64" />
+            <img src={qr} alt={t('qrAlt')} className="h-64 w-64" />
           ) : (
-            <p className="text-sm text-ink-500">Generando código…</p>
+            <p className="text-sm text-ink-500">{t('qrGenerating')}</p>
           )}
         </div>
       )}
 
       {connected && (
         <p className="text-sm text-green-700">
-          ✓ Tu WhatsApp está conectado
+          {t('connectedPrefix')}
           {phoneNumber ? (
             <>
-              {' '}al número <strong>{phoneNumber}</strong>
+              {' '}
+              {t('connectedAtNumber')} <strong>{phoneNumber}</strong>
             </>
           ) : null}
-          . La sesión se mantiene aunque se reinicie el servidor.
+          . {t('connectedSessionNote')}
         </p>
       )}
 
       {status === 'BANNED' && (
-        <p className="text-sm text-red-700">
-          WhatsApp ha bloqueado este número. No reconectes inmediatamente; revisa el uso.
-        </p>
+        <p className="text-sm text-red-700">{t('bannedNote')}</p>
       )}
 
       {error && (

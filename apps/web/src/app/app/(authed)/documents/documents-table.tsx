@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { useFeedback } from '@/components/ui/feedback';
 
@@ -24,6 +25,7 @@ function formatBytes(b: number): string {
 }
 
 export function DocumentsTable({ docs }: { docs: DocRow[] }) {
+  const t = useTranslations('documents');
   const router = useRouter();
   const { confirm, toast } = useFeedback();
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -35,12 +37,12 @@ export function DocumentsTable({ docs }: { docs: DocRow[] }) {
       <table className="w-full text-sm">
         <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
           <tr>
-            <th className="px-4 py-3">Nombre</th>
-            <th className="hidden px-4 py-3 lg:table-cell">Tipo</th>
-            <th className="hidden px-4 py-3 md:table-cell">Tamaño</th>
-            <th className="hidden px-4 py-3 md:table-cell">Vinculado</th>
-            <th className="hidden px-4 py-3 lg:table-cell">Subido</th>
-            <th className="px-4 py-3 text-right">Acciones</th>
+            <th className="px-4 py-3">{t('colName')}</th>
+            <th className="hidden px-4 py-3 lg:table-cell">{t('colType')}</th>
+            <th className="hidden px-4 py-3 md:table-cell">{t('colSize')}</th>
+            <th className="hidden px-4 py-3 md:table-cell">{t('colLinked')}</th>
+            <th className="hidden px-4 py-3 lg:table-cell">{t('colUploaded')}</th>
+            <th className="px-4 py-3 text-right">{t('colActions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -85,7 +87,7 @@ export function DocumentsTable({ docs }: { docs: DocRow[] }) {
                         const res = await apiFetch<{ url: string }>(`/documents/${d.id}/download`);
                         window.open(res.url, '_blank', 'noopener');
                       } catch (err) {
-                        toast.error(err instanceof ApiError ? err.message : 'No se pudo descargar');
+                        toast.error(err instanceof ApiError ? err.message : t('downloadError'));
                       } finally {
                         setPendingId(null);
                       }
@@ -93,15 +95,15 @@ export function DocumentsTable({ docs }: { docs: DocRow[] }) {
                   }}
                   className="text-xs text-primary-700 hover:underline disabled:opacity-60"
                 >
-                  Descargar
+                  {t('download')}
                 </button>
                 <button
                   type="button"
                   disabled={pendingId === d.id}
                   onClick={async () => {
                     const ok = await confirm({
-                      title: `Eliminar ${d.name}`,
-                      description: 'El archivo y su enlace se borran. No se puede deshacer.',
+                      title: t('deleteTitle', { name: d.name }),
+                      description: t('deleteDescription'),
                       danger: true,
                     });
                     if (!ok) return;
@@ -109,10 +111,10 @@ export function DocumentsTable({ docs }: { docs: DocRow[] }) {
                     startTransition(async () => {
                       try {
                         await apiFetch(`/documents/${d.id}`, { method: 'DELETE' });
-                        toast.success('Documento eliminado');
+                        toast.success(t('deleted'));
                         router.refresh();
                       } catch (err) {
-                        toast.error(err instanceof ApiError ? err.message : 'No se pudo eliminar');
+                        toast.error(err instanceof ApiError ? err.message : t('deleteError'));
                       } finally {
                         setPendingId(null);
                       }
@@ -120,7 +122,7 @@ export function DocumentsTable({ docs }: { docs: DocRow[] }) {
                   }}
                   className="text-xs text-red-600 hover:underline disabled:opacity-60"
                 >
-                  Eliminar
+                  {t('delete')}
                 </button>
               </td>
             </tr>

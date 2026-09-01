@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Textarea, buttonClass } from '@/components/ui/primitives';
@@ -18,6 +19,8 @@ export function OpportunityNotes({
   opportunityId: string;
   initial: Note[];
 }) {
+  const tCommon2 = useTranslations('common');
+  const tOpp = useTranslations('opportunities');
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -48,11 +51,11 @@ export function OpportunityNotes({
           name="body"
           rows={3}
           required
-          placeholder="Apunta avances, próximos pasos, blockers…"
+          placeholder={tOpp('notePlaceholder')}
         />
         <div className="flex justify-end">
           <button type="submit" className={buttonClass('primary', 'text-xs')} disabled={pending}>
-            {pending ? 'Guardando…' : 'Añadir nota'}
+            {pending ? tCommon2('saving') : tOpp('addNote')}
           </button>
         </div>
       </form>

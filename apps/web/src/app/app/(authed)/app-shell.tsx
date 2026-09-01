@@ -71,7 +71,7 @@ export function AppShell({
         className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-ink-100 bg-white transition-transform md:hidden ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
-        aria-label="Menú lateral"
+        aria-label={t('sideMenu')}
         aria-hidden={!open}
       >
         <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3">
@@ -81,7 +81,7 @@ export function AppShell({
           <button
             type="button"
             onClick={() => setOpen(false)}
-            aria-label="Cerrar menú"
+            aria-label={t('closeMenu')}
             className="rounded p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900"
           >
             <X size={18} strokeWidth={1.75} />

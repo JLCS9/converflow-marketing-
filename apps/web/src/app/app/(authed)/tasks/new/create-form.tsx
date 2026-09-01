@@ -25,6 +25,7 @@ export function CreateTaskForm({
   defaultOpportunityId?: string;
   defaultOpportunityName?: string;
 } = {}) {
+  const tf = useTranslations('crmForms');
   const tToasts = useTranslations('toasts');
   const { TASK_TYPE, PRIORITY } = useLabelMaps();
   const router = useRouter();
@@ -38,9 +39,9 @@ export function CreateTaskForm({
   async function handleCancel() {
     if (dirty) {
       const ok = await confirm({
-        title: 'Descartar cambios',
-        description: 'Se perderá lo que has escrito.',
-        confirmLabel: 'Descartar',
+        title: tf('discardTitle'),
+        description: tf('discardBody'),
+        confirmLabel: tf('discard'),
         danger: true,
       });
       if (!ok) return;
@@ -76,20 +77,20 @@ export function CreateTaskForm({
               toast.success(tToasts('taskCreated'));
               router.push('/app/tasks');
             } catch (err) {
-              setError(err instanceof ApiError ? err.message : 'Error inesperado');
+              setError(err instanceof ApiError ? err.message : tf('unexpectedError'));
               setSubmitting(false);
             }
           });
         }}
       >
-        <Field label="Título" required>
+        <Field label={tf('title')} required>
           <Input name="title" type="text" required minLength={1} maxLength={200} />
         </Field>
-        <Field label="Descripción">
+        <Field label={tf('description')}>
           <Textarea name="description" rows={3} />
         </Field>
         <div className="grid gap-5 sm:grid-cols-3">
-          <Field label="Tipo">
+          <Field label={tf('type')}>
             <Select name="type" defaultValue="OTHER">
               {Object.entries(TASK_TYPE).map(([k, v]) => (
                 <option key={k} value={k}>
@@ -98,7 +99,7 @@ export function CreateTaskForm({
               ))}
             </Select>
           </Field>
-          <Field label="Prioridad">
+          <Field label={tf('priority')}>
             <Select name="priority" defaultValue="MEDIUM">
               {Object.entries(PRIORITY).map(([k, v]) => (
                 <option key={k} value={k}>
@@ -107,40 +108,39 @@ export function CreateTaskForm({
               ))}
             </Select>
           </Field>
-          <Field label="Vence">
+          <Field label={tf('dueAt')}>
             <Input name="dueAt" type="datetime-local" />
           </Field>
         </div>
 
         <div className="border-t border-ink-100 pt-4">
           <p className="mb-3 text-xs text-ink-500">
-            Opcional: vincula la tarea a un lead, cliente u oportunidad. Empieza a escribir el
-            nombre y elige de la lista.
+            {tf('linkHelp')}
           </p>
           <div className="space-y-4">
             <EntityPicker
               endpoint="/leads"
               name="leadId"
-              label="Lead vinculado"
+              label={tf('linkedLead')}
               defaultId={defaultLeadId}
               defaultName={defaultLeadName}
-              placeholder="Buscar lead por nombre…"
+              placeholder={tf('searchLeadByName')}
             />
             <EntityPicker
               endpoint="/clients"
               name="clientId"
-              label="Cliente vinculado"
+              label={tf('linkedClient')}
               defaultId={defaultClientId}
               defaultName={defaultClientName}
-              placeholder="Buscar cliente por nombre…"
+              placeholder={tf('searchClientByName')}
             />
             <EntityPicker
               endpoint="/opportunities"
               name="opportunityId"
-              label="Oportunidad vinculada"
+              label={tf('linkedOpportunity')}
               defaultId={defaultOpportunityId}
               defaultName={defaultOpportunityName}
-              placeholder="Buscar oportunidad por nombre…"
+              placeholder={tf('searchOppByName')}
             />
           </div>
         </div>
@@ -158,10 +158,10 @@ export function CreateTaskForm({
             className={buttonClass('secondary')}
             disabled={pending}
           >
-            Cancelar
+            {tf('cancel')}
           </button>
           <button type="submit" className={buttonClass('primary')} disabled={pending}>
-            {pending ? 'Creando…' : 'Crear tarea'}
+            {pending ? tf('creating') : tf('createTask')}
           </button>
         </div>
       </form>

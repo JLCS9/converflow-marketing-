@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 
 interface Props {
   page: number;
@@ -16,6 +17,7 @@ interface Props {
  * page change.
  */
 export function LeadsPagination({ page, totalPages, perPage, total, filterQs }: Props) {
+  const t = useTranslations('crm');
   if (totalPages <= 1) return null;
 
   function href(p: number) {
@@ -44,7 +46,7 @@ export function LeadsPagination({ page, totalPages, perPage, total, filterQs }: 
 
   return (
     <nav
-      aria-label="Paginación de leads"
+      aria-label={t('pagination')}
       className="flex flex-wrap items-center justify-between gap-3 text-xs"
     >
       <span className="text-ink-500">
@@ -55,7 +57,7 @@ export function LeadsPagination({ page, totalPages, perPage, total, filterQs }: 
           <PaginationLink
             disabled={page === 1}
             href={href(Math.max(1, page - 1))}
-            aria-label="Página anterior"
+            aria-label={t('prevPage')}
           >
             ‹
           </PaginationLink>
@@ -82,7 +84,7 @@ export function LeadsPagination({ page, totalPages, perPage, total, filterQs }: 
           <PaginationLink
             disabled={page === totalPages}
             href={href(Math.min(totalPages, page + 1))}
-            aria-label="Página siguiente"
+            aria-label={t('nextPage')}
           >
             ›
           </PaginationLink>

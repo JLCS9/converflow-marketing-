@@ -1,6 +1,7 @@
 'use client';
 
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
+import { useTranslations } from 'next-intl';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 
@@ -27,11 +28,13 @@ const StyledLink = Link.extend({
   },
 }).configure({ openOnClick: false, autolink: true });
 
+// Los VALORES ({nombre}, {email}…) son variables de plantilla: no se traducen.
+// Las etiquetas se traducen en render (constante de módulo: sin hooks aquí).
 const VARIABLES = [
-  { value: '{nombre}', label: 'Nombre completo' },
-  { value: '{first_name}', label: 'Nombre de pila' },
-  { value: '{email}', label: 'Email' },
-  { value: '{telefono}', label: 'Teléfono' },
+  { value: '{nombre}', labelKey: 'varFullName' },
+  { value: '{first_name}', labelKey: 'varFirstName' },
+  { value: '{email}', labelKey: 'varEmail' },
+  { value: '{telefono}', labelKey: 'varPhone' },
 ];
 
 const BUTTON_STYLE =
@@ -75,21 +78,22 @@ export function RichEmailEditor({
 }
 
 function Toolbar({ editor }: { editor: Editor }) {
+  const t = useTranslations('uiBits');
   const btn = (active: boolean) =>
     `rounded px-2 py-1 text-sm ${active ? 'bg-ink-900 text-white' : 'text-ink-700 hover:bg-ink-100'}`;
 
   function addLink() {
     const prev = editor.getAttributes('link').href as string | undefined;
-    const url = window.prompt('URL del enlace:', prev ?? 'https://');
+    const url = window.prompt(t('linkUrlPrompt'), prev ?? 'https://');
     if (url === null) return;
     if (url === '') editor.chain().focus().extendMarkRange('link').unsetLink().run();
     else editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
   }
 
   function addButton() {
-    const text = window.prompt('Texto del botón:', 'Reservar cita');
+    const text = window.prompt(t('buttonTextPrompt'), t('buttonTextDefault'));
     if (!text) return;
-    const url = window.prompt('Enlace del botón:', 'https://');
+    const url = window.prompt(t('buttonUrlPrompt'), 'https://');
     if (!url) return;
     editor
       .chain()
@@ -100,34 +104,34 @@ function Toolbar({ editor }: { editor: Editor }) {
 
   return (
     <div className="flex flex-wrap items-center gap-0.5 border-b border-ink-100 px-1.5 py-1">
-      <button type="button" className={btn(editor.isActive('bold'))} onClick={() => editor.chain().focus().toggleBold().run()} title="Negrita">
+      <button type="button" className={btn(editor.isActive('bold'))} onClick={() => editor.chain().focus().toggleBold().run()} title={t('bold')}>
         <strong>B</strong>
       </button>
-      <button type="button" className={btn(editor.isActive('italic'))} onClick={() => editor.chain().focus().toggleItalic().run()} title="Cursiva">
+      <button type="button" className={btn(editor.isActive('italic'))} onClick={() => editor.chain().focus().toggleItalic().run()} title={t('italic')}>
         <em>i</em>
       </button>
-      <button type="button" className={btn(editor.isActive('strike'))} onClick={() => editor.chain().focus().toggleStrike().run()} title="Tachado">
+      <button type="button" className={btn(editor.isActive('strike'))} onClick={() => editor.chain().focus().toggleStrike().run()} title={t('strike')}>
         <s>S</s>
       </button>
       <span className="mx-1 h-4 w-px bg-ink-200" />
-      <button type="button" className={btn(editor.isActive('heading', { level: 2 }))} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title="Encabezado">
+      <button type="button" className={btn(editor.isActive('heading', { level: 2 }))} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title={t('heading')}>
         H
       </button>
-      <button type="button" className={btn(editor.isActive('bulletList'))} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Lista">
-        • Lista
+      <button type="button" className={btn(editor.isActive('bulletList'))} onClick={() => editor.chain().focus().toggleBulletList().run()} title={t('bulletList')}>
+        • {t('bulletList')}
       </button>
-      <button type="button" className={btn(editor.isActive('orderedList'))} onClick={() => editor.chain().focus().toggleOrderedList().run()} title="Lista numerada">
-        1. Lista
+      <button type="button" className={btn(editor.isActive('orderedList'))} onClick={() => editor.chain().focus().toggleOrderedList().run()} title={t('orderedList')}>
+        1. {t('bulletList')}
       </button>
-      <button type="button" className={btn(editor.isActive('blockquote'))} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Cita">
+      <button type="button" className={btn(editor.isActive('blockquote'))} onClick={() => editor.chain().focus().toggleBlockquote().run()} title={t('blockquote')}>
         ❝
       </button>
       <span className="mx-1 h-4 w-px bg-ink-200" />
-      <button type="button" className={btn(editor.isActive('link'))} onClick={addLink} title="Enlace">
+      <button type="button" className={btn(editor.isActive('link'))} onClick={addLink} title={t('link')}>
         🔗
       </button>
-      <button type="button" className={btn(false)} onClick={addButton} title="Insertar botón">
-        🔲 Botón
+      <button type="button" className={btn(false)} onClick={addButton} title={t('insertButton')}>
+        🔲 {t('buttonLabel')}
       </button>
       <span className="mx-1 h-4 w-px bg-ink-200" />
       <select
@@ -137,12 +141,12 @@ function Toolbar({ editor }: { editor: Editor }) {
           e.currentTarget.value = '';
         }}
         className="rounded border border-ink-200 px-1.5 py-1 text-xs text-ink-700"
-        title="Insertar variable"
+        title={t('insertVariable')}
       >
-        <option value="">+ Variable</option>
+        <option value="">{t('addVariable')}</option>
         {VARIABLES.map((v) => (
           <option key={v.value} value={v.value}>
-            {v.label}
+            {t(v.labelKey)}
           </option>
         ))}
       </select>

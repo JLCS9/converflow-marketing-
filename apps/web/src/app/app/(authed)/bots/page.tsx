@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
@@ -18,9 +19,13 @@ interface BotRow {
   createdAt: string;
 }
 
-export const metadata = { title: 'Bots' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('bots.title') };
+}
 
 export default async function BotsPage() {
+  const t = await getTranslations('bots');
   const { BOT_STATUS, CHANNEL } = await getLabelMaps();
   const bots = await serverApiFetch<BotRow[]>('/bots');
 
@@ -28,22 +33,26 @@ export default async function BotsPage() {
     <div className="space-y-6">
       <TabBar items={IA_TABS} />
       <PageHeader
-        title="Bots"
-        description={`${bots.length} ${bots.length === 1 ? 'bot configurado' : 'bots configurados'}.`}
+        title={t('title')}
+        description={
+          bots.length === 1
+            ? t('configuredOne', { count: bots.length })
+            : t('configuredMany', { count: bots.length })
+        }
         action={
           <Link href="/app/bots/new" className={buttonClass('primary')}>
-            + Nuevo bot
+            {t('newBot')}
           </Link>
         }
       />
 
       {bots.length === 0 ? (
         <EmptyState
-          title="Aún no tienes bots"
-          description="Conecta WhatsApp, Web Chat o Email para empezar a recibir mensajes. Tras crearlo, ábrelo y pulsa Conectar."
+          title={t('emptyTitle')}
+          description={t('emptyBody')}
           cta={
             <Link href="/app/bots/new" className={buttonClass('primary', 'text-xs')}>
-              + Crear primer bot
+              {t('createFirst')}
             </Link>
           }
         />
@@ -52,12 +61,12 @@ export default async function BotsPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-ink-100 text-left text-xs font-mono uppercase tracking-wider text-ink-500">
               <tr>
-                <th className="px-4 py-3">Nombre</th>
-                <th className="px-4 py-3">Canal</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="hidden px-4 py-3 md:table-cell">Número</th>
-                <th className="hidden px-4 py-3 md:table-cell">Última conexión</th>
-                <th className="hidden px-4 py-3 lg:table-cell">Creado</th>
+                <th className="px-4 py-3">{t('thName')}</th>
+                <th className="px-4 py-3">{t('thChannel')}</th>
+                <th className="px-4 py-3">{t('thStatus')}</th>
+                <th className="hidden px-4 py-3 md:table-cell">{t('thNumber')}</th>
+                <th className="hidden px-4 py-3 md:table-cell">{t('thLastConnection')}</th>
+                <th className="hidden px-4 py-3 lg:table-cell">{t('thCreated')}</th>
               </tr>
             </thead>
             <tbody>
