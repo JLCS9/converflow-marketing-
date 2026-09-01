@@ -136,18 +136,14 @@ function SideItem({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] ${
-        active ? 'bg-ink-900 text-white' : 'text-ink-700 hover:bg-ink-100'
+      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs ${
+        active ? 'bg-ink-300/50 font-medium text-ink-900' : 'text-ink-700 hover:bg-ink-100'
       }`}
     >
       {icon}
       <span className="flex-1 truncate text-left">{label}</span>
       {badge > 0 && (
-        <span
-          className={`shrink-0 rounded-full px-1.5 text-[10px] font-semibold leading-4 ${
-            active ? 'bg-white/20 text-white' : 'bg-primary-600 text-white'
-          }`}
-        >
+        <span className="shrink-0 rounded-full bg-primary-600 px-1.5 text-[10px] font-semibold leading-4 text-white">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
@@ -660,11 +656,11 @@ export function MailWorkspace({
                 key={c.id}
                 onClick={() => switchMailbox(c.id)}
                 title={c.fromAddress}
-                className={`flex w-full items-center justify-between gap-2 rounded px-2 py-1 text-left text-xs ${on ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'}`}
+                className={`flex w-full items-center justify-between gap-2 rounded px-2 py-1 text-left text-xs ${on ? 'bg-ink-300/50 font-medium text-ink-900' : 'text-ink-600 hover:bg-ink-100'}`}
               >
                 <span className="truncate">{c.fromAddress}</span>
                 {n > 0 && (
-                  <span className={`shrink-0 rounded-full px-1.5 text-[10px] font-semibold ${on ? 'bg-white/20 text-white' : 'bg-primary-600 text-white'}`}>
+                  <span className="shrink-0 rounded-full bg-primary-600 px-1.5 text-[10px] font-semibold text-white">
                     {n > 99 ? '99+' : n}
                   </span>
                 )}
@@ -677,8 +673,26 @@ export function MailWorkspace({
           {connections[0]?.fromAddress}
         </div>
       )}
-      <div className="flex-1 overflow-y-auto">
-        <nav className="space-y-0.5 p-2">
+      <div className="flex-1 overflow-y-auto p-2">
+        {/* Filtros primero: qué conversaciones y de quién. Cada grupo se
+            separa con una línea, sin etiquetas de sección. */}
+        <div className="space-y-0.5">
+          <SideItem icon={<CircleDot size={14} />} label="Activas" active={stateFilter === 'active'} onClick={() => setStateFilter('active')} />
+          <SideItem icon={<CheckCircle2 size={14} />} label="Cerradas" active={stateFilter === 'closed'} onClick={() => setStateFilter('closed')} />
+          <SideItem icon={<Circle size={14} />} label="Todas" active={stateFilter === 'all'} onClick={() => setStateFilter('all')} />
+        </div>
+        {!isPrivate && (
+          <>
+            <div className="my-2 border-t border-ink-100" />
+            <div className="space-y-0.5">
+              <SideItem icon={<Users size={14} />} label="Todos" active={assignedFilter === 'all'} onClick={() => setAssignedFilter('all')} />
+              <SideItem icon={<UserCheck size={14} />} label="Míos" active={assignedFilter === 'me'} badge={mineUnread} onClick={() => setAssignedFilter('me')} />
+              <SideItem icon={<UserX size={14} />} label="Sin asignar" active={assignedFilter === 'none'} onClick={() => setAssignedFilter('none')} />
+            </div>
+          </>
+        )}
+        <div className="my-2 border-t border-ink-100" />
+        <nav className="space-y-0.5">
           {FOLDERS.map((f) => {
             const Icon = FOLDER_ICON[f.key] ?? Inbox;
             const active = folder === f.key;
@@ -686,7 +700,7 @@ export function MailWorkspace({
             return (
               <SideItem
                 key={f.key}
-                icon={<Icon size={15} />}
+                icon={<Icon size={14} />}
                 label={f.label}
                 active={active}
                 badge={n}
@@ -695,29 +709,6 @@ export function MailWorkspace({
             );
           })}
         </nav>
-
-        <div className="px-2 pb-2">
-          <div className="px-2 pb-1 pt-2 font-mono text-[10px] uppercase tracking-wider text-ink-400">
-            Conversación
-          </div>
-          <div className="space-y-0.5">
-            <SideItem icon={<CircleDot size={15} />} label="Activas" active={stateFilter === 'active'} onClick={() => setStateFilter('active')} />
-            <SideItem icon={<CheckCircle2 size={15} />} label="Cerradas" active={stateFilter === 'closed'} onClick={() => setStateFilter('closed')} />
-            <SideItem icon={<Circle size={15} />} label="Todas" active={stateFilter === 'all'} onClick={() => setStateFilter('all')} />
-          </div>
-          {!isPrivate && (
-            <>
-              <div className="px-2 pb-1 pt-3 font-mono text-[10px] uppercase tracking-wider text-ink-400">
-                Asignación
-              </div>
-              <div className="space-y-0.5">
-                <SideItem icon={<Users size={15} />} label="Todos" active={assignedFilter === 'all'} onClick={() => setAssignedFilter('all')} />
-                <SideItem icon={<UserCheck size={15} />} label="Míos" active={assignedFilter === 'me'} badge={mineUnread} onClick={() => setAssignedFilter('me')} />
-                <SideItem icon={<UserX size={15} />} label="Sin asignar" active={assignedFilter === 'none'} onClick={() => setAssignedFilter('none')} />
-              </div>
-            </>
-          )}
-        </div>
       </div>
 
       <div className="shrink-0 space-y-2 border-t border-ink-100 p-2">
