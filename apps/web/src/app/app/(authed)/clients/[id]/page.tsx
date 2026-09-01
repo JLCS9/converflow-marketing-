@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { Card, Badge } from '@/components/ui/primitives';
 import { ClientInfoCard } from './client-info-card';
-import { CustomFieldsCard } from '../../leads/[id]/custom-fields-card';
+import { CustomFieldsCard } from '@/components/custom-fields/card';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
 interface ClientDetail {

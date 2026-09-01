@@ -6,9 +6,9 @@ import { Card, Badge } from '@/components/ui/primitives';
 import { OpportunityEdit } from './opportunity-edit';
 import { OpportunityNotes } from './opportunity-notes';
 import { OpportunityDelete } from './opportunity-delete';
-import { CustomFieldsCard } from '../../leads/[id]/custom-fields-card';
-import { CustomFieldsView } from '@/components/custom-fields/view';
+import { CustomFieldsCard } from '@/components/custom-fields/card';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
+import { LEAD_STATUS, LEAD_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
 
 interface Note {
   id: string;
@@ -102,10 +102,9 @@ export default async function OpportunityDetailPage({
     if (err instanceof ApiError && err.status === 404) notFound();
     throw err;
   }
-  const [oppFields, leadFields] = await Promise.all([
-    serverApiFetch<CustomFieldDefinition[]>('/custom-fields?entityType=OPPORTUNITY').catch(() => []),
-    serverApiFetch<CustomFieldDefinition[]>('/custom-fields?entityType=LEAD').catch(() => []),
-  ]);
+  const oppFields = await serverApiFetch<CustomFieldDefinition[]>(
+    '/custom-fields?entityType=OPPORTUNITY',
+  ).catch(() => [] as CustomFieldDefinition[]);
 
   return (
     <div className="space-y-6">
@@ -160,39 +159,35 @@ export default async function OpportunityDetailPage({
         <Card className="lg:col-span-2">
           <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">Lead</h2>
           {opp.lead ? (
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="flex items-center justify-between">
-                <Link
-                  href={`/app/leads/${opp.lead.id}`}
-                  className="text-base font-medium text-primary-700 hover:underline"
+            // Ficha reducida (Bloque 3): la tarjeta canónica vive en /app/leads/[id].
+            // Aquí solo enlace + chips, sin duplicar información editable.
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+              <Link
+                href={`/app/leads/${opp.lead.id}`}
+                className="text-base font-medium text-primary-700 hover:underline"
+              >
+                {opp.lead.name} →
+              </Link>
+              <Badge color={statusColor(LEAD_STATUS_COLOR, opp.lead.status)}>
+                {statusLabel(LEAD_STATUS, opp.lead.status)}
+              </Badge>
+              {opp.lead.score != null && (
+                <span className="rounded-md bg-ink-100 px-1.5 py-0.5 text-xs font-medium tabular-nums text-ink-700">
+                  {t('leadDetail.aiScore')} {opp.lead.score}
+                </span>
+              )}
+              {opp.lead.company && (
+                <span className="rounded-md bg-ink-100 px-1.5 py-0.5 text-xs text-ink-700">
+                  {opp.lead.company}
+                </span>
+              )}
+              {opp.lead.email && (
+                <a
+                  className="rounded-md bg-ink-100 px-1.5 py-0.5 text-xs text-primary-700 hover:underline"
+                  href={`mailto:${opp.lead.email}`}
                 >
-                  {opp.lead.name}
-                </Link>
-                <Badge color="gray">{opp.lead.status}</Badge>
-              </div>
-              <dl className="grid gap-3 sm:grid-cols-2">
-                {opp.lead.company && <KV label={t('crm.company')} value={opp.lead.company} />}
-                {opp.lead.email && (
-                  <KV
-                    label={t('crm.email')}
-                    value={
-                      <a className="text-primary-700 hover:underline" href={`mailto:${opp.lead.email}`}>
-                        {opp.lead.email}
-                      </a>
-                    }
-                  />
-                )}
-                {opp.lead.phone && <KV label={t('crm.phone')} value={opp.lead.phone} />}
-                {opp.lead.source && <KV label={t('crm.source')} value={opp.lead.source} />}
-                {opp.lead.score != null && <KV label={t('leadDetail.aiScore')} value={String(opp.lead.score)} />}
-              </dl>
-              {opp.lead.customFields && leadFields.length > 0 && (
-                <div className="border-t border-ink-100 pt-3">
-                  <div className="mb-2 text-xs font-mono uppercase tracking-wider text-ink-500">
-                    Campos del lead
-                  </div>
-                  <CustomFieldsView definitions={leadFields} values={opp.lead.customFields} />
-                </div>
+                  {opp.lead.email}
+                </a>
               )}
             </div>
           ) : opp.client ? (
@@ -301,11 +296,3 @@ export default async function OpportunityDetailPage({
   );
 }
 
-function KV({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs text-ink-500">{label}</dt>
-      <dd className="mt-0.5 text-ink-900">{value}</dd>
-    </div>
-  );
-}

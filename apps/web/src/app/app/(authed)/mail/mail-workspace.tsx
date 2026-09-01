@@ -27,6 +27,7 @@ import {
   ContactPanel,
   ReplyNoteTabs,
 } from '@/components/ui/inbox-kit';
+import { LeadDrawer } from '@/components/lead/lead-drawer';
 import { MailComposer, type ComposerInitial, type ComposerMode } from './mail-composer';
 import { ThreadMessages, type AddressLabeller } from './mail-message-card';
 import { MailThreadList } from './mail-thread-list';
@@ -175,6 +176,7 @@ export function MailWorkspace({
   const [noteDraft, setNoteDraft] = useState('');
   const [lock, setLock] = useState<LockState | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [leadDrawerId, setLeadDrawerId] = useState<string | null>(null);
   const [composerTab, setComposerTab] = useState<'reply' | 'note'>('reply');
   const [loadingList, setLoadingList] = useState(true);
   const [unreadByConn, setUnreadByConn] = useState<Record<string, number>>({});
@@ -820,12 +822,19 @@ export function MailWorkspace({
         {
           label: 'CRM',
           value: detail.contact ? (
-            <Link
-              href={`/app/${detail.contact.type === 'client' ? 'clients' : 'leads'}/${detail.contact.id}`}
-              className="text-primary-700 hover:underline"
-            >
-              Ver perfil ({detail.contact.type === 'client' ? 'cliente' : 'lead'}) →
-            </Link>
+            detail.contact.type === 'client' ? (
+              <Link href={`/app/clients/${detail.contact.id}`} className="text-primary-700 hover:underline">
+                Ver perfil (cliente) →
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setLeadDrawerId(detail.contact!.id)}
+                className="text-primary-700 hover:underline"
+              >
+                Ver ficha (lead) →
+              </button>
+            )
           ) : (
             <button type="button" onClick={() => void saveLead()} className={buttonClass('secondary', 'text-xs')}>
               Guardar como lead
@@ -850,6 +859,8 @@ export function MailWorkspace({
         thread={threadNode}
         details={detailsNode}
       />
+
+      {leadDrawerId && <LeadDrawer leadId={leadDrawerId} onClose={() => setLeadDrawerId(null)} />}
 
       {/* New / Forward modal */}
       {modal && (
