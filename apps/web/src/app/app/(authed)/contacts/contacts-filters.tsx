@@ -11,7 +11,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Search, X } from 'lucide-react';
 import { Card } from '@/components/ui/primitives';
-import { LEAD_STATUS, CLIENT_STATUS } from '@/lib/labels';
+import { LEAD_STATUS_OPTIONS, CLIENT_STATUS } from '@/lib/labels';
 
 export interface OwnerOption {
   id: string;
@@ -55,14 +55,16 @@ export function ContactsFilters({ owners }: { owners: OwnerOption[] }) {
     (k) => params.get(k),
   );
 
-  // Los estados ofrecidos dependen del tipo: mezclar los de lead y cliente en
-  // un mismo desplegable confunde (¿ACTIVE es de quién?).
+  // Los estados ofrecidos dependen del tipo. LEAD_STATUS_OPTIONS y no
+  // LEAD_STATUS: el mapa completo incluye alias legacy de solo-lectura
+  // (NEW/CONTACTED/… → 'Lead') que duplicarían las opciones del desplegable.
+  const leadStatusEntries: [string, string][] = LEAD_STATUS_OPTIONS.map((o) => [o.value, o.label]);
   const statusOptions =
     type === 'client'
       ? Object.entries(CLIENT_STATUS)
       : type === 'lead'
-        ? Object.entries(LEAD_STATUS)
-        : [...Object.entries(LEAD_STATUS), ...Object.entries(CLIENT_STATUS)];
+        ? leadStatusEntries
+        : [...leadStatusEntries, ...Object.entries(CLIENT_STATUS)];
 
   return (
     <Card className="p-3">
