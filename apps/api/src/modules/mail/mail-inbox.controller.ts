@@ -46,12 +46,20 @@ export class MailInboxController {
     @Query('folder') folder: string | undefined,
     @Query('cursor') cursor: string | undefined,
     @Query('limit') limit: string | undefined,
+    @Query('mine') mine: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.inbox.listThreads(user.tenantId, id, this.actor(user), folder, {
       cursor,
       limit: limit ? Number(limit) : undefined,
+      mine: mine === '1' || mine === 'true',
     });
+  }
+
+  /** Contadores del filtro «Solo los míos» (asignados a mí / sin leer para mí). */
+  @Get('connections/:id/mine-counts')
+  mineCounts(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.inbox.mineCounts(user.tenantId, id, this.actor(user));
   }
 
   @Get('unread-count')

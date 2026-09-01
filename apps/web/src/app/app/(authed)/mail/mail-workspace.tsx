@@ -114,17 +114,52 @@ export function MailWorkspace({
   connections,
   mailUnread,
   imPending,
+  initialConnectionId,
+  initialThreadId,
 }: {
   connections: MailboxOption[];
   mailUnread: number;
   imPending: number;
+  /** Enlace profundo (?conn=&thread=): lo usan las tareas de asignación. */
+  initialConnectionId?: string;
+  initialThreadId?: string;
 }) {
   const { userId } = useSession();
-  const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '');
+  const [connectionId, setConnectionId] = useState(() => {
+    // El enlace profundo manda, si apunta a un buzón al que tengo acceso.
+    if (initialConnectionId && connections.some((c) => c.id === initialConnectionId)) {
+      return initialConnectionId;
+    }
+    return connections[0]?.id ?? '';
+  });
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   /** True once the user loaded extra pages, so the poller stops truncating. */
   const pagedRef = useRef(false);
+  const mineRef = useRef(false);
+  // «Solo los míos»: preferencia por usuario, persistida en el navegador.
+  const [onlyMine, setOnlyMineState] = useState(false);
+  const [mineUnread, setMineUnread] = useState(0);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`cf-mail-only-mine-${userId}`) === '1';
+      mineRef.current = saved;
+      setOnlyMineState(saved);
+    } catch {
+      /* almacenamiento bloqueado: arranca apagado */
+    }
+  }, [userId]);
+  const setOnlyMine = (v: boolean) => {
+    mineRef.current = v;
+    setOnlyMineState(v);
+    setSelectedId(null);
+    setDetail(null);
+    try {
+      localStorage.setItem(`cf-mail-only-mine-${userId}`, v ? '1' : '0');
+    } catch {
+      /* la preferencia simplemente no persiste */
+    }
+  };
   const [folder, setFolder] = useState('INBOX');
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -190,7 +225,7 @@ export function MailWorkspace({
     if (!conn) return;
     try {
       const [t, c] = await Promise.all([
-        apiFetch<ThreadPage>(`/mail/connections/${conn}/threads?folder=${f}`),
+        apiFetch<ThreadPage>(`/mail/connections/${conn}/threads?folder=${f}${mineRef.current ? '&mine=1' : ''}`),
         apiFetch<Record<string, number>>(`/mail/connections/${conn}/folder-counts`).catch(() => ({})),
       ]);
       setThreads((prev) => {
@@ -243,6 +278,36 @@ export function MailWorkspace({
   useEffect(() => {
     apiFetch<TeamMember[]>('/mail/team').then(setTeam).catch(() => {});
   }, []);
+
+  // Enlace profundo: abre el hilo pedido una sola vez al montar.
+  const deepLinkDone = useRef(false);
+  useEffect(() => {
+    if (deepLinkDone.current || !initialThreadId) return;
+    deepLinkDone.current = true;
+    void openThread(initialThreadId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialThreadId]);
+
+  // Cambiar el filtro «míos» recarga la primera página con el scope nuevo.
+  useEffect(() => {
+    if (!searching) {
+      pagedRef.current = false;
+      void loadThreads(connectionId, folder);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlyMine]);
+
+  // Contador «míos sin leer», junto al resto de sondeos lentos.
+  useEffect(() => {
+    if (!connectionId || isPrivate) return;
+    const poll = () =>
+      apiFetch<{ assigned: number; unread: number }>(`/mail/connections/${connectionId}/mine-counts`)
+        .then((r) => setMineUnread(r.unread))
+        .catch(() => {});
+    void poll();
+    const timer = setInterval(poll, 20000);
+    return () => clearInterval(timer);
+  }, [connectionId, isPrivate]);
 
   // Unread per mailbox → flag other mailboxes with pending mail.
   useEffect(() => {
@@ -589,6 +654,9 @@ export function MailWorkspace({
       loadingMore={loadingMore}
       onLoadMore={() => void loadMore()}
       onNewMail={() => setModal({ mode: 'new', initial: { html: sigHtml } })}
+      onlyMine={onlyMine}
+      onOnlyMine={setOnlyMine}
+      mineUnread={mineUnread}
     />
   );
 

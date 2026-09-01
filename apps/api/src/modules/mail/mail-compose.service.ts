@@ -6,6 +6,7 @@ import { sanitizeEmailHtml, htmlToText } from '../../common/utils/email-html.js'
 import { createMailDriver, type DriverConfig } from './drivers/index.js';
 import { MailConnectionsService } from './mail-connections.service.js';
 import { MailAttachmentsService, type StagedAttachment } from './mail-attachments.service.js';
+import { MailSharedService } from './mail-shared.service.js';
 import { normalizeSubject } from './mail-ingest.service.js';
 
 interface Actor {
@@ -61,6 +62,7 @@ export class MailComposeService {
     private readonly prisma: PrismaService,
     private readonly connections: MailConnectionsService,
     private readonly attachments: MailAttachmentsService,
+    private readonly shared: MailSharedService,
   ) {}
 
   /** Reply to a thread. To defaults to the last inbound sender; cc/bcc optional (reply-all = caller sets cc). */
@@ -112,7 +114,7 @@ export class MailComposeService {
     const files = await this.attachments.presignForSend(input.attachments);
     const sentId = await this.send(tenantId, conn, { to, cc, bcc, subject, html: safeHtml, inReplyTo, references, attachments: files });
 
-    return this.recordOutbound(tenantId, {
+    const result = await this.recordOutbound(tenantId, {
       threadId,
       connectionId: thread.connectionId,
       rfcMessageId: sentId,
@@ -127,6 +129,9 @@ export class MailComposeService {
       bumpThread: true,
       sentByUserId: actor.userId,
     });
+    // Responder = trabajo hecho: la tarea de asignación (si existe) se completa.
+    void this.shared.completeLinkedTask(tenantId, threadId);
+    return result;
   }
 
   /** Compose a brand-new email (opens a new thread). Supports multiple To/Cc/Bcc. */
@@ -409,6 +414,9 @@ export class MailComposeService {
         },
       });
       return { ok: true, threadId: msg.threadId, messageId: msg.id };
+    }).then((r) => {
+      void this.shared.completeLinkedTask(tenantId, msg.threadId);
+      return r;
     });
   }
 
