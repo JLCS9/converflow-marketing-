@@ -29,8 +29,8 @@ export function InboxShell({
   hasSelection: boolean;
 }) {
   return (
-    <div className="flex h-[calc(100dvh-7.5rem)] overflow-hidden rounded-lg border border-ink-100 bg-white">
-      <aside className="hidden w-44 shrink-0 flex-col overflow-y-auto border-r border-ink-100 bg-ink-50/40 md:flex">
+    <div className="cf-fullbleed flex h-full overflow-hidden bg-white">
+      <aside className="hidden w-48 shrink-0 flex-col overflow-y-auto border-r border-ink-100 bg-ink-100/30 md:flex">
         {filters}
       </aside>
       <section

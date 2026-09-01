@@ -15,6 +15,13 @@ import {
   AlertTriangle,
   Loader2,
   Settings,
+  Mail,
+  Circle,
+  CircleDot,
+  CheckCircle2,
+  Users,
+  UserCheck,
+  UserX,
 } from 'lucide-react';
 import { buildReplyAllRecipients } from '@converflow/shared';
 import { apiFetch } from '@/lib/api-client';
@@ -110,6 +117,43 @@ const MOVES: Record<string, { folder: string; label: string }[]> = {
 
 
 const list = (v: string[] | null | undefined): string => (Array.isArray(v) ? v.join(', ') : '');
+
+function SideItem({
+  icon,
+  label,
+  active,
+  badge = 0,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  badge?: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] ${
+        active ? 'bg-ink-900 text-white' : 'text-ink-700 hover:bg-ink-100'
+      }`}
+    >
+      {icon}
+      <span className="flex-1 truncate text-left">{label}</span>
+      {badge > 0 && (
+        <span
+          className={`shrink-0 rounded-full px-1.5 text-[10px] font-semibold leading-4 ${
+            active ? 'bg-white/20 text-white' : 'bg-primary-600 text-white'
+          }`}
+        >
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
+    </button>
+  );
+}
 
 export function MailWorkspace({
   connections,
@@ -633,34 +677,64 @@ export function MailWorkspace({
           {connections[0]?.fromAddress}
         </div>
       )}
-      <nav className="flex-1 space-y-0.5 p-2">
-        {FOLDERS.map((f) => {
-          const Icon = FOLDER_ICON[f.key] ?? Inbox;
-          const active = folder === f.key;
-          const n = counts[f.key] ?? 0;
-          return (
-            <button
-              key={f.key}
-              onClick={() => { setFolder(f.key); setSelectedId(null); setDetail(null); setQuery(''); }}
-              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm ${active ? 'bg-ink-900 text-white' : 'text-ink-700 hover:bg-ink-100'}`}
-            >
-              <Icon size={16} />
-              <span className="flex-1 text-left">{f.label}</span>
-              {n > 0 && (
-                <span className={`rounded-full px-1.5 text-[10px] font-semibold ${active ? 'bg-white/20 text-white' : 'bg-primary-600 text-white'}`}>
-                  {n > 99 ? '99+' : n}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-      <Link
-        href="/app/mail/ajustes"
-        className="mt-auto flex items-center gap-2 border-t border-ink-100 px-3 py-2 text-xs text-ink-500 hover:bg-ink-100 hover:text-ink-800"
-      >
-        <Settings size={14} /> Ajustes (buzones, plantillas)
-      </Link>
+      <div className="flex-1 overflow-y-auto">
+        <nav className="space-y-0.5 p-2">
+          {FOLDERS.map((f) => {
+            const Icon = FOLDER_ICON[f.key] ?? Inbox;
+            const active = folder === f.key;
+            const n = counts[f.key] ?? 0;
+            return (
+              <SideItem
+                key={f.key}
+                icon={<Icon size={15} />}
+                label={f.label}
+                active={active}
+                badge={n}
+                onClick={() => { setFolder(f.key); setSelectedId(null); setDetail(null); setQuery(''); }}
+              />
+            );
+          })}
+        </nav>
+
+        <div className="px-2 pb-2">
+          <div className="px-2 pb-1 pt-2 font-mono text-[10px] uppercase tracking-wider text-ink-400">
+            Conversación
+          </div>
+          <div className="space-y-0.5">
+            <SideItem icon={<CircleDot size={15} />} label="Activas" active={stateFilter === 'active'} onClick={() => setStateFilter('active')} />
+            <SideItem icon={<CheckCircle2 size={15} />} label="Cerradas" active={stateFilter === 'closed'} onClick={() => setStateFilter('closed')} />
+            <SideItem icon={<Circle size={15} />} label="Todas" active={stateFilter === 'all'} onClick={() => setStateFilter('all')} />
+          </div>
+          {!isPrivate && (
+            <>
+              <div className="px-2 pb-1 pt-3 font-mono text-[10px] uppercase tracking-wider text-ink-400">
+                Asignación
+              </div>
+              <div className="space-y-0.5">
+                <SideItem icon={<Users size={15} />} label="Todos" active={assignedFilter === 'all'} onClick={() => setAssignedFilter('all')} />
+                <SideItem icon={<UserCheck size={15} />} label="Míos" active={assignedFilter === 'me'} badge={mineUnread} onClick={() => setAssignedFilter('me')} />
+                <SideItem icon={<UserX size={15} />} label="Sin asignar" active={assignedFilter === 'none'} onClick={() => setAssignedFilter('none')} />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="shrink-0 space-y-2 border-t border-ink-100 p-2">
+        <button
+          type="button"
+          onClick={() => setModal({ mode: 'new', initial: { html: sigHtml } })}
+          className={buttonClass('primary', 'flex w-full items-center justify-center gap-1.5 text-xs')}
+        >
+          <Mail size={14} /> Nuevo correo
+        </button>
+        <Link
+          href="/app/mail/ajustes"
+          className="flex items-center gap-2 rounded-md px-2 py-1 text-xs text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+        >
+          <Settings size={14} /> Ajustes (buzones, plantillas)
+        </Link>
+      </div>
     </div>
   );
 

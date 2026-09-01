@@ -109,10 +109,12 @@ export function MailThreadList({
   return (
   <div className="flex h-full flex-col">
     <div className="space-y-2 border-b border-ink-100 p-2">
+      {/* En escritorio el botón y los filtros viven en el navbar lateral; en
+          móvil esa columna no existe, así que se muestran aquí. */}
       <button
         type="button"
         onClick={() => onNewMail()}
-        className={buttonClass('primary', 'flex w-full items-center justify-center gap-1.5 text-xs')}
+        className={buttonClass('primary', 'flex w-full items-center justify-center gap-1.5 text-xs md:hidden')}
       >
         <Mail size={14} /> Nuevo correo
       </button>
@@ -135,40 +137,42 @@ export function MailThreadList({
           </button>
         )}
       </div>
-      <Segment
-        label="Estado de la conversación"
-        value={stateFilter}
-        onChange={onStateFilter}
-        options={[
-          { value: 'active', label: 'Activas' },
-          { value: 'closed', label: 'Cerradas' },
-          { value: 'all', label: 'Todas' },
-        ]}
-      />
-      {!isPrivate && (
+      <div className="space-y-2 md:hidden">
         <Segment
-          label="Asignación"
-          value={assignedFilter}
-          onChange={onAssignedFilter}
+          label="Estado de la conversación"
+          value={stateFilter}
+          onChange={onStateFilter}
           options={[
-            { value: 'all', label: 'Todos' },
-            {
-              value: 'me',
-              label: (
-                <>
-                  <UserCheck size={11} /> Míos
-                  {mineUnread > 0 && (
-                    <span className="rounded-full bg-primary-600 px-1 text-[9px] font-semibold leading-4 text-white">
-                      {mineUnread > 99 ? '99+' : mineUnread}
-                    </span>
-                  )}
-                </>
-              ),
-            },
-            { value: 'none', label: 'Sin asignar' },
+            { value: 'active', label: 'Activas' },
+            { value: 'closed', label: 'Cerradas' },
+            { value: 'all', label: 'Todas' },
           ]}
         />
-      )}
+        {!isPrivate && (
+          <Segment
+            label="Asignación"
+            value={assignedFilter}
+            onChange={onAssignedFilter}
+            options={[
+              { value: 'all', label: 'Todos' },
+              {
+                value: 'me',
+                label: (
+                  <>
+                    <UserCheck size={11} /> Míos
+                    {mineUnread > 0 && (
+                      <span className="rounded-full bg-primary-600 px-1 text-[9px] font-semibold leading-4 text-white">
+                        {mineUnread > 99 ? '99+' : mineUnread}
+                      </span>
+                    )}
+                  </>
+                ),
+              },
+              { value: 'none', label: 'Sin asignar' },
+            ]}
+          />
+        )}
+      </div>
     </div>
     <div className="flex-1 overflow-y-auto">
       {loading && threads.length === 0 ? (

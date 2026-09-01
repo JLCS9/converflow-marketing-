@@ -156,7 +156,9 @@ export function AppShell({
           </div>
         )}
         <PoliciesBanner />
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">{children}</div>
+        {/* Las bandejas (correo/mensajería) marcan .cf-fullbleed y ocupan el
+            área completa sin el padding estándar de página. */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 [&:has(.cf-fullbleed)]:overflow-hidden [&:has(.cf-fullbleed)]:p-0">{children}</div>
       </main>
     </div>
   );
