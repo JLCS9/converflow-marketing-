@@ -112,6 +112,18 @@ const es = {
     emptyFiltered: 'No hay tareas con estos filtros.',
     searchPlaceholder: 'Buscar…',
   },
+  contacts: {
+    title: 'Contactos',
+    subtitle: 'Leads y clientes en una sola lista. Los filtros se comparten por URL.',
+    type: 'Tipo',
+    client: 'Cliente',
+    emptyTitle: 'Aún no tienes contactos',
+    emptyBody: 'Crea tu primer lead o importa una lista en CSV.',
+    noMatch: 'Ningún contacto coincide con los filtros.',
+    createdBetween: 'Creado',
+    clearFilters: 'Quitar filtros',
+    leadOnlyFilter: 'Este filtro solo aplica a leads',
+  },
   clients: {
     title: 'Clientes',
     searchPlaceholder: 'Buscar (nombre o email)',

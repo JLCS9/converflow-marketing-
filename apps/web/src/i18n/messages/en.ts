@@ -104,6 +104,18 @@ const en: Messages = {
     emptyFiltered: 'No tasks match these filters.',
     searchPlaceholder: 'Search…',
   },
+  contacts: {
+    title: 'Contacts',
+    subtitle: 'Leads and clients in one list. Filters live in the URL, so views are shareable.',
+    type: 'Type',
+    client: 'Client',
+    emptyTitle: 'No contacts yet',
+    emptyBody: 'Create your first lead or import a CSV list.',
+    noMatch: 'No contact matches these filters.',
+    createdBetween: 'Created',
+    clearFilters: 'Clear filters',
+    leadOnlyFilter: 'This filter only applies to leads',
+  },
   clients: {
     title: 'Clients',
     searchPlaceholder: 'Search (name or email)',

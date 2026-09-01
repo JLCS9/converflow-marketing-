@@ -24,8 +24,22 @@ interface ListOpts {
   status?: string;
   ownerId?: string;
   search?: string;
+  /** Filtro por canal de origen (igualdad exacta, case-insensitive). */
+  source?: string;
+  /** Rango de creación, ISO yyyy-mm-dd (el hasta es inclusivo: fin de día). */
+  createdFrom?: string;
+  createdTo?: string;
+  /** Puntuación IA mínima. */
+  scoreMin?: number;
   limit?: number;
   offset?: number;
+}
+
+/** yyyy-mm-dd → Date, o undefined si no parsea. Nunca lanza por una URL rota. */
+function parseDay(s: string | undefined, endOfDay = false): Date | undefined {
+  if (!s) return undefined;
+  const d = new Date(endOfDay ? `${s}T23:59:59.999` : `${s}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
 @Injectable()
@@ -56,9 +70,14 @@ export class LeadsService {
   }
 
   private buildWhere(opts: ListOpts) {
+    const from = parseDay(opts.createdFrom);
+    const to = parseDay(opts.createdTo, true);
     return {
       status: (opts.status as never) || undefined,
       ownerId: opts.ownerId || undefined,
+      source: opts.source ? { equals: opts.source, mode: 'insensitive' as const } : undefined,
+      createdAt: from || to ? { gte: from, lte: to } : undefined,
+      score: opts.scoreMin != null && !Number.isNaN(opts.scoreMin) ? { gte: opts.scoreMin } : undefined,
       OR: opts.search
         ? [
             { name: { contains: opts.search, mode: 'insensitive' as const } },

@@ -28,8 +28,8 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     key: 'crm',
     label: 'CRM',
-    defaultHref: '/app/leads',
-    routes: ['/app/leads', '/app/opportunities', '/app/clients'],
+    defaultHref: '/app/contacts',
+    routes: ['/app/contacts', '/app/leads', '/app/opportunities', '/app/clients'],
     requires: ['crm'],
   },
   {
