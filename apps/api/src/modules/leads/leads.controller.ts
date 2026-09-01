@@ -25,6 +25,10 @@ export class LeadsController {
     @Query('status') status?: string,
     @Query('ownerId') ownerId?: string,
     @Query('search') search?: string,
+    @Query('source') source?: string,
+    @Query('createdFrom') createdFrom?: string,
+    @Query('createdTo') createdTo?: string,
+    @Query('scoreMin') scoreMin?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
@@ -32,6 +36,10 @@ export class LeadsController {
       status,
       ownerId,
       search,
+      source,
+      createdFrom,
+      createdTo,
+      scoreMin: scoreMin ? Number(scoreMin) : undefined,
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
     });
@@ -43,8 +51,20 @@ export class LeadsController {
     @Query('status') status?: string,
     @Query('ownerId') ownerId?: string,
     @Query('search') search?: string,
+    @Query('source') source?: string,
+    @Query('createdFrom') createdFrom?: string,
+    @Query('createdTo') createdTo?: string,
+    @Query('scoreMin') scoreMin?: string,
   ) {
-    return this.leads.count(user.tenantId, { status, ownerId, search });
+    return this.leads.count(user.tenantId, {
+      status,
+      ownerId,
+      search,
+      source,
+      createdFrom,
+      createdTo,
+      scoreMin: scoreMin ? Number(scoreMin) : undefined,
+    });
   }
 
   @Get(':id')

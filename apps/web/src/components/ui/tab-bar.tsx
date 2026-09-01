@@ -83,9 +83,8 @@ export function TabBar({ items, className, action }: Props) {
 
 // Section presets — keep them here so every page reads the same source of truth.
 export const CRM_TABS: TabItem[] = [
-  { href: '/app/leads', label: 'Leads', labelKey: 'leads.title' },
+  { href: '/app/contacts', label: 'Contactos', labelKey: 'contacts.title' },
   { href: '/app/opportunities', label: 'Oportunidades', labelKey: 'opportunities.title' },
-  { href: '/app/clients', label: 'Clientes', labelKey: 'clients.title' },
 ];
 
 export const IA_TABS: TabItem[] = [
