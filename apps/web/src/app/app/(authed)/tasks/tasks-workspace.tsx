@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { TaskDrawer } from './task-drawer';
 import Link from 'next/link';
 import {
   Phone,
@@ -111,6 +112,8 @@ export function TasksWorkspace({
   const [scope, setScope] = useState<'mine' | 'team' | 'all'>('mine');
   const [quick, setQuick] = useState<'today' | 'overdue' | 'unassigned' | null>(null);
   const [statusF, setStatusF] = useState('');
+  const [dueFrom, setDueFrom] = useState('');
+  const [dueTo, setDueTo] = useState('');
   const [typeF, setTypeF] = useState('');
   const [q, setQ] = useState('');
   const [view, setView] = useState<'list' | 'board'>('list');
@@ -163,6 +166,8 @@ export function TasksWorkspace({
       if (scope === 'mine' && task.ownerId !== session.userId) return false;
       if (scope === 'team' && !task.ownerId) return false;
       if (statusF && task.status !== statusF) return false;
+      if (dueFrom && (!task.dueAt || new Date(task.dueAt) < new Date(dueFrom))) return false;
+      if (dueTo && (!task.dueAt || new Date(task.dueAt) > new Date(dueTo + 'T23:59:59'))) return false;
       if (typeF && task.type !== typeF) return false;
       if (quick === 'overdue' && !isOverdue(task)) return false;
       if (quick === 'unassigned' && task.ownerId) return false;
@@ -174,7 +179,7 @@ export function TasksWorkspace({
       if (q.trim() && !task.title.toLowerCase().includes(q.trim().toLowerCase())) return false;
       return true;
     });
-  }, [tasks, scope, statusF, typeF, quick, q, session.userId, startOfToday, endOfToday]);
+  }, [tasks, scope, statusF, typeF, quick, q, session.userId, startOfToday, endOfToday, dueFrom, dueTo]);
 
   const segBtn = (active: boolean) =>
     `rounded-md px-3 py-1.5 text-sm font-medium ${active ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'}`;
@@ -221,7 +226,9 @@ export function TasksWorkspace({
           <option value="">{t('taskBoard.allTypes')}</option>
           {Object.entries(TASK_TYPE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('taskBoard.searchPlaceholder')} className="rounded border border-ink-200 px-2 py-1 text-xs" />
+        <input type="date" value={dueFrom} onChange={(e) => setDueFrom(e.target.value)} title="Vence desde" className="rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-600" />
+          <input type="date" value={dueTo} onChange={(e) => setDueTo(e.target.value)} title="Vence hasta" className="rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-600" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('taskBoard.searchPlaceholder')} className="rounded border border-ink-200 px-2 py-1 text-xs" />
       </div>
 
       {filtered.length === 0 ? (
@@ -319,122 +326,13 @@ export function TasksWorkspace({
       )}
 
       {modal && (
-        <TaskModal
+        <TaskDrawer
           task={modal.task}
           assignees={assignees}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); void load(); }}
         />
       )}
-    </div>
-  );
-}
-
-function TaskModal({
-  task,
-  assignees,
-  onClose,
-  onSaved,
-}: {
-  task: Task | null;
-  assignees: Ref[];
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const t = useTranslations();
-  const fb = useFeedback();
-  const [saving, setSaving] = useState(false);
-  const editing = !!task;
-
-  function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    const dueAtStr = String(data.get('dueAt') ?? '').trim();
-    const ownerId = String(data.get('ownerId') ?? '').trim();
-    const leadId = String(data.get('leadId') ?? '').trim();
-    const clientId = String(data.get('clientId') ?? '').trim();
-    const opportunityId = String(data.get('opportunityId') ?? '').trim();
-    const payload: Record<string, unknown> = {
-      title: String(data.get('title') ?? '').trim(),
-      description: String(data.get('description') ?? '').trim() || undefined,
-      type: String(data.get('type') ?? 'OTHER'),
-      priority: String(data.get('priority') ?? 'MEDIUM'),
-      status: String(data.get('status') ?? 'PENDING'),
-      dueAt: dueAtStr ? new Date(dueAtStr).toISOString() : null,
-      ownerId: ownerId || null,
-      leadId: leadId || null,
-      clientId: clientId || null,
-      opportunityId: opportunityId || null,
-    };
-    if (!payload.title) {
-      fb.toast.error('El título es obligatorio');
-      return;
-    }
-    setSaving(true);
-    (async () => {
-      try {
-        if (editing) await apiFetch(`/tasks/${task!.id}`, { method: 'PATCH', json: payload });
-        else await apiFetch('/tasks', { method: 'POST', json: payload });
-        fb.toast.success(editing ? 'Tarea actualizada' : 'Tarea creada');
-        onSaved();
-      } catch {
-        fb.toast.error('No se pudo guardar la tarea');
-        setSaving(false);
-      }
-    })();
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-900/40 p-4 sm:p-8" onClick={onClose}>
-      <div className="w-full max-w-xl rounded-lg border border-ink-100 bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3">
-          <h3 className="text-sm font-semibold">{editing ? t('taskBoard.editTask') : t('taskBoard.newTask')}</h3>
-          <button type="button" onClick={onClose} className="text-ink-400 hover:text-ink-700" aria-label="Cerrar">✕</button>
-        </div>
-        <form className="space-y-4 p-4" onSubmit={submit}>
-          <Field label={t('taskBoard.formTitle')} required>
-            <Input name="title" defaultValue={task?.title ?? ''} required maxLength={200} autoFocus />
-          </Field>
-          <Field label={t('taskBoard.formDescription')}>
-            <Textarea name="description" rows={3} defaultValue={task?.description ?? ''} />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Tipo">
-              <Select name="type" defaultValue={task?.type ?? 'OTHER'}>
-                {Object.entries(TASK_TYPE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </Select>
-            </Field>
-            <Field label="Prioridad">
-              <Select name="priority" defaultValue={task?.priority ?? 'MEDIUM'}>
-                {Object.entries(PRIORITY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </Select>
-            </Field>
-            <Field label={t('crm.status')}>
-              <Select name="status" defaultValue={task?.status ?? 'PENDING'}>
-                {Object.entries(TASK_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </Select>
-            </Field>
-            <Field label={t('taskBoard.assignTo')}>
-              <Select name="ownerId" defaultValue={task?.ownerId ?? ''}>
-                <option value="">{t('taskBoard.unassigned')}</option>
-                {assignees.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </Select>
-            </Field>
-          </div>
-          <Field label="Vence">
-            <Input name="dueAt" type="datetime-local" defaultValue={toLocalInput(task?.dueAt ?? null)} />
-          </Field>
-          <div className="space-y-3 border-t border-ink-100 pt-3">
-            <EntityPicker endpoint="/leads" name="leadId" label="Lead vinculado" defaultId={task?.lead?.id} defaultName={task?.lead?.name} placeholder="Buscar lead…" />
-            <EntityPicker endpoint="/clients" name="clientId" label="Cliente vinculado" defaultId={task?.client?.id} defaultName={task?.client?.name} placeholder="Buscar cliente…" />
-            <EntityPicker endpoint="/opportunities" name="opportunityId" label="Oportunidad vinculada" defaultId={task?.opportunity?.id} defaultName={task?.opportunity?.name} placeholder="Buscar oportunidad…" />
-          </div>
-          <div className="flex justify-end gap-2 border-t border-ink-100 pt-3">
-            <button type="button" onClick={onClose} className={buttonClass('secondary')} disabled={saving}>Cancelar</button>
-            <button type="submit" className={buttonClass('primary')} disabled={saving}>{saving ? 'Guardando…' : editing ? 'Guardar' : 'Crear'}</button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 }

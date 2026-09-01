@@ -145,6 +145,7 @@ export function SidebarNav({
     (s) => isOwner || hasAny(perms, s.requires),
   );
   const showConversations = isOwner || perms.includes('conversations');
+  const showTasks = isOwner || perms.includes('crm');
   const showSettings = isOwner || hasAny(perms, SETTINGS_SECTION.requires);
   const [pending, setPending] = useState(convPending);
   const [menu, setMenu] = useState(false);
@@ -259,6 +260,17 @@ export function SidebarNav({
           <Count n={alertCount} color="red" collapsed={collapsed} />
           {collapsed && <Tip label={t('alerts')} />}
         </Link>
+        {showTasks && (
+          <Link
+            href="/app/tasks"
+            className={itemCls(pathname.startsWith('/app/tasks'), collapsed)}
+            aria-label={collapsed ? t('tasks') : undefined}
+          >
+            <ListChecks size={18} strokeWidth={1.75} aria-hidden />
+            {!collapsed && <span>{t('tasks')}</span>}
+            {collapsed && <Tip label={t('tasks')} />}
+          </Link>
+        )}
 
         {visibleSections.length > 0 && (
           <div className="my-2 border-t border-ink-100" aria-hidden />
