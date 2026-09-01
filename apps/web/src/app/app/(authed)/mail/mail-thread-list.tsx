@@ -30,6 +30,39 @@ function timeShort(iso: string | null): string {
   return new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 }
 
+export type MailStateFilter = 'active' | 'closed' | 'all';
+export type MailAssignedFilter = 'all' | 'me' | 'none';
+
+function Segment<T extends string>({
+  value,
+  onChange,
+  options,
+  label,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: React.ReactNode }[];
+  label: string;
+}) {
+  return (
+    <div className="flex w-full rounded-md bg-ink-100 p-0.5" role="group" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          aria-pressed={value === o.value}
+          className={`flex flex-1 items-center justify-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium transition-colors ${
+            value === o.value ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function MailThreadList({
   threads,
   selectedId,
@@ -44,8 +77,10 @@ export function MailThreadList({
   loadingMore,
   onLoadMore,
   onNewMail,
-  onlyMine,
-  onOnlyMine,
+  stateFilter,
+  onStateFilter,
+  assignedFilter,
+  onAssignedFilter,
   mineUnread,
 }: {
   threads: ThreadRow[];
@@ -62,10 +97,13 @@ export function MailThreadList({
   loadingMore: boolean;
   onLoadMore: () => void;
   onNewMail: () => void;
-  /** Filtro «Solo los míos» (solo tiene sentido en buzones compartidos). */
-  onlyMine: boolean;
-  onOnlyMine: (v: boolean) => void;
-  /** Hilos asignados a mí y sin leer para mí, para el badge del filtro. */
+  /** Estado de la conversación: activas (abiertas/pendientes), cerradas o todas. */
+  stateFilter: MailStateFilter;
+  onStateFilter: (v: MailStateFilter) => void;
+  /** Asignación (solo buzones compartidos): todas, mías o sin asignar. */
+  assignedFilter: MailAssignedFilter;
+  onAssignedFilter: (v: MailAssignedFilter) => void;
+  /** Hilos asignados a mí y sin leer para mí, para el badge de «Míos». */
   mineUnread: number;
 }) {
   return (
@@ -97,24 +135,39 @@ export function MailThreadList({
           </button>
         )}
       </div>
+      <Segment
+        label="Estado de la conversación"
+        value={stateFilter}
+        onChange={onStateFilter}
+        options={[
+          { value: 'active', label: 'Activas' },
+          { value: 'closed', label: 'Cerradas' },
+          { value: 'all', label: 'Todas' },
+        ]}
+      />
       {!isPrivate && (
-        <button
-          type="button"
-          onClick={() => onOnlyMine(!onlyMine)}
-          aria-pressed={onlyMine}
-          className={`flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
-            onlyMine
-              ? 'border-primary-600 bg-primary-600 text-white'
-              : 'border-ink-200 text-ink-600 hover:border-ink-400'
-          }`}
-        >
-          <UserCheck size={13} /> Solo los míos
-          {mineUnread > 0 && (
-            <span className={`rounded-full px-1.5 text-[10px] font-semibold ${onlyMine ? 'bg-white text-primary-700' : 'bg-primary-600 text-white'}`}>
-              {mineUnread > 99 ? '99+' : mineUnread}
-            </span>
-          )}
-        </button>
+        <Segment
+          label="Asignación"
+          value={assignedFilter}
+          onChange={onAssignedFilter}
+          options={[
+            { value: 'all', label: 'Todos' },
+            {
+              value: 'me',
+              label: (
+                <>
+                  <UserCheck size={11} /> Míos
+                  {mineUnread > 0 && (
+                    <span className="rounded-full bg-primary-600 px-1 text-[9px] font-semibold leading-4 text-white">
+                      {mineUnread > 99 ? '99+' : mineUnread}
+                    </span>
+                  )}
+                </>
+              ),
+            },
+            { value: 'none', label: 'Sin asignar' },
+          ]}
+        />
       )}
     </div>
     <div className="flex-1 overflow-y-auto">

@@ -75,6 +75,8 @@ const fr: Messages = {
     sourcePlaceholder: 'manuel, web, événement, recommandation…',
   },
   leadCard: {
+    openOpportunities: 'Opportunités ouvertes',
+    deleteLead: 'Supprimer le lead',
     comments: 'Commentaires',
     activity: 'Activité',
     noComments: 'Pas encore de commentaires. Écrivez le premier.',

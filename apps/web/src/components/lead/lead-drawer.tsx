@@ -56,7 +56,7 @@ export function LeadDrawer({ leadId, onClose }: { leadId: string; onClose: () =>
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-ink-900/30" onClick={onClose} aria-hidden />
-      <aside className="relative flex h-full w-full max-w-2xl flex-col bg-ink-50 shadow-2xl">
+      <aside className="relative flex h-full w-full max-w-2xl flex-col bg-white shadow-2xl">
         <header className="flex items-center justify-between gap-3 border-b border-ink-100 bg-white px-4 py-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">

@@ -111,7 +111,14 @@ export class MailInboxService {
     connectionId: string,
     actor: Actor,
     folderRaw?: string,
-    opts: { cursor?: string; limit?: number; mine?: boolean } = {},
+    opts: {
+      cursor?: string;
+      limit?: number;
+      /** @deprecated alias de assigned:'me'; lo mandan clientes antiguos. */
+      mine?: boolean;
+      assigned?: 'me' | 'none';
+      state?: 'active' | 'closed';
+    } = {},
   ): Promise<{ items: unknown[]; nextCursor: string | null }> {
     await this.connections.assertAccess(tenantId, connectionId, actor);
     const folder = asFolder(folderRaw);
@@ -123,9 +130,24 @@ export class MailInboxService {
         : folder === 'DRAFTS'
           ? { connectionId, messages: { some: { isDraft: true } } }
           : { connectionId, folder };
-    // «Solo los míos»: filtro en servidor, no en cliente — con paginación por
+    // Filtros de bandeja de equipo, SIEMPRE en servidor: con paginación por
     // cursor, filtrar en cliente rompería las páginas.
-    const scope = opts.mine ? { ...base, assigneeUserId: actor.userId } : base;
+    //  - assigned: 'me' (asignadas a mí) | 'none' (sin asignar)
+    //  - state: 'active' (OPEN/PENDING) | 'closed'
+    const assigned = opts.assigned ?? (opts.mine ? ('me' as const) : undefined);
+    const scope = {
+      ...base,
+      ...(assigned === 'me'
+        ? { assigneeUserId: actor.userId }
+        : assigned === 'none'
+          ? { assigneeUserId: null }
+          : {}),
+      ...(opts.state === 'active'
+        ? { status: { not: 'CLOSED' as const } }
+        : opts.state === 'closed'
+          ? { status: 'CLOSED' as const }
+          : {}),
+    };
     const cursor = decodeThreadCursor(opts.cursor);
     const take = Math.min(Math.max(opts.limit ?? PAGE_SIZE, 1), MAX_PAGE_SIZE);
 

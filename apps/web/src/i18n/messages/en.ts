@@ -75,6 +75,8 @@ const en: Messages = {
     sourcePlaceholder: 'manual, web, event, referral…',
   },
   leadCard: {
+    openOpportunities: 'Open opportunities',
+    deleteLead: 'Delete lead',
     comments: 'Comments',
     activity: 'Activity',
     noComments: 'No comments yet. Write the first one.',

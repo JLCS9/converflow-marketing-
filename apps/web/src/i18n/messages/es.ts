@@ -83,6 +83,8 @@ const es = {
     sourcePlaceholder: 'manual, web, evento, referido…',
   },
   leadCard: {
+    openOpportunities: 'Oportunidades abiertas',
+    deleteLead: 'Eliminar lead',
     comments: 'Comentarios',
     activity: 'Actividad',
     noComments: 'Sin comentarios todavía. Escribe el primero.',

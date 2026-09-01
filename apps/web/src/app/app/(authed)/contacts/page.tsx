@@ -9,7 +9,6 @@ import {
   LEAD_STATUS,
   LEAD_STATUS_COLOR,
   CLIENT_STATUS,
-  CLIENT_STATUS_COLOR,
   statusColor,
   statusLabel,
 } from '@/lib/labels';
@@ -24,6 +23,7 @@ import { ContactsFilters, type OwnerOption } from './contacts-filters';
 
 interface LeadRow {
   id: string;
+  clientId: string | null;
   name: string;
   lastName: string | null;
   email: string | null;
@@ -88,7 +88,15 @@ export default async function ContactsPage({
 }) {
   const t = await getTranslations();
   const params = await searchParams;
-  const type = params.type === 'lead' || params.type === 'client' ? params.type : 'all';
+  // El tipo lo define el Estado: Lead/Perdido → solo leads; Cliente → leads
+  // convertidos + filas de Client. El antiguo ?type= (enlaces guardados) se
+  // traduce y deja de existir como filtro propio.
+  const status =
+    params.status && (params.status in LEAD_STATUS || params.status in CLIENT_STATUS)
+      ? params.status
+      : params.type === 'client'
+        ? 'CLIENT'
+        : undefined;
   const page = Math.max(1, Number(params.page) || 1);
 
   // Los filtros específicos de lead (origen, responsable, score) solo viajan a
@@ -96,15 +104,13 @@ export default async function ContactsPage({
   // los deshabilita para que no parezca que filtran.
   const leadQs = new URLSearchParams({ limit: String(PAGE_SIZE * 2) });
   const clientQs = new URLSearchParams({ limit: String(PAGE_SIZE * 2) });
-  for (const [k, v] of Object.entries({
-    status: params.status,
-    search: params.search,
-  })) {
-    if (v) {
-      leadQs.set(k, v);
-      clientQs.set(k, v);
-    }
+  if (params.search) {
+    leadQs.set('search', params.search);
+    clientQs.set('search', params.search);
   }
+  // El status viaja solo a la entidad que lo entiende.
+  if (status && status in LEAD_STATUS) leadQs.set('status', status);
+  if (status && status in CLIENT_STATUS) clientQs.set('status', status);
   for (const [k, v] of Object.entries({
     source: params.source,
     ownerId: params.ownerId,
@@ -114,15 +120,11 @@ export default async function ContactsPage({
   })) {
     if (v) leadQs.set(k, v);
   }
-  // El estado es por entidad: un status de lead no aplica a clientes y viceversa.
-  const leadStatusValid = params.status ? params.status in LEAD_STATUS : true;
-  const clientStatusValid = params.status ? params.status in CLIENT_STATUS : true;
-
-  const wantLeads = type !== 'client' && leadStatusValid;
+  const wantLeads = !status || status in LEAD_STATUS;
   const wantClients =
-    type !== 'lead' &&
-    clientStatusValid &&
-    // Filtros exclusivos de lead activos → los clientes no pueden cumplirlos.
+    // Cliente (o estados legacy de cliente) incluye las filas de Client…
+    (!status || status === 'CLIENT' || status in CLIENT_STATUS) &&
+    // …salvo que haya filtros exclusivos de lead que Client no puede cumplir.
     !params.source &&
     !params.ownerId &&
     !params.scoreMin;
@@ -145,6 +147,11 @@ export default async function ContactsPage({
     return (!from || d >= from) && (!to || d <= to);
   };
 
+  // Un lead convertido se refleja en la tabla Client (espejo legacy): si el
+  // lead ya está en la lista, su espejo no se muestra — sería la misma persona
+  // dos veces.
+  const mirroredClientIds = new Set(leads.map((l) => l.clientId).filter(Boolean));
+
   const rows: ContactRow[] = [
     ...leads.map(
       (l): ContactRow => ({
@@ -163,7 +170,7 @@ export default async function ContactsPage({
         createdAt: l.createdAt,
       }),
     ),
-    ...clients.filter((c) => inRange(c.createdAt)).map(
+    ...clients.filter((c) => inRange(c.createdAt) && !mirroredClientIds.has(c.id)).map(
       (c): ContactRow => ({
         kind: 'client',
         id: c.id,
@@ -174,8 +181,8 @@ export default async function ContactsPage({
         company: null,
         source: null,
         status: c.status,
-        statusLabel: statusLabel(CLIENT_STATUS, c.status),
-        statusColor: statusColor(CLIENT_STATUS_COLOR, c.status),
+        statusLabel: t('contacts.client'),
+        statusColor: 'green',
         score: null,
         createdAt: c.createdAt,
       }),
@@ -185,8 +192,8 @@ export default async function ContactsPage({
     .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const hasFilters = Boolean(
-    params.status || params.source || params.ownerId || params.createdFrom ||
-    params.createdTo || params.scoreMin || params.search || type !== 'all',
+    status || params.source || params.ownerId || params.createdFrom ||
+    params.createdTo || params.scoreMin || params.search,
   );
 
   const fmtDate = (iso: string) =>
@@ -225,7 +232,6 @@ export default async function ContactsPage({
             <thead>
               <tr className="border-b border-ink-100 text-left font-mono text-[11px] uppercase tracking-wider text-ink-400">
                 <th className="px-4 py-2.5">{t('crm.name')}</th>
-                <th className="px-3 py-2.5">{t('contacts.type')}</th>
                 <th className="px-3 py-2.5">{t('crm.email')}</th>
                 <th className="hidden px-3 py-2.5 md:table-cell">{t('crm.phone')}</th>
                 <th className="px-3 py-2.5">{t('crm.status')}</th>
@@ -242,11 +248,6 @@ export default async function ContactsPage({
                       {r.name}
                     </Link>
                     {r.company && <div className="text-xs text-ink-400">{r.company}</div>}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <Badge color={r.kind === 'client' ? 'green' : 'blue'}>
-                      {r.kind === 'client' ? t('contacts.client') : 'Lead'}
-                    </Badge>
                   </td>
                   <td className="px-3 py-2.5 text-ink-600">{r.email ?? '—'}</td>
                   <td className="hidden px-3 py-2.5 text-ink-600 md:table-cell">{r.phone ?? '—'}</td>

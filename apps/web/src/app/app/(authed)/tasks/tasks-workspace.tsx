@@ -23,8 +23,7 @@ import {
 import { apiFetch } from '@/lib/api-client';
 import { useSession } from '@/lib/session-context';
 import { useFeedback } from '@/components/ui/feedback';
-import { Card, Field, Input, Select, Textarea, Badge, buttonClass } from '@/components/ui/primitives';
-import { EntityPicker } from '@/components/ui/entity-picker';
+import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { Avatar } from '@/components/ui/inbox-kit';
 import {
   TASK_STATUS,
@@ -73,14 +72,6 @@ const TYPE_ICON: Record<string, LucideIcon> = {
 const BOARD_COLS = ['PENDING', 'IN_PROGRESS', 'DONE'] as const;
 const NEXT_STATUS: Record<string, string> = { PENDING: 'IN_PROGRESS', IN_PROGRESS: 'DONE' };
 
-function pad(n: number) {
-  return String(n).padStart(2, '0');
-}
-function toLocalInput(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 function dueLabel(iso: string | null): string {
   if (!iso) return '';
   return new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -218,17 +209,17 @@ export function TasksWorkspace({
         <button type="button" onClick={() => setQuick(quick === 'today' ? null : 'today')} className={chip(quick === 'today')}>{t('taskBoard.today')}</button>
         <button type="button" onClick={() => setQuick(quick === 'overdue' ? null : 'overdue')} className={chip(quick === 'overdue')}>{t('taskBoard.overdue')}</button>
         <button type="button" onClick={() => setQuick(quick === 'unassigned' ? null : 'unassigned')} className={chip(quick === 'unassigned')}>{t('taskBoard.unassigned')}</button>
-        <select value={statusF} onChange={(e) => setStatusF(e.target.value)} className="rounded border border-ink-200 px-2 py-1 text-xs">
+        <select value={statusF} onChange={(e) => setStatusF(e.target.value)} className="rounded border border-ink-200 py-1 pl-2 pr-7 text-xs">
           <option value="">{t('taskBoard.allStatuses')}</option>
           {Object.entries(TASK_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <select value={typeF} onChange={(e) => setTypeF(e.target.value)} className="rounded border border-ink-200 px-2 py-1 text-xs">
+        <select value={typeF} onChange={(e) => setTypeF(e.target.value)} className="rounded border border-ink-200 py-1 pl-2 pr-7 text-xs">
           <option value="">{t('taskBoard.allTypes')}</option>
           {Object.entries(TASK_TYPE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <input type="date" value={dueFrom} onChange={(e) => setDueFrom(e.target.value)} title="Vence desde" className="rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-600" />
           <input type="date" value={dueTo} onChange={(e) => setDueTo(e.target.value)} title="Vence hasta" className="rounded border border-ink-200 bg-white px-1.5 py-1 text-xs text-ink-600" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('taskBoard.searchPlaceholder')} className="rounded border border-ink-200 px-2 py-1 text-xs" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('taskBoard.searchPlaceholder')} className="rounded border border-ink-200 py-1 pl-2 pr-7 text-xs" />
       </div>
 
       {filtered.length === 0 ? (
@@ -260,13 +251,13 @@ export function TasksWorkspace({
                     <td className="py-2.5 pr-2"><Badge color={statusColor(PRIORITY_COLOR, task.priority)}>{PRIORITY[task.priority] ?? task.priority}</Badge></td>
                     <td className="py-2.5 pr-2">
                       <select value={task.status} onChange={(e) => void patch(task.id, { status: e.target.value })} disabled={busyId === task.id}
-                        className={`rounded border border-ink-200 px-1.5 py-0.5 text-xs ${statusColor(TASK_STATUS_COLOR, task.status) === 'green' ? 'text-green-700' : ''}`}>
+                        className={`rounded border border-ink-200 py-0.5 pl-1.5 pr-6 text-xs ${statusColor(TASK_STATUS_COLOR, task.status) === 'green' ? 'text-green-700' : ''}`}>
                         {Object.entries(TASK_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                       </select>
                     </td>
                     <td className="hidden py-2.5 pr-2 md:table-cell">
                       <select value={task.ownerId ?? ''} onChange={(e) => void patch(task.id, { ownerId: e.target.value || null })} disabled={busyId === task.id}
-                        className="max-w-[10rem] rounded border border-ink-200 px-1.5 py-0.5 text-xs text-ink-700">
+                        className="max-w-[10rem] rounded border border-ink-200 py-0.5 pl-1.5 pr-6 text-xs text-ink-700">
                         <option value="">{t('taskBoard.unassigned')}</option>
                         {assignees.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                       </select>

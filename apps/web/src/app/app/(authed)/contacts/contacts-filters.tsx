@@ -11,7 +11,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Search, X } from 'lucide-react';
 import { Card } from '@/components/ui/primitives';
-import { LEAD_STATUS_OPTIONS, CLIENT_STATUS } from '@/lib/labels';
+import { LEAD_STATUS_OPTIONS } from '@/lib/labels';
 
 export interface OwnerOption {
   id: string;
@@ -19,7 +19,7 @@ export interface OwnerOption {
 }
 
 const selectCls =
-  'rounded-md border border-ink-200 bg-white px-2 py-1.5 text-xs text-ink-700 focus:border-ink-700 focus:outline-none disabled:opacity-40';
+  'rounded-md border border-ink-200 bg-white py-1.5 pl-2 pr-8 text-xs text-ink-700 focus:border-ink-700 focus:outline-none disabled:opacity-40';
 
 export function ContactsFilters({ owners }: { owners: OwnerOption[] }) {
   const t = useTranslations();
@@ -28,10 +28,9 @@ export function ContactsFilters({ owners }: { owners: OwnerOption[] }) {
   const params = useSearchParams();
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const type = params.get('type') ?? 'all';
-  // Los filtros de origen/responsable/score son de lead: con tipo=client no
+  // Los filtros de origen/responsable/score son de lead: con estado=Cliente no
   // aplican y se deshabilitan en vez de fingir que filtran.
-  const leadOnly = type === 'client';
+  const leadOnly = params.get('status') === 'CLIENT';
 
   const set = useCallback(
     (patch: Record<string, string | null>) => {
@@ -51,47 +50,17 @@ export function ContactsFilters({ owners }: { owners: OwnerOption[] }) {
     searchTimer.current = setTimeout(() => set({ search: v.trim() || null }), 350);
   };
 
-  const hasAny = ['type', 'status', 'source', 'ownerId', 'createdFrom', 'createdTo', 'scoreMin', 'search'].some(
+  const hasAny = ['status', 'source', 'ownerId', 'createdFrom', 'createdTo', 'scoreMin', 'search'].some(
     (k) => params.get(k),
   );
 
-  // Los estados ofrecidos dependen del tipo. LEAD_STATUS_OPTIONS y no
-  // LEAD_STATUS: el mapa completo incluye alias legacy de solo-lectura
-  // (NEW/CONTACTED/… → 'Lead') que duplicarían las opciones del desplegable.
-  const leadStatusEntries: [string, string][] = LEAD_STATUS_OPTIONS.map((o) => [o.value, o.label]);
-  const statusOptions =
-    type === 'client'
-      ? Object.entries(CLIENT_STATUS)
-      : type === 'lead'
-        ? leadStatusEntries
-        : [...leadStatusEntries, ...Object.entries(CLIENT_STATUS)];
+  // El Estado define el tipo de contacto: Lead / Cliente / Perdido. Nada más —
+  // los subestados de Client (activo/inactivo/archivado) viven en su ficha.
+  const statusOptions: [string, string][] = LEAD_STATUS_OPTIONS.map((o) => [o.value, o.label]);
 
   return (
     <Card className="p-3">
       <div className="flex flex-wrap items-center gap-2">
-        {/* Tipo como segmentos: es el filtro principal. */}
-        <div className="flex rounded-md bg-ink-100 p-0.5">
-          {(
-            [
-              ['all', t('crm.all')],
-              ['lead', 'Leads'],
-              ['client', t('clients.title')],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => set({ type: value === 'all' ? null : value, status: null })}
-              aria-pressed={type === value}
-              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                type === value ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
         <select
           value={params.get('status') ?? ''}
           onChange={(e) => set({ status: e.target.value || null })}

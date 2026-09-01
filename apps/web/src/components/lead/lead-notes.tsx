@@ -124,9 +124,9 @@ export function LeadNotes({
                       : 'rounded-bl-sm border-ink-100 bg-white text-ink-900'
                   }`}
                 >
-                  {!mine && (
-                    <div className="mb-0.5 text-[11px] font-semibold text-primary-700">{author}</div>
-                  )}
+                  <div className={`mb-0.5 text-[11px] font-semibold ${mine ? 'text-right text-primary-600/80' : 'text-primary-700'}`}>
+                    {author}
+                  </div>
                   <p className="whitespace-pre-wrap break-words">{note.body}</p>
 
                   {note.aiCategory && (

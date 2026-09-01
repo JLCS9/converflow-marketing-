@@ -47,12 +47,16 @@ export class MailInboxController {
     @Query('cursor') cursor: string | undefined,
     @Query('limit') limit: string | undefined,
     @Query('mine') mine: string | undefined,
+    @Query('assigned') assigned: string | undefined,
+    @Query('state') state: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.inbox.listThreads(user.tenantId, id, this.actor(user), folder, {
       cursor,
       limit: limit ? Number(limit) : undefined,
       mine: mine === '1' || mine === 'true',
+      assigned: assigned === 'me' || assigned === 'none' ? assigned : undefined,
+      state: state === 'active' || state === 'closed' ? state : undefined,
     });
   }
 

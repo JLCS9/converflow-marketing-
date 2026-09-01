@@ -30,7 +30,7 @@ import {
 import { LeadDrawer } from '@/components/lead/lead-drawer';
 import { MailComposer, type ComposerInitial, type ComposerMode } from './mail-composer';
 import { ThreadMessages, type AddressLabeller } from './mail-message-card';
-import { MailThreadList } from './mail-thread-list';
+import { MailThreadList, type MailAssignedFilter, type MailStateFilter } from './mail-thread-list';
 import { MailAiPanel } from './mail-ai-panel';
 import type {
   ContactInfo,
@@ -137,29 +137,57 @@ export function MailWorkspace({
   const [loadingMore, setLoadingMore] = useState(false);
   /** True once the user loaded extra pages, so the poller stops truncating. */
   const pagedRef = useRef(false);
-  const mineRef = useRef(false);
-  // «Solo los míos»: preferencia por usuario, persistida en el navegador.
-  const [onlyMine, setOnlyMineState] = useState(false);
+  // Filtros de bandeja (estado de la conversación + asignación), por usuario y
+  // persistidos en el navegador. En ref además de estado para que loadThreads
+  // no cambie de identidad con cada toque.
+  const filtersRef = useRef<{ state: MailStateFilter; assigned: MailAssignedFilter }>({
+    state: 'active',
+    assigned: 'all',
+  });
+  const [stateFilter, setStateFilterState] = useState<MailStateFilter>('active');
+  const [assignedFilter, setAssignedFilterState] = useState<MailAssignedFilter>('all');
   const [mineUnread, setMineUnread] = useState(0);
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(`cf-mail-only-mine-${userId}`) === '1';
-      mineRef.current = saved;
-      setOnlyMineState(saved);
+      const st = localStorage.getItem(`cf-mail-state-${userId}`);
+      const state: MailStateFilter = st === 'closed' || st === 'all' ? st : 'active';
+      const as = localStorage.getItem(`cf-mail-assigned-${userId}`);
+      const legacyMine = localStorage.getItem(`cf-mail-only-mine-${userId}`) === '1';
+      const assigned: MailAssignedFilter =
+        as === 'me' || as === 'none' ? as : as === 'all' ? 'all' : legacyMine ? 'me' : 'all';
+      filtersRef.current = { state, assigned };
+      setStateFilterState(state);
+      setAssignedFilterState(assigned);
     } catch {
-      /* almacenamiento bloqueado: arranca apagado */
+      /* almacenamiento bloqueado: arranca con los defaults */
     }
   }, [userId]);
-  const setOnlyMine = (v: boolean) => {
-    mineRef.current = v;
-    setOnlyMineState(v);
+  const setStateFilter = (v: MailStateFilter) => {
+    filtersRef.current = { ...filtersRef.current, state: v };
+    setStateFilterState(v);
     setSelectedId(null);
     setDetail(null);
     try {
-      localStorage.setItem(`cf-mail-only-mine-${userId}`, v ? '1' : '0');
+      localStorage.setItem(`cf-mail-state-${userId}`, v);
     } catch {
       /* la preferencia simplemente no persiste */
     }
+  };
+  const setAssignedFilter = (v: MailAssignedFilter) => {
+    filtersRef.current = { ...filtersRef.current, assigned: v };
+    setAssignedFilterState(v);
+    setSelectedId(null);
+    setDetail(null);
+    try {
+      localStorage.setItem(`cf-mail-assigned-${userId}`, v);
+    } catch {
+      /* la preferencia simplemente no persiste */
+    }
+  };
+  /** Query string de los filtros activos, para la primera página y las siguientes. */
+  const filterQs = () => {
+    const f = filtersRef.current;
+    return `${f.state !== 'all' ? `&state=${f.state}` : ''}${f.assigned !== 'all' ? `&assigned=${f.assigned}` : ''}`;
   };
   const [folder, setFolder] = useState('INBOX');
   const [threads, setThreads] = useState<ThreadRow[]>([]);
@@ -227,7 +255,7 @@ export function MailWorkspace({
     if (!conn) return;
     try {
       const [t, c] = await Promise.all([
-        apiFetch<ThreadPage>(`/mail/connections/${conn}/threads?folder=${f}${mineRef.current ? '&mine=1' : ''}`),
+        apiFetch<ThreadPage>(`/mail/connections/${conn}/threads?folder=${f}${filterQs()}`),
         apiFetch<Record<string, number>>(`/mail/connections/${conn}/folder-counts`).catch(() => ({})),
       ]);
       setThreads((prev) => {
@@ -260,7 +288,7 @@ export function MailWorkspace({
     try {
       const base = searching
         ? `/mail/connections/${connectionId}/search?q=${encodeURIComponent(query.trim())}`
-        : `/mail/connections/${connectionId}/threads?folder=${folder}`;
+        : `/mail/connections/${connectionId}/threads?folder=${folder}${filterQs()}`;
       const r = await apiFetch<ThreadPage>(`${base}&cursor=${encodeURIComponent(nextCursor)}`);
       // De-dupe by id: a thread can jump pages if new mail lands mid-scroll.
       setThreads((prev) => {
@@ -290,14 +318,14 @@ export function MailWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialThreadId]);
 
-  // Cambiar el filtro «míos» recarga la primera página con el scope nuevo.
+  // Cambiar cualquier filtro recarga la primera página con el scope nuevo.
   useEffect(() => {
     if (!searching) {
       pagedRef.current = false;
       void loadThreads(connectionId, folder);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onlyMine]);
+  }, [stateFilter, assignedFilter]);
 
   // Contador «míos sin leer», junto al resto de sondeos lentos.
   useEffect(() => {
@@ -656,8 +684,10 @@ export function MailWorkspace({
       loadingMore={loadingMore}
       onLoadMore={() => void loadMore()}
       onNewMail={() => setModal({ mode: 'new', initial: { html: sigHtml } })}
-      onlyMine={onlyMine}
-      onOnlyMine={setOnlyMine}
+      stateFilter={stateFilter}
+      onStateFilter={setStateFilter}
+      assignedFilter={assignedFilter}
+      onAssignedFilter={setAssignedFilter}
       mineUnread={mineUnread}
     />
   );

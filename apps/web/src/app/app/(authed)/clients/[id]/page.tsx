@@ -1,6 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { serverApiFetch, ApiError } from '@/lib/server-api';
 import { Card, Badge } from '@/components/ui/primitives';
 import { ClientInfoCard } from './client-info-card';
@@ -37,6 +37,13 @@ export default async function ClientDetailPage({
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) notFound();
     throw err;
+  }
+  // La tarjeta canónica vive en el lead (el modelo unificado): si este cliente
+  // proviene de un lead, mostramos esa ficha en lugar de la vista antigua. La
+  // vista de abajo queda solo para clientes legacy importados sin lead.
+  const linkedLead = client.leads[0];
+  if (linkedLead) {
+    redirect(`/app/leads/${linkedLead.id}`);
   }
   const customFieldDefs = await serverApiFetch<CustomFieldDefinition[]>(
     // Lead y Cliente comparten campos personalizados (mismo esquema).
