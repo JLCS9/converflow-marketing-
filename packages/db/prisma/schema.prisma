@@ -1326,6 +1326,10 @@ model EmailMessage {
   connectionId String
 
   rfcMessageId String?        // RFC Message-ID (dedupe key per connection)
+  /// Cabecera Reply-To del original: si existe, responder debe ir AQUÍ y no al
+  /// From (RFC 5322 §3.6.2). Nullable y aditiva; el histórico queda a NULL y
+  /// para él se usa From, que es el comportamiento previo.
+  replyTo      String?
   inReplyTo    String?
   references   String?        // space-separated RFC references
 

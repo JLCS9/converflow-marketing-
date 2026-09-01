@@ -16,6 +16,7 @@ import {
   Loader2,
   Settings,
 } from 'lucide-react';
+import { buildReplyAllRecipients } from '@converflow/shared';
 import { apiFetch } from '@/lib/api-client';
 import { useSession } from '@/lib/session-context';
 import { useFeedback } from '@/components/ui/feedback';
@@ -33,6 +34,7 @@ import { MailAiPanel } from './mail-ai-panel';
 import type {
   ContactInfo,
   Detail,
+  Msg,
   LockState,
   MailboxOption,
   NoteRow,
@@ -315,9 +317,14 @@ export function MailWorkspace({
     setQuery('');
   }
 
+  /** Último mensaje entrante real del hilo (los borradores no cuentan). */
+  function lastInboundOf(d: Detail): Msg | undefined {
+    return [...d.messages].reverse().find((m) => m.direction === 'IN' && !m.isDraft);
+  }
   function computeDefaultTo(d: Detail): string {
-    const lastIn = [...d.messages].reverse().find((m) => m.direction === 'IN' && !m.isDraft);
-    if (lastIn?.fromAddress) return lastIn.fromAddress;
+    const lastIn = lastInboundOf(d);
+    // Reply-To manda sobre From cuando el remitente lo pidió.
+    if (lastIn) return lastIn.replyTo || lastIn.fromAddress || '';
     const parts = d.thread.participants ?? [];
     return parts.find((p) => p.toLowerCase() !== selfAddress) ?? parts[0] ?? '';
   }
@@ -390,11 +397,21 @@ export function MailWorkspace({
     setComposerOpen(true);
   }
 
+  /**
+   * Responder a todos = remitente + to/cc del ÚLTIMO ENTRANTE, menos nuestras
+   * direcciones, sin duplicados. Antes se construía desde thread.participants,
+   * que en hilos iniciados por un correo entrante solo contenía al remitente —
+   * por eso los CC desaparecían. La lógica vive en @converflow/shared
+   * (buildReplyAllRecipients) y la comparte el servidor.
+   */
   function replyAll() {
-    const parts = (detail?.thread.participants ?? []).map((p) => p.toLowerCase());
-    const to = (replyInit.to ?? '').toLowerCase();
-    const others = parts.filter((p) => p !== selfAddress && p !== to);
-    setReplyInit((prev) => ({ ...prev, cc: others.join(', ') }));
+    if (!detail) return;
+    const lastIn = lastInboundOf(detail);
+    const { to, cc } = buildReplyAllRecipients(
+      lastIn ?? { fromAddress: null, toAddresses: detail.thread.participants, ccAddresses: [] },
+      [selfAddress],
+    );
+    setReplyInit((prev) => ({ ...prev, to: to || prev.to, cc: cc.join(', ') }));
     setReplyKey((k) => k + 1);
     setComposerTab('reply');
     setComposerOpen(true);

@@ -1,5 +1,6 @@
 export * from './errors';
 export * from './i18n';
+export * from './mail-recipients';
 export * from './schemas/auth';
 export * from './schemas/tenant';
 export * from './schemas/bot';

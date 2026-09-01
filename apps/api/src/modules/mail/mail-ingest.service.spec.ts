@@ -66,6 +66,7 @@ describe('MailIngestService.ingest — subject fallback', () => {
         },
         emailThread: {
           findFirst: vi.fn().mockResolvedValue(null),
+          findUnique: vi.fn().mockResolvedValue({ participants: [] }),
           findMany: vi.fn().mockResolvedValue(candidates),
           create: threadCreate,
           update: vi.fn(),
@@ -165,7 +166,7 @@ describe('MailIngestService.ingest — threading', () => {
         findFirst: vi.fn().mockResolvedValue({ id: 'm1', threadId: 't1' }), // dedupe hit
         create: messageCreate,
       },
-      emailThread: { findFirst: vi.fn(), create: threadCreate, update: vi.fn() },
+      emailThread: { findFirst: vi.fn(), findUnique: vi.fn().mockResolvedValue({ participants: [] }), create: threadCreate, update: vi.fn() },
     };
     const svc = makeService(tx);
     const res = await svc.ingest('t', 'conn1', baseEmail());
@@ -184,7 +185,7 @@ describe('MailIngestService.ingest — threading', () => {
           .mockResolvedValueOnce({ threadId: 't-parent' }), // references hit
         create: vi.fn().mockResolvedValue({ id: 'm-new' }),
       },
-      emailThread: { findFirst: vi.fn(), create: threadCreate, update: vi.fn() },
+      emailThread: { findFirst: vi.fn(), findUnique: vi.fn().mockResolvedValue({ participants: [] }), create: threadCreate, update: vi.fn() },
     };
     const svc = makeService(tx);
     const res = await svc.ingest('t', 'conn1', baseEmail({ references: '<m-1@acme.com>' }));
@@ -201,7 +202,7 @@ describe('MailIngestService.ingest — threading', () => {
         findFirst: vi.fn().mockResolvedValue(null), // dedupe miss (no refs → no 2nd call)
         create: vi.fn().mockResolvedValue({ id: 'm-new' }),
       },
-      emailThread: { findFirst: vi.fn().mockResolvedValue(null), create: threadCreate, update },
+      emailThread: { findFirst: vi.fn().mockResolvedValue(null), findUnique: vi.fn().mockResolvedValue({ participants: [] }), create: threadCreate, update },
     };
     const svc = makeService(tx);
     const res = await svc.ingest('t', 'conn1', baseEmail());

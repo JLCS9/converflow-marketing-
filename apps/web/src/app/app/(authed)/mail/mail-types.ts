@@ -38,6 +38,8 @@ export interface Msg {
   isDraft: boolean;
   fromAddress: string | null;
   fromName: string | null;
+  /** Cabecera Reply-To del original; si existe, responder va ahí y no al From. */
+  replyTo: string | null;
   toAddresses: string[] | null;
   ccAddresses: string[] | null;
   bccAddresses: string[] | null;

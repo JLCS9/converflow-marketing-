@@ -86,7 +86,17 @@ export class MailIngestService {
       }
 
       const when = email.date ?? new Date();
-      const participant = email.fromAddress ? [email.fromAddress] : [];
+      // Participants = remitente + to + cc. Antes solo el remitente, y como
+      // «Responder a todos» leía de aquí, los CC de los hilos entrantes se
+      // perdían. También alimenta la búsqueda y el guard anti-fusión.
+      const participantSeen = new Set<string>();
+      const participant: string[] = [];
+      for (const a of [email.fromAddress, ...(email.to ?? []), ...(email.cc ?? [])]) {
+        const k = (a ?? '').trim().toLowerCase();
+        if (!k || participantSeen.has(k)) continue;
+        participantSeen.add(k);
+        participant.push((a as string).trim());
+      }
 
       if (!threadId) {
         const thread = await tx.emailThread.create({
@@ -112,6 +122,7 @@ export class MailIngestService {
           threadId,
           connectionId,
           rfcMessageId: email.rfcMessageId,
+          replyTo: email.replyTo,
           inReplyTo: email.inReplyTo,
           references: email.references,
           direction: 'IN',
@@ -135,6 +146,21 @@ export class MailIngestService {
       });
 
       // 3) Bump the thread; a new inbound un-trashes/keeps it in INBOX.
+      // Merge de participants: alguien añadido en CC a mitad de hilo tiene que
+      // aparecer para que «Responder a todos» lo incluya.
+      const th = await tx.emailThread.findUnique({
+        where: { id: threadId },
+        select: { participants: true },
+      });
+      const merged: string[] = [];
+      const mergedSeen = new Set<string>();
+      const prior = Array.isArray(th?.participants) ? (th.participants as string[]) : [];
+      for (const a of [...prior, ...participant]) {
+        const k = (a ?? '').trim().toLowerCase();
+        if (!k || mergedSeen.has(k)) continue;
+        mergedSeen.add(k);
+        merged.push(a.trim());
+      }
       await tx.emailThread.update({
         where: { id: threadId },
         data: {
@@ -142,6 +168,7 @@ export class MailIngestService {
           snippet: email.snippet ?? undefined,
           unreadCount: { increment: 1 },
           folder: 'INBOX',
+          participants: merged,
         },
       });
 
