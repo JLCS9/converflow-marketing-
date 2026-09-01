@@ -36,6 +36,8 @@ export interface ParsedMessageSummary {
 /** A fully parsed inbound email for ingestion (Fase 2.1). */
 export interface ParsedEmail {
   rfcMessageId?: string;
+  /** Cabecera Reply-To: si el remitente la puso, responder va ahí, no al From. */
+  replyTo?: string;
   inReplyTo?: string;
   references?: string; // space-separated
   fromAddress?: string;

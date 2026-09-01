@@ -196,7 +196,9 @@ export class SmtpImapDriver implements MailDriver {
     const p = await simpleParser(source);
     const sender = p.from?.value?.[0];
     const refs = Array.isArray(p.references) ? p.references.join(' ') : (p.references ?? undefined);
+    const replyTo = p.replyTo?.value?.[0]?.address ?? undefined;
     return {
+      replyTo,
       rfcMessageId: p.messageId ?? undefined,
       inReplyTo: p.inReplyTo ?? undefined,
       references: refs,

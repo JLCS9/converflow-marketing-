@@ -93,7 +93,9 @@ export class MailComposeService {
       }),
     );
     const participants = Array.isArray(thread.participants) ? (thread.participants as string[]) : [];
-    const defaultTo = (last?.direction === 'IN' ? last.fromAddress : null) ?? participants[0];
+    // Reply-To manda sobre From cuando el remitente lo pidió (RFC 5322 §3.6.2).
+    const defaultTo =
+      (last?.direction === 'IN' ? last.replyTo || last.fromAddress : null) ?? participants[0];
     const explicitTo = parseAddressList(input.to);
     const to = explicitTo.length ? explicitTo : defaultTo ? [defaultTo] : [];
     if (!to.length) throw new BadRequestError('No hay destinatario para responder');
