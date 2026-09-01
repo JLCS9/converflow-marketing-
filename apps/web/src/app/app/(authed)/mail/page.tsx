@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
 import { buttonClass } from '@/components/ui/primitives';
@@ -5,13 +6,17 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { InboxSwitch } from '@/components/ui/inbox-kit';
 import { MailWorkspace, type MailboxOption } from './mail-workspace';
 
-export const metadata = { title: 'Correo' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('mail.title') };
+}
 
 export default async function MailPage({
   searchParams,
 }: {
   searchParams: Promise<{ conn?: string; thread?: string }>;
 }) {
+  const t = await getTranslations();
   const deepLink = await searchParams;
   const [conns, convCount, mail] = await Promise.all([
     serverApiFetch<MailboxOption[]>('/mail/connections').catch(() => [] as MailboxOption[]),
@@ -24,11 +29,11 @@ export default async function MailPage({
       <div className="space-y-3">
         <InboxSwitch active="mail" mailCount={mail.unread} imCount={convCount.pending} />
         <EmptyState
-          title="Sin buzones conectados"
-          description="Conecta tu primer buzón (Gmail, Outlook, IONOS o cualquier IMAP/SMTP) para enviar y recibir correo desde Converflow."
+          title={t('mail.noMailboxes')}
+          description={t('mail.noMailboxesBody')}
           cta={
             <Link href="/app/mail/ajustes" className={buttonClass('primary', 'text-xs')}>
-              + Conectar buzón
+              {t('mail.connectMailbox')}
             </Link>
           }
         />

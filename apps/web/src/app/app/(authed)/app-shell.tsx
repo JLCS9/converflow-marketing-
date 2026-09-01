@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
@@ -32,6 +33,7 @@ export function AppShell({
   alertCount,
   children,
 }: Props) {
+  const t = useTranslations('shell');
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -88,7 +90,7 @@ export function AppShell({
         <div className="text-xs text-ink-500 px-4 pb-2">{tenantName}</div>
         <SidebarNav convPending={convPending} alertCount={alertCount} />
         <div className="shrink-0 border-t border-ink-100 px-4 py-3 text-xs">
-          <div className="text-ink-500">Conectado como</div>
+          <div className="text-ink-500">{t('connectedAs')}</div>
           <div className="truncate font-medium text-ink-900">{userEmail}</div>
           <div className="text-[10px] font-mono uppercase tracking-wider text-ink-500">
             {userRole}
@@ -96,13 +98,13 @@ export function AppShell({
           <LogoutButton />
           <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-ink-400">
             <Link href="/app/ayuda" className="hover:text-ink-700">
-              Ayuda
+              {t('help')}
             </Link>
             <Link href="/ai-disclosure" target="_blank" className="hover:text-ink-700">
-              Aviso IA
+              {t('aiNotice')}
             </Link>
             <Link href="/privacy" target="_blank" className="hover:text-ink-700">
-              Privacidad
+              {t('privacy')}
             </Link>
           </div>
         </div>
@@ -114,7 +116,7 @@ export function AppShell({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            aria-label="Abrir menú"
+            aria-label={t('openMenu')}
             className="rounded p-1.5 text-ink-700 hover:bg-ink-100"
           >
             <Menu size={20} strokeWidth={1.75} />
@@ -134,25 +136,25 @@ export function AppShell({
           <span className="truncate text-ink-600">{tenantName}</span>
           <div className="ml-auto flex items-center gap-3 text-ink-500">
             <span className="hidden lg:inline">
-              Conectado como <span className="font-medium text-ink-700">{userEmail}</span>
+              {t('connectedAs')} <span className="font-medium text-ink-700">{userEmail}</span>
             </span>
             <span className="rounded bg-ink-100 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-ink-600">
               {userRole}
             </span>
-            <Link href="/app/ayuda" className="hover:text-ink-900">Ayuda</Link>
-            <Link href="/ai-disclosure" target="_blank" className="hover:text-ink-900">Aviso IA</Link>
-            <Link href="/privacy" target="_blank" className="hover:text-ink-900">Privacidad</Link>
+            <Link href="/app/ayuda" className="hover:text-ink-900">{t('help')}</Link>
+            <Link href="/ai-disclosure" target="_blank" className="hover:text-ink-900">{t('aiNotice')}</Link>
+            <Link href="/privacy" target="_blank" className="hover:text-ink-900">{t('privacy')}</Link>
             <LogoutButton compact />
           </div>
         </div>
 
         {mustChangePassword && (
           <div className="shrink-0 border-b border-amber-300 bg-amber-100 px-6 py-2 text-xs text-amber-900">
-            ⚠️ Estás usando una contraseña temporal.{' '}
+            ⚠️ {t('tempPassword')}{' '}
             <Link href="/app/profile" className="underline">
-              Cámbiala
+              {t('changeIt')}
             </Link>{' '}
-            antes de seguir.
+            {t('beforeContinuing')}
           </div>
         )}
         <PoliciesBanner />

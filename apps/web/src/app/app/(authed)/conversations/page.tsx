@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { serverApiFetch } from '@/lib/server-api';
 import { Inbox } from './inbox';
 
@@ -14,7 +15,10 @@ interface ConvRow {
   lead: { id: string; name: string; score: number | null } | null;
 }
 
-export const metadata = { title: 'Conversaciones' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('nav.conversations') };
+}
 
 export default async function ConversationsPage() {
   const [initial, convCount, mail] = await Promise.all([

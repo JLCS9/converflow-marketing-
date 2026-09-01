@@ -2,6 +2,7 @@
 
 import type { ComponentType, ReactNode } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Mail, MessageSquare, X } from 'lucide-react';
 
 type IconType = ComponentType<{ size?: number; className?: string }>;
@@ -61,6 +62,7 @@ export function InboxSwitch({
   mailCount: number;
   imCount: number;
 }) {
+  const t = useTranslations('inbox');
   // Iconos en vez de las etiquetas «Correo»/«Mensajería»: los dos textos no
   // caben en la columna estrecha de la bandeja y se cortaban. El nombre sigue
   // disponible como tooltip y como etiqueta accesible, que es lo que importa
@@ -89,8 +91,8 @@ export function InboxSwitch({
   );
   return (
     <div className="flex gap-1 rounded-lg bg-ink-100 p-1">
-      {item('/app/mail', 'Correo', Mail, mailCount, active === 'mail')}
-      {item('/app/conversations', 'Mensajería', MessageSquare, imCount, active === 'im')}
+      {item('/app/mail', t('mail'), Mail, mailCount, active === 'mail')}
+      {item('/app/conversations', t('messaging'), MessageSquare, imCount, active === 'im')}
     </div>
   );
 }
@@ -164,12 +166,13 @@ export function ContactPanel({
   fields: ContactField[];
   onClose?: () => void;
 }) {
+  const t = useTranslations('inbox');
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3">
-        <span className="text-sm font-semibold">Contacto</span>
+        <span className="text-sm font-semibold">{t('contact')}</span>
         {onClose && (
-          <button onClick={onClose} aria-label="Cerrar panel" className="text-ink-400 hover:text-ink-700">
+          <button onClick={onClose} aria-label={t('closePanel')} className="text-ink-400 hover:text-ink-700">
             <X size={16} />
           </button>
         )}
@@ -208,6 +211,7 @@ export function ReplyNoteTabs({
   note: ReactNode;
   noteCount?: number;
 }) {
+  const t = useTranslations('inbox');
   const tabCls = (active: boolean, amber?: boolean) =>
     `rounded-t-md px-3 py-1.5 text-xs font-medium ${
       active
@@ -220,10 +224,10 @@ export function ReplyNoteTabs({
     <div className="border-t border-ink-100 bg-white">
       <div className="flex gap-1 px-3 pt-2">
         <button type="button" onClick={() => onTab('reply')} className={tabCls(tab === 'reply')}>
-          Responder
+          {t('reply')}
         </button>
         <button type="button" onClick={() => onTab('note')} className={tabCls(tab === 'note', true)}>
-          Nota interna{noteCount ? ` (${noteCount})` : ''}
+          {t('internalNote')}{noteCount ? ` (${noteCount})` : ''}
         </button>
       </div>
       <div className={`p-3 ${tab === 'note' ? 'bg-amber-50/40' : ''}`}>{tab === 'reply' ? reply : note}</div>

@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Sparkles, Wand2, Scissors, Languages, X, AlertTriangle } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { aiErrorMessage } from './ai-error';
@@ -19,16 +20,16 @@ interface Variant {
 }
 
 const TONES = [
-  { key: 'neutral', label: 'Neutro' },
-  { key: 'formal', label: 'Formal' },
-  { key: 'cercano', label: 'Cercano' },
-];
+  { key: 'neutral', labelKey: 'toneNeutral' },
+  { key: 'formal', labelKey: 'toneFormal' },
+  { key: 'cercano', labelKey: 'toneWarm' },
+] as const;
 
 const LENGTHS = [
-  { key: 'corto', label: 'Corto' },
-  { key: 'medio', label: 'Medio' },
-  { key: 'largo', label: 'Largo' },
-];
+  { key: 'corto', labelKey: 'lenShort' },
+  { key: 'medio', labelKey: 'lenMedium' },
+  { key: 'largo', labelKey: 'lenLong' },
+] as const;
 
 export function MailAssistant({
   threadId,
@@ -49,6 +50,7 @@ export function MailAssistant({
 }) {
   const [open, setOpen] = useState(false);
   const [instruction, setInstruction] = useState('');
+  const t = useTranslations('mail');
   const [tone, setTone] = useState('neutral');
   const [length, setLength] = useState('medio');
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -110,7 +112,7 @@ export function MailAssistant({
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-1 text-xs text-primary-700 hover:underline"
       >
-        <Sparkles size={12} /> Asistente IA
+        <Sparkles size={12} /> {t('assistant')}
       </button>
     );
   }
@@ -119,13 +121,13 @@ export function MailAssistant({
     <div className="rounded-md border border-primary-200 bg-primary-50/50 p-2">
       <div className="mb-1.5 flex items-center justify-between">
         <span className="inline-flex items-center gap-1 text-xs font-medium text-primary-900">
-          <Sparkles size={12} /> Asistente IA
+          <Sparkles size={12} /> {t('assistant')}
         </span>
         <button
           type="button"
           onClick={() => setOpen(false)}
           className="text-ink-400 hover:text-ink-700"
-          aria-label="Cerrar asistente"
+          aria-label={t('closeAssistant')}
         >
           <X size={13} />
         </button>
@@ -141,7 +143,7 @@ export function MailAssistant({
               void draft();
             }
           }}
-          placeholder="Dile que aceptamos pero necesitamos pago a 30 días…"
+          placeholder={t('assistantPlaceholder')}
           className="flex-1 rounded border border-ink-200 bg-white px-2 py-1 text-xs focus:border-ink-700 focus:outline-none"
         />
         <button
@@ -150,21 +152,21 @@ export function MailAssistant({
           disabled={!instruction.trim() || busy !== null}
           className="shrink-0 rounded bg-ink-900 px-2.5 py-1 text-xs text-white hover:bg-ink-800 disabled:opacity-50"
         >
-          {busy === 'draft' ? 'Redactando…' : 'Redactar'}
+          {busy === 'draft' ? t('drafting') : t('draftAction')}
         </button>
       </div>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-ink-500">
         <span className="inline-flex items-center gap-1">
           Tono:
-          {TONES.map((t) => (
+          {TONES.map((tn) => (
             <button
-              key={t.key}
+              key={tn.key}
               type="button"
-              onClick={() => setTone(t.key)}
-              className={`rounded px-1.5 py-0.5 ${tone === t.key ? 'bg-ink-900 text-white' : 'hover:bg-ink-200'}`}
+              onClick={() => setTone(tn.key)}
+              className={`rounded px-1.5 py-0.5 ${tone === tn.key ? 'bg-ink-900 text-white' : 'hover:bg-ink-200'}`}
             >
-              {t.label}
+              {t(tn.labelKey)}
             </button>
           ))}
         </span>
@@ -177,7 +179,7 @@ export function MailAssistant({
               onClick={() => setLength(l.key)}
               className={`rounded px-1.5 py-0.5 ${length === l.key ? 'bg-ink-900 text-white' : 'hover:bg-ink-200'}`}
             >
-              {l.label}
+              {t(l.labelKey)}
             </button>
           ))}
         </span>
@@ -186,14 +188,14 @@ export function MailAssistant({
       {/* Rework what is already typed. Hidden while the editor is empty. */}
       {hasText && (
         <div className="mt-2 flex flex-wrap gap-1 border-t border-primary-100 pt-2 text-[11px]">
-          <span className="text-ink-500">Sobre lo escrito:</span>
+          <span className="text-ink-500">{t('aboutWritten')}</span>
           <button
             type="button"
             onClick={() => void refine('mejorar')}
             disabled={busy !== null}
             className="inline-flex items-center gap-1 rounded bg-white px-1.5 py-0.5 text-ink-700 hover:bg-ink-100 disabled:opacity-50"
           >
-            <Wand2 size={10} /> {busy === 'mejorar' ? '…' : 'Mejorar'}
+            <Wand2 size={10} /> {busy === 'mejorar' ? '…' : t('improve')}
           </button>
           <button
             type="button"
@@ -201,7 +203,7 @@ export function MailAssistant({
             disabled={busy !== null}
             className="inline-flex items-center gap-1 rounded bg-white px-1.5 py-0.5 text-ink-700 hover:bg-ink-100 disabled:opacity-50"
           >
-            <Scissors size={10} /> {busy === 'acortar' ? '…' : 'Acortar'}
+            <Scissors size={10} /> {busy === 'acortar' ? '…' : t('shorten')}
           </button>
           <button
             type="button"
@@ -209,7 +211,7 @@ export function MailAssistant({
             disabled={busy !== null}
             className="rounded bg-white px-1.5 py-0.5 text-ink-700 hover:bg-ink-100 disabled:opacity-50"
           >
-            {busy === 'formal' ? '…' : 'Más formal'}
+            {busy === 'formal' ? '…' : t('moreFormal')}
           </button>
           <button
             type="button"
@@ -217,7 +219,7 @@ export function MailAssistant({
             disabled={busy !== null}
             className="rounded bg-white px-1.5 py-0.5 text-ink-700 hover:bg-ink-100 disabled:opacity-50"
           >
-            {busy === 'cercano' ? '…' : 'Más cercano'}
+            {busy === 'cercano' ? '…' : t('warmer')}
           </button>
           <button
             type="button"
@@ -225,7 +227,7 @@ export function MailAssistant({
             disabled={busy !== null}
             className="inline-flex items-center gap-1 rounded bg-white px-1.5 py-0.5 text-ink-700 hover:bg-ink-100 disabled:opacity-50"
           >
-            <Languages size={10} /> {busy === 'traducir' ? '…' : 'Al inglés'}
+            <Languages size={10} /> {busy === 'traducir' ? '…' : t('toEnglish')}
           </button>
         </div>
       )}
@@ -239,7 +241,7 @@ export function MailAssistant({
       {variants.length > 0 && (
         <div className="mt-2 space-y-1.5 border-t border-primary-100 pt-2">
           <p className="text-[11px] text-ink-500">
-            Elige una versión — se pone en el editor y la revisas antes de enviar:
+            {t('chooseVersion')}
           </p>
           {variants.map((v, i) => (
             <div key={i} className="rounded border border-ink-200 bg-white p-2">
@@ -253,7 +255,7 @@ export function MailAssistant({
                   }}
                   className="shrink-0 rounded bg-primary-600 px-2 py-0.5 text-[11px] text-white hover:bg-primary-700"
                 >
-                  Usar esta
+                  {t('useThis')}
                 </button>
               </div>
               <div
@@ -266,7 +268,7 @@ export function MailAssistant({
       )}
 
       <p className="mt-1.5 text-[10px] text-ink-400">
-        Redactado por IA · revísalo antes de enviar. Nunca se envía solo.
+        {t('assistantFootnote')}
       </p>
     </div>
   );

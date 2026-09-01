@@ -11,16 +11,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Sparkles, RefreshCw, AlertTriangle, ChevronDown } from 'lucide-react';
 import { useLocale } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { apiFetch } from '@/lib/api-client';
 import { aiErrorMessage } from './ai-error';
 import type { ThreadState, ThreadSummary } from './mail-types';
 
-const STATE_LABEL: Record<ThreadState, string> = {
-  WAITING_US: 'Te toca contestar',
-  WAITING_THEM: 'Esperando su respuesta',
-  BLOCKED: 'Bloqueado',
-  CLOSED: 'Cerrado',
-};
+const STATE_KEY = {
+  WAITING_US: 'stateWaitingUs',
+  WAITING_THEM: 'stateWaitingThem',
+  BLOCKED: 'stateBlocked',
+  CLOSED: 'stateClosed2',
+} as const;
 
 const STATE_STYLE: Record<ThreadState, string> = {
   WAITING_US: 'bg-amber-100 text-amber-800',
@@ -36,6 +37,7 @@ interface SummaryResponse {
 }
 
 export function MailAiPanel({ threadId, messageCount }: { threadId: string; messageCount: number }) {
+  const t = useTranslations('mail');
   const locale = useLocale();
   const [data, setData] = useState<SummaryResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -79,7 +81,7 @@ export function MailAiPanel({ threadId, messageCount }: { threadId: string; mess
           onClick={() => void run(false)}
           className="inline-flex items-center gap-1.5 text-xs text-primary-700 hover:underline"
         >
-          <Sparkles size={13} /> Resumir este hilo con IA
+          <Sparkles size={13} /> {t('summarizeThread')}
         </button>
       </div>
     );
@@ -94,10 +96,10 @@ export function MailAiPanel({ threadId, messageCount }: { threadId: string; mess
           className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-900"
           aria-expanded={open}
         >
-          <Sparkles size={13} /> Resumen IA
+          <Sparkles size={13} /> {t('aiSummary')}
           {data?.summary.state && (
             <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${STATE_STYLE[data.summary.state]}`}>
-              {STATE_LABEL[data.summary.state]}
+              {t(STATE_KEY[data.summary.state])}
             </span>
           )}
           <ChevronDown size={13} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -107,15 +109,15 @@ export function MailAiPanel({ threadId, messageCount }: { threadId: string; mess
             type="button"
             onClick={() => void run(true)}
             disabled={loading}
-            title="Volver a generar"
+            title={t('regenTitle')}
             className="inline-flex items-center gap-1 text-[11px] text-ink-500 hover:text-ink-800 disabled:opacity-50"
           >
-            <RefreshCw size={11} className={loading ? 'animate-spin' : ''} /> Regenerar
+            <RefreshCw size={11} className={loading ? 'animate-spin' : ''} /> {t('regenerate')}
           </button>
         )}
       </div>
 
-      {loading && !data && <p className="mt-1.5 text-xs text-ink-500">Leyendo el hilo…</p>}
+      {loading && !data && <p className="mt-1.5 text-xs text-ink-500">{t('readingThread')}</p>}
 
       {error && (
         <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-red-700">
@@ -133,7 +135,7 @@ export function MailAiPanel({ threadId, messageCount }: { threadId: string; mess
 
           {data.summary.asks.length > 0 && (
             <div>
-              <span className="font-medium text-ink-800">Te piden:</span>
+              <span className="font-medium text-ink-800">{t('theyAsk')}</span>
               <ul className="list-disc space-y-0.5 pl-4 text-ink-700">
                 {data.summary.asks.map((a, i) => (
                   <li key={i}>{a}</li>
@@ -144,13 +146,13 @@ export function MailAiPanel({ threadId, messageCount }: { threadId: string; mess
 
           {data.summary.nextStep && (
             <p className="text-ink-700">
-              <span className="font-medium text-ink-800">Siguiente paso:</span> {data.summary.nextStep}
+              <span className="font-medium text-ink-800">{t('nextStep')}</span> {data.summary.nextStep}
             </p>
           )}
 
           <p className="text-[10px] text-ink-400">
-            Generado por IA a partir del hilo · revisa antes de actuar
-            {data.cached ? ' · en caché' : ''}
+            {t('aiFootnote')}
+            {data.cached ? ` · ${t('cached')}` : ''}
           </p>
         </div>
       )}

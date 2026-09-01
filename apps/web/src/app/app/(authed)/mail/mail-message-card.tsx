@@ -11,6 +11,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ChevronDown, Forward, Languages, Paperclip, Users } from 'lucide-react';
 import { Avatar } from '@/components/ui/inbox-kit';
 import { apiFetch } from '@/lib/api-client';
@@ -24,6 +25,7 @@ import { authorshipOf, UI_LANG, type Authorship, type AttachmentRow, type Msg } 
  * already in your language is noise.
  */
 function TranslateBlock({ msg }: { msg: Msg }) {
+  const t = useTranslations('mail');
   const [text, setText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +46,7 @@ function TranslateBlock({ msg }: { msg: Msg }) {
         { method: 'POST', json: { lang: UI_LANG } },
       );
       setText(r.sameLanguage ? null : r.text);
-      if (r.sameLanguage) setError('Este mensaje ya está en español.');
+      if (r.sameLanguage) setError(t('alreadyInLanguage'));
       setOpen(true);
     } catch (err) {
       setError(aiErrorMessage(err));
@@ -62,7 +64,7 @@ function TranslateBlock({ msg }: { msg: Msg }) {
         className="inline-flex items-center gap-1 text-[11px] text-primary-700 hover:underline disabled:opacity-50"
       >
         <Languages size={11} />
-        {loading ? 'Traduciendo…' : text ? (open ? 'Ocultar traducción' : 'Ver traducción') : 'Traducir'}
+        {loading ? t('translating') : text ? (open ? t('hideTranslation') : t('showTranslation')) : t('translate')}
       </button>
       {error && <p className="mt-1 text-[11px] text-red-700">{error}</p>}
       {text && open && (
@@ -180,6 +182,8 @@ export function MessageCard({
   onForward: (msg: Msg) => void;
   onDownloadAttachment: (a: AttachmentRow) => void;
 }) {
+  const t = useTranslations('mail');
+  const ti = useTranslations('inbox');
   const [open, setOpen] = useState(expandedByDefault);
   const [showDetails, setShowDetails] = useState(false);
   const who = authorshipOf(msg, currentUserId);
@@ -192,10 +196,10 @@ export function MessageCard({
   const person = msg.sentBy?.name ?? null;
   const senderName =
     who === 'contact'
-      ? msg.fromName || msg.fromAddress || 'Contacto'
+      ? msg.fromName || msg.fromAddress || ti('contact')
       : person
         ? shortName(person)
-        : 'Tu equipo';
+        : t('yourTeam');
   const senderAddress = who === 'contact' ? msg.fromAddress : mailboxAddress;
 
   return (
@@ -224,13 +228,13 @@ export function MessageCard({
           </div>
           {open ? (
             <div className="mt-1 space-y-0.5 text-xs">
-              <AddressList label="De" addresses={senderAddress ? [senderAddress] : []} labelFor={labelFor} />
-              <AddressList label="Para" addresses={msg.toAddresses} labelFor={labelFor} />
-              <AddressList label="Cc" addresses={msg.ccAddresses} labelFor={labelFor} />
+              <AddressList label={t('from')} addresses={senderAddress ? [senderAddress] : []} labelFor={labelFor} />
+              <AddressList label={t('toShort')} addresses={msg.toAddresses} labelFor={labelFor} />
+              <AddressList label={t('ccShort')} addresses={msg.ccAddresses} labelFor={labelFor} />
             </div>
           ) : (
             <p className="mt-0.5 truncate text-xs text-ink-500">
-              {(msg.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 140) || 'Sin contenido'}
+              {(msg.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 140) || t('noContent')}
             </p>
           )}
         </button>
@@ -248,15 +252,15 @@ export function MessageCard({
               onClick={() => setShowDetails((v) => !v)}
               className="text-ink-400 hover:text-ink-700"
             >
-              {showDetails ? 'Ocultar detalles' : 'Detalles'}
+              {showDetails ? t('hideDetails') : t('details')}
             </button>
             <button
               type="button"
               onClick={() => onForward(msg)}
               className="inline-flex items-center gap-1 text-primary-700 hover:underline"
-              title="Reenviar este mensaje"
+              title={t('forwardThis')}
             >
-              <Forward size={11} /> Reenviar
+              <Forward size={11} /> {t('forward')}
             </button>
           </div>
 
@@ -264,18 +268,18 @@ export function MessageCard({
             <dl className="mb-2 space-y-0.5 rounded border border-ink-100 bg-ink-100/30 p-2 text-xs">
               <AddressList label="Cco" addresses={msg.bccAddresses} labelFor={labelFor} />
               <div className="flex gap-1.5">
-                <span className="w-10 shrink-0 text-ink-400">Fecha</span>
+                <span className="w-10 shrink-0 text-ink-400">{t('date')}</span>
                 <span className="text-ink-600">{fullDate(ts)}</span>
               </div>
               {msg.subject && (
                 <div className="flex gap-1.5">
-                  <span className="w-10 shrink-0 text-ink-400">Asunto</span>
+                  <span className="w-10 shrink-0 text-ink-400">{t('subject')}</span>
                   <span className="break-words text-ink-600">{msg.subject}</span>
                 </div>
               )}
               {who !== 'contact' && person && (
                 <div className="flex gap-1.5">
-                  <span className="w-10 shrink-0 text-ink-400">Envió</span>
+                  <span className="w-10 shrink-0 text-ink-400">{t('sentVia')}</span>
                   <span className="inline-flex items-center gap-1 text-ink-600">
                     <Users size={11} /> {person}
                   </span>
@@ -351,6 +355,7 @@ export function ThreadMessages({
   onForward: (msg: Msg) => void;
   onDownloadAttachment: (a: AttachmentRow) => void;
 }) {
+  const t = useTranslations('mail');
   const [showAll, setShowAll] = useState(false);
   const hidden = Math.max(messages.length - COLLAPSE_THRESHOLD, 0);
   // Keep the first message (it opens the conversation) and the recent tail.
@@ -369,7 +374,7 @@ export function ThreadMessages({
               onClick={() => setShowAll(true)}
               className="mb-2 w-full rounded-lg border border-dashed border-ink-200 py-1.5 text-xs text-ink-500 hover:border-ink-300 hover:bg-ink-100/50 hover:text-ink-700"
             >
-              {hidden} {hidden === 1 ? 'mensaje anterior' : 'mensajes anteriores'}
+              {hidden} {hidden === 1 ? t('prevOne') : t('prevMany')}
             </button>
           )}
           <MessageCard

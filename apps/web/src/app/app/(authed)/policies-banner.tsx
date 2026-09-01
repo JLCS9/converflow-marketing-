@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 
 const ACK_KEY = 'cf_policies_ack';
 
@@ -10,6 +11,7 @@ const ACK_KEY = 'cf_policies_ack';
  * acceptance is remembered (localStorage) so it doesn't reappear.
  */
 export function PoliciesBanner() {
+  const t = useTranslations('shell');
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -25,13 +27,13 @@ export function PoliciesBanner() {
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-6 py-2 text-xs text-amber-900">
       <span>
-        ⚠️ Esta plataforma utiliza Inteligencia Artificial. Lee la{' '}
+        ⚠️ {t('aiBannerIntro')}{' '}
         <Link href="/ai-disclosure" target="_blank" className="underline">
-          política de uso de IA
+          {t('aiPolicy')}
         </Link>{' '}
-        y la{' '}
+        {t('andThe')}{' '}
         <Link href="/privacy" target="_blank" className="underline">
-          política de privacidad
+          {t('privacyPolicy')}
         </Link>
         .
       </span>
@@ -47,7 +49,7 @@ export function PoliciesBanner() {
         }}
         className="shrink-0 rounded border border-amber-300 bg-white px-2.5 py-1 font-medium hover:bg-amber-100"
       >
-        Aceptar
+        {t('accept')}
       </button>
     </div>
   );

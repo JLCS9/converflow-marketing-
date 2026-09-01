@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import {
   Inbox,
@@ -82,7 +83,7 @@ function fwdSubject(original: string | null | undefined): string {
   return base ? `Fwd: ${base}` : '';
 }
 
-const STATUS_LABEL: Record<string, string> = { OPEN: 'Abierto', PENDING: 'Pendiente', CLOSED: 'Cerrado' };
+const STATUS_KEY = { OPEN: 'statusOpen', PENDING: 'statusPending', CLOSED: 'statusClosed' } as const;
 const STATUS_BADGE: Record<string, string> = {
   OPEN: 'bg-green-100 text-green-700',
   PENDING: 'bg-amber-100 text-amber-700',
@@ -90,29 +91,31 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 const FOLDERS = [
-  { key: 'INBOX', label: 'Recibidos' },
-  { key: 'SENT', label: 'Enviados' },
-  { key: 'DRAFTS', label: 'Borradores' },
-  { key: 'SPAM', label: 'Spam' },
-  { key: 'ARCHIVE', label: 'Archivo' },
-  { key: 'TRASH', label: 'Papelera' },
-];
+  { key: 'INBOX', labelKey: 'inbox' },
+  { key: 'SENT', labelKey: 'sent' },
+  { key: 'DRAFTS', labelKey: 'drafts' },
+  { key: 'SPAM', labelKey: 'spam' },
+  { key: 'ARCHIVE', labelKey: 'archive' },
+  { key: 'TRASH', labelKey: 'trash' },
+] as const;
 
-const MOVES: Record<string, { folder: string; label: string }[]> = {
+type MailLabelKey =
+  | 'moveArchive' | 'moveToInbox' | 'moveNotSpam' | 'moveRestore' | 'spam' | 'trash';
+const MOVES: Record<string, { folder: string; labelKey: MailLabelKey }[]> = {
   INBOX: [
-    { folder: 'ARCHIVE', label: 'Archivar' },
-    { folder: 'SPAM', label: 'Spam' },
-    { folder: 'TRASH', label: 'Papelera' },
+    { folder: 'ARCHIVE', labelKey: 'moveArchive' },
+    { folder: 'SPAM', labelKey: 'spam' },
+    { folder: 'TRASH', labelKey: 'trash' },
   ],
   ARCHIVE: [
-    { folder: 'INBOX', label: 'A Recibidos' },
-    { folder: 'TRASH', label: 'Papelera' },
+    { folder: 'INBOX', labelKey: 'moveToInbox' },
+    { folder: 'TRASH', labelKey: 'trash' },
   ],
   SPAM: [
-    { folder: 'INBOX', label: 'No es spam' },
-    { folder: 'TRASH', label: 'Papelera' },
+    { folder: 'INBOX', labelKey: 'moveNotSpam' },
+    { folder: 'TRASH', labelKey: 'trash' },
   ],
-  TRASH: [{ folder: 'INBOX', label: 'Restaurar' }],
+  TRASH: [{ folder: 'INBOX', labelKey: 'moveRestore' }],
 };
 
 
@@ -177,6 +180,8 @@ export function MailWorkspace({
   const [loadingMore, setLoadingMore] = useState(false);
   /** True once the user loaded extra pages, so the poller stops truncating. */
   const pagedRef = useRef(false);
+  const t = useTranslations('mail');
+  const ti = useTranslations('inbox');
   // Filtros de bandeja (estado de la conversación + asignación), por usuario y
   // persistidos en el navegador. En ref además de estado para que loadThreads
   // no cambie de identidad con cada toque.
@@ -260,7 +265,7 @@ export function MailWorkspace({
   // Private mailbox = only mine → no assignment UI (no team to hand off to).
   const isPrivate = currentConn?.visibility === 'PRIVATE';
   const nameOf = (userId: string | null): string =>
-    userId ? team.find((m) => m.id === userId)?.name ?? 'Asignado' : '';
+    userId ? team.find((m) => m.id === userId)?.name ?? t('assignedFallback') : '';
 
   /**
    * Human label for an address in a header: the CRM contact's name, "yo" for the
@@ -294,17 +299,17 @@ export function MailWorkspace({
   const loadThreads = useCallback(async (conn: string, f: string) => {
     if (!conn) return;
     try {
-      const [t, c] = await Promise.all([
+      const [pageData, c] = await Promise.all([
         apiFetch<ThreadPage>(`/mail/connections/${conn}/threads?folder=${f}${filterQs()}`),
         apiFetch<Record<string, number>>(`/mail/connections/${conn}/folder-counts`).catch(() => ({})),
       ]);
       setThreads((prev) => {
-        if (!pagedRef.current) return t.items;
-        const fresh = new Set(t.items.map((x) => x.id));
-        return [...t.items, ...prev.filter((x) => !fresh.has(x.id))];
+        if (!pagedRef.current) return pageData.items;
+        const fresh = new Set(pageData.items.map((x) => x.id));
+        return [...pageData.items, ...prev.filter((x) => !fresh.has(x.id))];
       });
       // Once paginated, the meaningful cursor is the last page's, not page 1's.
-      if (!pagedRef.current) setNextCursor(t.nextCursor);
+      if (!pagedRef.current) setNextCursor(pageData.nextCursor);
       setCounts(c);
     } catch {
       /* keep last */
@@ -561,7 +566,7 @@ export function MailWorkspace({
       setDetail(null);
       await loadThreads(connectionId, folder);
     } catch {
-      fb.toast.error('No se pudo mover el hilo');
+      fb.toast.error(t('errMove'));
     } finally {
       setBusy(false);
     }
@@ -574,7 +579,7 @@ export function MailWorkspace({
       await apiFetch(`/mail/threads/${detail.thread.id}/assign`, { method: 'POST', json: { assigneeUserId: value } });
       setDetail((d) => (d ? { ...d, thread: { ...d.thread, assigneeUserId: value } } : d));
     } catch {
-      fb.toast.error('No se pudo cambiar la asignación');
+      fb.toast.error(t('errAssign'));
     }
   }
 
@@ -585,7 +590,7 @@ export function MailWorkspace({
       setDetail((d) => (d ? { ...d, thread: { ...d.thread, status } } : d));
       void loadThreads(connectionId, folder);
     } catch {
-      fb.toast.error('No se pudo cambiar el estado');
+      fb.toast.error(t('errStatus'));
     }
   }
 
@@ -596,7 +601,7 @@ export function MailWorkspace({
       setNotes((prev) => [...prev, n]);
       setNoteDraft('');
     } catch {
-      fb.toast.error('No se pudo añadir la nota');
+      fb.toast.error(t('errNote'));
     }
   }
 
@@ -605,7 +610,7 @@ export function MailWorkspace({
       await apiFetch(`/mail/notes/${id}`, { method: 'DELETE' });
       setNotes((prev) => prev.filter((n) => n.id !== id));
     } catch {
-      fb.toast.error('No se pudo borrar la nota');
+      fb.toast.error(t('errDeleteNote'));
     }
   }
 
@@ -614,9 +619,9 @@ export function MailWorkspace({
     try {
       const r = await apiFetch<{ contact: ContactInfo }>(`/mail/threads/${detail.thread.id}/save-lead`, { method: 'POST' });
       setDetail((d) => (d ? { ...d, contact: r.contact } : d));
-      fb.toast.success('Contacto guardado como lead');
+      fb.toast.success(t('savedLead'));
     } catch {
-      fb.toast.error('No se pudo guardar el contacto');
+      fb.toast.error(t('errSaveLead'));
     }
   }
 
@@ -625,7 +630,7 @@ export function MailWorkspace({
       const r = await apiFetch<{ url: string }>(`/mail/attachments/${id}/download`);
       window.open(r.url, '_blank', 'noopener');
     } catch {
-      fb.toast.error('No se pudo descargar el adjunto');
+      fb.toast.error(t('errAttachment'));
     }
   }
 
@@ -677,17 +682,17 @@ export function MailWorkspace({
         {/* Filtros primero: qué conversaciones y de quién. Cada grupo se
             separa con una línea, sin etiquetas de sección. */}
         <div className="space-y-0.5">
-          <SideItem icon={<CircleDot size={14} />} label="Activas" active={stateFilter === 'active'} onClick={() => setStateFilter('active')} />
-          <SideItem icon={<CheckCircle2 size={14} />} label="Cerradas" active={stateFilter === 'closed'} onClick={() => setStateFilter('closed')} />
-          <SideItem icon={<Circle size={14} />} label="Todas" active={stateFilter === 'all'} onClick={() => setStateFilter('all')} />
+          <SideItem icon={<CircleDot size={14} />} label={t('active')} active={stateFilter === 'active'} onClick={() => setStateFilter('active')} />
+          <SideItem icon={<CheckCircle2 size={14} />} label={t('closed')} active={stateFilter === 'closed'} onClick={() => setStateFilter('closed')} />
+          <SideItem icon={<Circle size={14} />} label={t('all')} active={stateFilter === 'all'} onClick={() => setStateFilter('all')} />
         </div>
         {!isPrivate && (
           <>
             <div className="my-2 border-t border-ink-100" />
             <div className="space-y-0.5">
-              <SideItem icon={<Users size={14} />} label="Todos" active={assignedFilter === 'all'} onClick={() => setAssignedFilter('all')} />
-              <SideItem icon={<UserCheck size={14} />} label="Míos" active={assignedFilter === 'me'} badge={mineUnread} onClick={() => setAssignedFilter('me')} />
-              <SideItem icon={<UserX size={14} />} label="Sin asignar" active={assignedFilter === 'none'} onClick={() => setAssignedFilter('none')} />
+              <SideItem icon={<Users size={14} />} label={t('assignedAll')} active={assignedFilter === 'all'} onClick={() => setAssignedFilter('all')} />
+              <SideItem icon={<UserCheck size={14} />} label={t('mine')} active={assignedFilter === 'me'} badge={mineUnread} onClick={() => setAssignedFilter('me')} />
+              <SideItem icon={<UserX size={14} />} label={t('unassigned')} active={assignedFilter === 'none'} onClick={() => setAssignedFilter('none')} />
             </div>
           </>
         )}
@@ -701,7 +706,7 @@ export function MailWorkspace({
               <SideItem
                 key={f.key}
                 icon={<Icon size={14} />}
-                label={f.label}
+                label={t(f.labelKey)}
                 active={active}
                 badge={n}
                 onClick={() => { setFolder(f.key); setSelectedId(null); setDetail(null); setQuery(''); }}
@@ -717,13 +722,13 @@ export function MailWorkspace({
           onClick={() => setModal({ mode: 'new', initial: { html: sigHtml } })}
           className={buttonClass('primary', 'flex w-full items-center justify-center gap-1.5 text-xs')}
         >
-          <Mail size={14} /> Nuevo correo
+          <Mail size={14} /> {ti('newMail')}
         </button>
         <Link
           href="/app/mail/ajustes"
           className="flex items-center gap-2 rounded-md px-2 py-1 text-xs text-ink-500 hover:bg-ink-100 hover:text-ink-800"
         >
-          <Settings size={14} /> Ajustes (buzones, plantillas)
+          <Settings size={14} /> {t('settingsLink')}
         </Link>
       </div>
     </div>
@@ -760,7 +765,7 @@ export function MailWorkspace({
   // ---- column: thread ----
   const threadNode = !detail ? (
     <div className="flex flex-1 items-center justify-center text-sm text-ink-500">
-      {selectedId ? <Loader2 size={22} className="animate-spin text-ink-300" /> : 'Selecciona un hilo.'}
+      {selectedId ? <Loader2 size={22} className="animate-spin text-ink-300" /> : t('selectThread')}
     </div>
   ) : (
     <>
@@ -769,7 +774,7 @@ export function MailWorkspace({
           type="button"
           onClick={() => { setSelectedId(null); setDetail(null); }}
           className="-ml-1 shrink-0 rounded p-1 text-ink-500 hover:bg-ink-100 lg:hidden"
-          aria-label="Volver"
+          aria-label={ti('back')}
         >
           <ArrowLeft size={18} />
         </button>
@@ -778,39 +783,39 @@ export function MailWorkspace({
           <select
             value={detail.thread.assigneeUserId ?? ''}
             onChange={(e) => void assign(e.target.value)}
-            title="Asignar"
+            title={t('assign')}
             className="rounded border border-ink-200 bg-white px-1.5 py-0.5 text-xs text-ink-700"
           >
-            <option value="">Sin asignar</option>
+            <option value="">{t('unassigned')}</option>
             {team.map((m) => (
               <option key={m.id} value={m.id}>{m.name}</option>
             ))}
           </select>
         )}
         {(MOVES[folder] ?? []).map((m) => (
-          <button key={m.folder} disabled={busy} onClick={() => void move(m.folder)} className={buttonClass('ghost', 'px-1.5 py-0.5 text-xs')}>{m.label}</button>
+          <button key={m.folder} disabled={busy} onClick={() => void move(m.folder)} className={buttonClass('ghost', 'px-1.5 py-0.5 text-xs')}>{t(m.labelKey)}</button>
         ))}
-        <button onClick={() => void markUnread()} className={buttonClass('ghost', 'px-1.5 py-0.5 text-xs')}>No leído</button>
+        <button onClick={() => void markUnread()} className={buttonClass('ghost', 'px-1.5 py-0.5 text-xs')}>{t('markUnread')}</button>
         <Link
           href={`/app/tasks/new?title=${encodeURIComponent(detail.thread.subject ?? '')}`}
           className={buttonClass('ghost', 'px-2 py-0.5 text-xs')}
         >
-          + Tarea
+          {t('addTask')}
         </Link>
         {detail.thread.status === 'CLOSED' ? (
           <button type="button" onClick={() => void setStatus('OPEN')} className={buttonClass('secondary', 'px-3 py-1 text-xs')}>
-            Reabrir
+            {t('reopen')}
           </button>
         ) : (
           <button type="button" onClick={() => void setStatus('CLOSED')} className={buttonClass('primary', 'px-3 py-1 text-xs')}>
-            Cerrar
+            {t('close')}
           </button>
         )}
       </div>
 
       {lock && !lock.byMe && (
         <div className="flex items-center gap-1.5 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-800">
-          <AlertTriangle size={13} /> {lock.byName} está respondiendo a este hilo ahora mismo.
+          <AlertTriangle size={13} /> {t('lockBanner', { name: lock.byName ?? '—' })}
         </div>
       )}
 
@@ -841,8 +846,8 @@ export function MailWorkspace({
           composerOpen ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-ink-600">Responder</span>
-                <button type="button" onClick={() => setComposerOpen(false)} className="text-ink-400 hover:text-ink-700">✕ Cerrar</button>
+                <span className="font-medium text-ink-600">{t('reply')}</span>
+                <button type="button" onClick={() => setComposerOpen(false)} className="text-ink-400 hover:text-ink-700">✕ {t('close')}</button>
               </div>
               <MailComposer
                 key={replyKey}
@@ -855,15 +860,15 @@ export function MailWorkspace({
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <button type="button" onClick={openReply} className={buttonClass('primary', 'text-sm')}>Responder</button>
-              <button type="button" onClick={replyAll} className={buttonClass('secondary', 'text-sm')}>Responder a todos</button>
+              <button type="button" onClick={openReply} className={buttonClass('primary', 'text-sm')}>{t('reply')}</button>
+              <button type="button" onClick={replyAll} className={buttonClass('secondary', 'text-sm')}>{t('replyAll')}</button>
               {lastMessageId && (
                 <button
                   type="button"
                   onClick={() => setModal({ mode: 'forward', forwardMessageId: lastMessageId, initial: { subject: fwdSubject(detail.thread.subject), html: sigHtml } })}
                   className={buttonClass('ghost', 'flex items-center gap-1.5 text-sm')}
                 >
-                  <Forward size={14} /> Reenviar
+                  <Forward size={14} /> {t('forward')}
                 </button>
               )}
             </div>
@@ -879,7 +884,7 @@ export function MailWorkspace({
                       <span className="font-medium text-ink-700">{n.authorName}: </span>
                       <span className="text-ink-700">{n.body}</span>
                     </span>
-                    <button type="button" onClick={() => void deleteNote(n.id)} className="shrink-0 text-ink-300 opacity-0 hover:text-red-600 group-hover:opacity-100" aria-label="Borrar nota">✕</button>
+                    <button type="button" onClick={() => void deleteNote(n.id)} className="shrink-0 text-ink-300 opacity-0 hover:text-red-600 group-hover:opacity-100" aria-label={t('deleteNote')}>✕</button>
                   </li>
                 ))}
               </ul>
@@ -889,10 +894,10 @@ export function MailWorkspace({
                 value={noteDraft}
                 onChange={(e) => setNoteDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addNote(); } }}
-                placeholder="Añadir nota interna para el equipo…"
+                placeholder={t('notePlaceholder')}
                 className="flex-1 rounded border border-amber-200 bg-white px-2 py-1 text-xs focus:border-amber-400 focus:outline-none"
               />
-              <button type="button" onClick={() => void addNote()} disabled={!noteDraft.trim()} className={buttonClass('secondary', 'px-2 py-1 text-xs')}>Añadir</button>
+              <button type="button" onClick={() => void addNote()} disabled={!noteDraft.trim()} className={buttonClass('secondary', 'px-2 py-1 text-xs')}>{t('add')}</button>
             </div>
           </div>
         }
@@ -903,14 +908,14 @@ export function MailWorkspace({
   // ---- column: contact details ----
   const detailsNode = detail ? (
     <ContactPanel
-      name={(detail.thread.participants && detail.thread.participants[0]) || 'Contacto'}
+      name={(detail.thread.participants && detail.thread.participants[0]) || ti('contact')}
       sub={currentConn ? `vía ${currentConn.fromAddress}` : null}
       fields={[
         {
-          label: 'Estado',
+          label: t('state'),
           value: (
             <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_BADGE[detail.thread.status] ?? ''}`}>
-              {STATUS_LABEL[detail.thread.status] ?? detail.thread.status}
+              {STATUS_KEY[detail.thread.status as keyof typeof STATUS_KEY] ? t(STATUS_KEY[detail.thread.status as keyof typeof STATUS_KEY]) : detail.thread.status}
             </span>
           ),
         },
@@ -919,7 +924,7 @@ export function MailWorkspace({
           value: detail.contact ? (
             detail.contact.type === 'client' ? (
               <Link href={`/app/clients/${detail.contact.id}`} className="text-primary-700 hover:underline">
-                Ver perfil (cliente) →
+                {t('viewClientProfile')}
               </Link>
             ) : (
               <button
@@ -927,20 +932,20 @@ export function MailWorkspace({
                 onClick={() => setLeadDrawerId(detail.contact!.id)}
                 className="text-primary-700 hover:underline"
               >
-                Ver ficha (lead) →
+                {t('viewLeadCard')}
               </button>
             )
           ) : (
             <button type="button" onClick={() => void saveLead()} className={buttonClass('secondary', 'text-xs')}>
-              Guardar como lead
+              {t('saveAsLead')}
             </button>
           ),
         },
         ...(isPrivate
           ? []
-          : [{ label: 'Asignado a', value: detail.thread.assigneeUserId ? nameOf(detail.thread.assigneeUserId) : 'Sin asignar' }]),
-        { label: 'Participantes', value: (detail.thread.participants ?? []).join(', ') || '—' },
-        { label: 'Notas internas', value: notes.length ? `${notes.length}` : 'Ninguna' },
+          : [{ label: t('assignedTo'), value: detail.thread.assigneeUserId ? nameOf(detail.thread.assigneeUserId) : t('unassigned') }]),
+        { label: t('participants'), value: (detail.thread.participants ?? []).join(', ') || '—' },
+        { label: t('internalNotes'), value: notes.length ? `${notes.length}` : t('none') },
       ]}
     />
   ) : undefined;
@@ -962,8 +967,8 @@ export function MailWorkspace({
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-900/40 p-4 sm:p-8" onClick={() => setModal(null)}>
           <div className="w-full max-w-2xl rounded-lg border border-ink-100 bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3">
-              <h3 className="text-sm font-semibold">{modal.mode === 'forward' ? 'Reenviar correo' : 'Nuevo correo'}</h3>
-              <button type="button" onClick={() => setModal(null)} className="text-ink-400 hover:text-ink-700" aria-label="Cerrar"><X size={16} /></button>
+              <h3 className="text-sm font-semibold">{modal.mode === 'forward' ? t('forwardMail') : ti('newMail')}</h3>
+              <button type="button" onClick={() => setModal(null)} className="text-ink-400 hover:text-ink-700" aria-label={t('close')}><X size={16} /></button>
             </div>
             <div className="p-4">
               <MailComposer

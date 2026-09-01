@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Paperclip, X } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { buttonClass } from '@/components/ui/primitives';
@@ -63,6 +64,8 @@ export function MailComposer({
   onSent: () => void;
   onClose?: () => void;
 }) {
+  const t = useTranslations('mail');
+  const ti = useTranslations('inbox');
   const [to, setTo] = useState(initial?.to ?? '');
   const [cc, setCc] = useState(initial?.cc ?? '');
   const [bcc, setBcc] = useState(initial?.bcc ?? '');
@@ -146,13 +149,13 @@ export function MailComposer({
           credentials: 'include',
           body: fd,
         });
-        if (!res.ok) throw new Error('No se pudo subir el adjunto');
+        if (!res.ok) throw new Error(t('errUpload'));
         const r = (await res.json()) as StagedAttachment;
         touch();
         setAttached((prev) => [...prev, r]);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo subir el adjunto');
+      setError(e instanceof Error ? e.message : t('errUpload'));
     } finally {
       setUploading(false);
     }
@@ -169,19 +172,19 @@ export function MailComposer({
     setError(null);
     try {
       if (mode === 'forward') {
-        if (!forwardMessageId) throw new Error('Falta el mensaje a reenviar');
+        if (!forwardMessageId) throw new Error(t('errForwardMissing'));
         await apiFetch(`/mail/messages/${forwardMessageId}/forward`, {
           method: 'POST',
           json: { to, cc, bcc, subject, html, attachments: attached },
         });
       } else {
         const id = (await saveDraft()) ?? draftIdRef.current;
-        if (!id) throw new Error('No se pudo preparar el envío');
+        if (!id) throw new Error(t('errPrepareSend'));
         await apiFetch(`/mail/drafts/${id}/send`, { method: 'POST' });
       }
       onSent();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo enviar');
+      setError(e instanceof Error ? e.message : ti('sendError'));
     } finally {
       setBusy(false);
     }
@@ -198,35 +201,35 @@ export function MailComposer({
     <div className="space-y-2">
       <div className="space-y-1.5">
         <div className="flex items-center gap-2">
-          <label className="w-12 shrink-0 text-xs text-ink-500">Para</label>
+          <label className="w-12 shrink-0 text-xs text-ink-500">{ti('to')}</label>
           <input
             className={inputCls}
             value={to}
             onChange={(e) => { touch(); setTo(e.target.value); }}
-            placeholder="destinatario@dominio.com, otro@dominio.com"
+            placeholder={t('toPlaceholder')}
           />
           {!showCc && (
             <button type="button" onClick={() => setShowCc(true)} className="shrink-0 text-xs text-primary-700 hover:underline">
-              Cc/Cco
+              {t('ccBccToggle')}
             </button>
           )}
         </div>
         {showCc && (
           <>
             <div className="flex items-center gap-2">
-              <label className="w-12 shrink-0 text-xs text-ink-500">Cc</label>
-              <input className={inputCls} value={cc} onChange={(e) => { touch(); setCc(e.target.value); }} placeholder="copia@dominio.com" />
+              <label className="w-12 shrink-0 text-xs text-ink-500">{t('ccShort')}</label>
+              <input className={inputCls} value={cc} onChange={(e) => { touch(); setCc(e.target.value); }} placeholder={t('ccPlaceholder')} />
             </div>
             <div className="flex items-center gap-2">
-              <label className="w-12 shrink-0 text-xs text-ink-500">Cco</label>
-              <input className={inputCls} value={bcc} onChange={(e) => { touch(); setBcc(e.target.value); }} placeholder="copia oculta@dominio.com" />
+              <label className="w-12 shrink-0 text-xs text-ink-500">{t('bccShort')}</label>
+              <input className={inputCls} value={bcc} onChange={(e) => { touch(); setBcc(e.target.value); }} placeholder={t('bccPlaceholder')} />
             </div>
           </>
         )}
         {showSubject && (
           <div className="flex items-center gap-2">
-            <label className="w-12 shrink-0 text-xs text-ink-500">Asunto</label>
-            <input className={inputCls} value={subject} onChange={(e) => { touch(); setSubject(e.target.value); }} placeholder="Asunto del correo" />
+            <label className="w-12 shrink-0 text-xs text-ink-500">{ti('subject')}</label>
+            <input className={inputCls} value={subject} onChange={(e) => { touch(); setSubject(e.target.value); }} placeholder={t('subjectPlaceholder')} />
           </div>
         )}
       </div>
@@ -247,7 +250,7 @@ export function MailComposer({
           {attached.map((a) => (
             <span key={a.storageKey} className="inline-flex items-center gap-1 rounded bg-ink-100 px-2 py-0.5 text-xs text-ink-700">
               <Paperclip size={11} /> {a.filename} <span className="text-ink-400">({humanSize(a.sizeBytes)})</span>
-              <button type="button" onClick={() => removeAttachment(a.storageKey)} className="text-ink-400 hover:text-red-600" aria-label="Quitar adjunto"><X size={11} /></button>
+              <button type="button" onClick={() => removeAttachment(a.storageKey)} className="text-ink-400 hover:text-red-600" aria-label={ti('removeAttachment')}><X size={11} /></button>
             </span>
           ))}
         </div>
@@ -257,7 +260,7 @@ export function MailComposer({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <label className={buttonClass('ghost', 'inline-flex cursor-pointer items-center gap-1.5 text-xs')}>
-            <Paperclip size={13} /> {uploading ? 'Subiendo…' : 'Adjuntar'}
+            <Paperclip size={13} /> {uploading ? t('uploading') : ti('attach')}
             <input
               type="file"
               multiple
@@ -267,7 +270,7 @@ export function MailComposer({
             />
           </label>
           <span className="text-[11px] text-ink-400">
-            {busy ? 'Enviando…' : savedAt ? `Borrador guardado ${savedAt}` : ''}
+            {busy ? ti('sending') : savedAt ? `${t('draftSaved')} ${savedAt}` : ''}
           </span>
         </div>
         <div className="flex gap-2">
@@ -277,7 +280,7 @@ export function MailComposer({
             </button>
           )}
           <button type="button" onClick={() => void send()} disabled={busy || !hasContent} className={buttonClass('primary')}>
-            {busy ? 'Enviando…' : mode === 'forward' ? 'Reenviar' : 'Enviar'}
+            {busy ? ti('sending') : mode === 'forward' ? t('forward') : ti('send')}
           </button>
         </div>
       </div>

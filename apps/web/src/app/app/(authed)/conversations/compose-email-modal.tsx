@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { RichEmailEditor } from '@/components/ui/rich-email-editor';
 import { TemplatePicker } from '@/components/ui/template-picker';
@@ -13,6 +14,7 @@ export function ComposeEmailModal({
   onClose: () => void;
   onSent: (conversationId: string) => void;
 }) {
+  const t = useTranslations('inbox');
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('');
   const [html, setHtml] = useState('');
@@ -48,7 +50,7 @@ export function ComposeEmailModal({
       });
       onSent(res.conversationId);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo enviar');
+      setError(err instanceof ApiError ? err.message : t('sendError'));
     } finally {
       setSending(false);
     }
@@ -64,13 +66,13 @@ export function ComposeEmailModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3">
-          <h2 className="text-base font-semibold">Nuevo correo</h2>
-          <button onClick={onClose} className="text-ink-400 hover:text-ink-700" aria-label="Cerrar">
+          <h2 className="text-base font-semibold">{t('newMail')}</h2>
+          <button onClick={onClose} className="text-ink-400 hover:text-ink-700" aria-label={t('close')}>
             ✕
           </button>
         </div>
         <div className="space-y-4 p-5">
-          <Field label="Para" required>
+          <Field label={t('to')} required>
             <Input
               type="email"
               value={to}
@@ -78,10 +80,10 @@ export function ComposeEmailModal({
               placeholder="cliente@empresa.com"
             />
           </Field>
-          <Field label="Asunto" required>
+          <Field label={t('subject')} required>
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={200} />
           </Field>
-          <Field label="Mensaje" required>
+          <Field label={t('message')} required>
             <div className="mb-2 flex justify-end">
               <TemplatePicker
                 onPick={(t) => {
@@ -106,7 +108,7 @@ export function ComposeEmailModal({
                 }}
                 className="rounded-md border border-ink-300 px-2 py-1 text-xs text-ink-700"
               >
-                <option value="">📎 Adjuntar documento…</option>
+                <option value="">📎 {t('attachDoc')}</option>
                 {docs.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -125,7 +127,7 @@ export function ComposeEmailModal({
                         type="button"
                         onClick={() => setAttachments((p) => p.filter((x) => x.id !== a.id))}
                         className="text-ink-400 hover:text-red-600"
-                        aria-label="Quitar adjunto"
+                        aria-label={t('removeAttachment')}
                       >
                         ✕
                       </button>
@@ -151,7 +153,7 @@ export function ComposeEmailModal({
             className={buttonClass('primary')}
             disabled={sending || !to.trim() || !subject.trim()}
           >
-            {sending ? 'Enviando…' : 'Enviar'}
+            {sending ? t('sending') : t('send')}
           </button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { ArrowLeft, Zap, Settings } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
@@ -58,10 +59,10 @@ interface Thread {
   messages: ThreadMsg[];
 }
 
-const TABS: { key: string; label: string }[] = [
-  { key: 'PENDING', label: 'Sin responder' },
-  { key: '', label: 'Todas' },
-  { key: 'CLOSED', label: 'Cerradas' },
+const TABS: { key: string; labelKey: 'pending' | 'all' | 'closed' }[] = [
+  { key: 'PENDING', labelKey: 'pending' },
+  { key: '', labelKey: 'all' },
+  { key: 'CLOSED', labelKey: 'closed' },
 ];
 
 const categoryLabel: Record<string, string> = {
@@ -98,11 +99,11 @@ function dayKey(iso: string): string {
   const d = new Date(iso);
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
-function dayLabel(iso: string): string {
+function dayLabel(iso: string, labels: { today: string; yesterday: string }): string {
   const d = new Date(iso);
   const diff = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
-  if (diff === 0) return 'Hoy';
-  if (diff === 1) return 'Ayer';
+  if (diff === 0) return labels.today;
+  if (diff === 1) return labels.yesterday;
   return d.toLocaleDateString('es-ES', {
     day: '2-digit',
     month: 'long',
@@ -111,7 +112,7 @@ function dayLabel(iso: string): string {
 }
 
 function contactTitle(c: { contactName: string | null; contactPhone: string | null; contactJid: string }): string {
-  return c.contactName || c.contactPhone || c.contactJid.split('@')[0] || 'Contacto';
+  return c.contactName || c.contactPhone || c.contactJid.split('@')[0] || '';
 }
 
 export function Inbox({
@@ -123,6 +124,11 @@ export function Inbox({
   mailUnread: number;
   imPending: number;
 }) {
+  const t = useTranslations('conv');
+  const tInbox = useTranslations('inbox');
+  const dayLabels = { today: t('today'), yesterday: t('yesterday') };
+  const titleOf = (c: { contactName: string | null; contactPhone: string | null; contactJid: string }) =>
+    contactTitle(c) || t('contactFallback');
   const [status, setStatus] = useState('PENDING');
   const [convs, setConvs] = useState<ConvRow[]>(initial);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -206,16 +212,16 @@ export function Inbox({
 
   async function sendMessage(text: string) {
     if (!thread) return;
-    const t = text.trim();
-    if (!t) return;
+    const body = text.trim();
+    if (!body) return;
     setSending(true);
     setSendError(null);
     try {
-      await apiFetch(`/conversations/${thread.id}/send`, { method: 'POST', json: { text: t } });
+      await apiFetch(`/conversations/${thread.id}/send`, { method: 'POST', json: { text: body } });
       setComposeText('');
       await Promise.all([loadList(status), loadThread(thread.id)]);
     } catch {
-      setSendError('No se pudo enviar. ¿El bot sigue conectado?');
+      setSendError(t('errorBot'));
     } finally {
       setSending(false);
     }
@@ -240,7 +246,7 @@ export function Inbox({
       setEditorKey((k) => k + 1); // remount editor → clears it
       await Promise.all([loadList(status), loadThread(thread.id)]);
     } catch {
-      setSendError('No se pudo enviar el email.');
+      setSendError(t('errorMail'));
     } finally {
       setSending(false);
     }
@@ -263,7 +269,7 @@ export function Inbox({
       });
       await Promise.all([loadList(status), loadThread(thread.id)]);
     } catch {
-      setSendError('No se pudo enviar el documento.');
+      setSendError(t('errorDoc'));
     } finally {
       setSending(false);
     }
@@ -297,18 +303,18 @@ export function Inbox({
         <InboxSwitch active="im" mailCount={mailUnread} imCount={imPending} />
       </div>
       <nav className="flex-1 space-y-0.5 p-2">
-        {TABS.map((t) => {
-          const active = status === t.key;
+        {TABS.map((tab) => {
+          const active = status === tab.key;
           return (
             <button
-              key={t.key || 'all'}
+              key={tab.key || 'all'}
               type="button"
-              onClick={() => { setStatus(t.key); setSelectedId(null); }}
-              className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm ${active ? 'bg-ink-900 text-white' : 'text-ink-700 hover:bg-ink-100'}`}
+              onClick={() => { setStatus(tab.key); setSelectedId(null); }}
+              className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs ${active ? 'bg-ink-300/50 font-medium text-ink-900' : 'text-ink-700 hover:bg-ink-100'}`}
             >
-              <span>{t.label}</span>
-              {t.key === 'PENDING' && pendingCount > 0 && (
-                <span className={`rounded-full px-1.5 text-[10px] font-semibold ${active ? 'bg-white/20 text-white' : 'bg-primary-600 text-white'}`}>
+              <span>{t(tab.labelKey)}</span>
+              {tab.key === 'PENDING' && pendingCount > 0 && (
+                <span className="rounded-full bg-primary-600 px-1.5 text-[10px] font-semibold text-white">
                   {pendingCount > 99 ? '99+' : pendingCount}
                 </span>
               )}
@@ -320,7 +326,7 @@ export function Inbox({
         href="/app/bots"
         className="mt-auto flex items-center gap-2 border-t border-ink-100 px-3 py-2 text-xs text-ink-500 hover:bg-ink-100 hover:text-ink-800"
       >
-        <Settings size={14} /> Canales conectados
+        <Settings size={14} /> {t('channels')}
       </Link>
     </div>
   );
@@ -330,10 +336,10 @@ export function Inbox({
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto">
         {convs.length === 0 ? (
-          <p className="p-4 text-sm text-ink-500">No hay conversaciones aquí.</p>
+          <p className="p-4 text-sm text-ink-500">{t('empty')}</p>
         ) : (
           convs.map((c) => {
-            const name = contactTitle(c);
+            const name = titleOf(c);
             return (
               <button
                 key={c.id}
@@ -357,7 +363,7 @@ export function Inbox({
                     )}
                   </div>
                   {c.status === 'PENDING' && (
-                    <span className="mt-0.5 inline-block text-[10px] font-medium text-amber-600">● Sin responder</span>
+                    <span className="mt-0.5 inline-block text-[10px] font-medium text-amber-600">● {t('pending')}</span>
                   )}
                 </div>
               </button>
@@ -372,7 +378,7 @@ export function Inbox({
   let lastDay = '';
   const threadNode = !thread ? (
     <div className="flex flex-1 items-center justify-center text-sm text-ink-500">
-      {selectedId ? 'Cargando…' : 'Selecciona una conversación.'}
+      {selectedId ? tInbox('loadingShort') : t('select')}
     </div>
   ) : (
     <>
@@ -382,14 +388,14 @@ export function Inbox({
             type="button"
             onClick={() => { setSelectedId(null); setThread(null); }}
             className="-ml-1 shrink-0 rounded p-1 text-ink-500 hover:bg-ink-100 lg:hidden"
-            aria-label="Volver"
+            aria-label={tInbox('back')}
           >
             <ArrowLeft size={18} />
           </button>
-          <Avatar name={contactTitle(thread)} size="sm" />
+          <Avatar name={titleOf(thread)} size="sm" />
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="truncate font-medium text-ink-900">{contactTitle(thread)}</span>
+              <span className="truncate font-medium text-ink-900">{titleOf(thread)}</span>
               <ChannelBadge channel={thread.channel} size={12} />
             </div>
             <div className="truncate text-xs text-ink-500">{thread.contactPhone ?? thread.contactJid}</div>
@@ -402,16 +408,16 @@ export function Inbox({
               className={buttonClass(showActions ? 'secondary' : 'ghost', 'flex items-center gap-1.5')}
               onClick={() => setShowActions((v) => !v)}
             >
-              <Zap size={14} /> Acciones
+              <Zap size={14} /> {t('actions')}
             </button>
           )}
           {thread.status === 'CLOSED' ? (
             <button type="button" disabled={busy} className={buttonClass('secondary')} onClick={() => setConvStatus(thread.id, 'reopen')}>
-              Reabrir
+              {t('reopen')}
             </button>
           ) : (
             <button type="button" disabled={busy} className={buttonClass('primary')} onClick={() => setConvStatus(thread.id, 'close')}>
-              Cerrar
+              {t('close')}
             </button>
           )}
         </div>
@@ -421,29 +427,29 @@ export function Inbox({
         <div className="space-y-3 border-b border-ink-100 bg-ink-100/20 px-4 py-3">
           <div className="flex flex-wrap gap-2">
             <Link href={`/app/tasks/new?leadId=${thread.lead.id}`} className={buttonClass('secondary')}>
-              + Tarea
+              {t('addTask')}
             </Link>
             <Link href={`/app/opportunities/new?leadId=${thread.lead.id}`} className={buttonClass('secondary')}>
-              + Oportunidad
+              {t('addOpportunity')}
             </Link>
           </div>
           <div className="rounded-md border border-ink-100 bg-white p-3">
-            <div className="mb-2 text-xs font-mono uppercase tracking-wider text-ink-500">Reunión IA</div>
+            <div className="mb-2 text-xs font-mono uppercase tracking-wider text-ink-500">{t('aiMeeting')}</div>
             <MeetingScheduler leadId={thread.lead.id} />
           </div>
         </div>
       )}
 
       <div ref={msgScrollRef} className="flex-1 space-y-1 overflow-y-auto bg-ink-100/20 p-4">
-        <div role="note" aria-label="Aviso de uso de IA" className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-          <strong>Aviso IA.</strong> Algunas respuestas de este chat pueden generarse automáticamente con un asistente de IA. Las marcadas con la etiqueta IA están generadas por el modelo.
+        <div role="note" aria-label={t('aiNoticeAria')} className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+          <strong>{t('aiNoticeTitle')}</strong> {t('aiNoticeBody')}
         </div>
         {thread.messages.map((m) => {
           const k = dayKey(m.createdAt);
-          const sep = k !== lastDay ? <DateSeparator label={dayLabel(m.createdAt)} /> : null;
+          const sep = k !== lastDay ? <DateSeparator label={dayLabel(m.createdAt, dayLabels)} /> : null;
           lastDay = k;
           const out = m.direction === 'OUT';
-          const who = out ? 'Tú' : contactTitle(thread);
+          const who = out ? t('you') : titleOf(thread);
           return (
             <Fragment key={m.id}>
               {sep}
@@ -476,9 +482,9 @@ export function Inbox({
         {showDocs && (
           <div className="max-h-40 overflow-y-auto rounded-md border border-ink-200">
             {docs === null ? (
-              <p className="p-2 text-xs text-ink-500">Cargando…</p>
+              <p className="p-2 text-xs text-ink-500">{tInbox('loadingShort')}</p>
             ) : docs.length === 0 ? (
-              <p className="p-2 text-xs text-ink-500">No tienes documentos subidos.</p>
+              <p className="p-2 text-xs text-ink-500">{t('docsNone')}</p>
             ) : (
               docs.map((d) => (
                 <button
@@ -498,7 +504,7 @@ export function Inbox({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <button type="button" onClick={() => void toggleDocs()} disabled={sending} className="rounded-md border border-ink-300 px-2 py-1 text-xs hover:bg-ink-100">
-                📎 Adjuntar
+                📎 {tInbox('attach')}
               </button>
               <TemplatePicker
                 onPick={(t) => {
@@ -514,7 +520,7 @@ export function Inbox({
                 {emailAttachments.map((a) => (
                   <span key={a.id} className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2 py-0.5 text-xs text-ink-700">
                     📎 {a.name}
-                    <button type="button" onClick={() => setEmailAttachments((prev) => prev.filter((x) => x.id !== a.id))} className="text-ink-400 hover:text-red-600" aria-label="Quitar adjunto">✕</button>
+                    <button type="button" onClick={() => setEmailAttachments((prev) => prev.filter((x) => x.id !== a.id))} className="text-ink-400 hover:text-red-600" aria-label={tInbox('removeAttachment')}>✕</button>
                   </span>
                 ))}
               </div>
@@ -526,13 +532,13 @@ export function Inbox({
                 className={buttonClass('primary')}
                 onClick={() => void sendEmail(composeHtml)}
               >
-                {sending ? 'Enviando…' : 'Enviar correo'}
+                {sending ? tInbox('sending') : tInbox('sendMail')}
               </button>
             </div>
           </div>
         ) : (
           <div className="flex items-end gap-2">
-            <button type="button" onClick={() => void toggleDocs()} disabled={sending} title="Adjuntar un documento" className="shrink-0 rounded-md border border-ink-300 px-2 py-2 text-sm hover:bg-ink-100">
+            <button type="button" onClick={() => void toggleDocs()} disabled={sending} title={tInbox('attachTitle')} className="shrink-0 rounded-md border border-ink-300 px-2 py-2 text-sm hover:bg-ink-100">
               📎
             </button>
             <textarea
@@ -545,11 +551,11 @@ export function Inbox({
                 }
               }}
               rows={1}
-              placeholder="Escribe un mensaje… (emojis 🙂, Enter para enviar)"
+              placeholder={t('msgPlaceholder')}
               className="flex-1 resize-none rounded-md border-ink-300 text-sm focus:border-primary-500 focus:ring-primary-500"
             />
             <button type="button" disabled={sending || !composeText.trim()} className={buttonClass('primary')} onClick={() => void sendMessage(composeText)}>
-              {sending ? '…' : 'Enviar'}
+              {sending ? '…' : tInbox('send')}
             </button>
           </div>
         )}
@@ -557,7 +563,7 @@ export function Inbox({
 
         {lastSuggestion?.aiSuggestedReply && (
           <div className="rounded-md border border-primary-200 bg-primary-50 p-2 text-sm">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-primary-700">💡 Respuesta sugerida por IA</div>
+            <div className="text-[10px] font-mono uppercase tracking-wider text-primary-700">💡 {t('suggested')}</div>
             <p className="mt-1 whitespace-pre-wrap text-ink-900">{lastSuggestion.aiSuggestedReply}</p>
             <div className="mt-2 flex items-center gap-2">
               <button
@@ -570,7 +576,7 @@ export function Inbox({
                   else void sendMessage(s);
                 }}
               >
-                Enviar
+                {tInbox('send')}
               </button>
               <button
                 type="button"
@@ -585,7 +591,7 @@ export function Inbox({
                   }
                 }}
               >
-                Editar
+                {t('edit')}
               </button>
               <CopyButton value={lastSuggestion.aiSuggestedReply} />
             </div>
@@ -598,13 +604,13 @@ export function Inbox({
   // ---- column: contact details ----
   const detailsNode = thread ? (
     <ContactPanel
-      name={contactTitle(thread)}
+      name={titleOf(thread)}
       sub={thread.contactPhone ?? thread.contactJid}
       fields={[
-        { label: 'Canal', value: <ChannelBadge channel={thread.channel} size={12} showLabel /> },
-        { label: 'Estado', value: thread.status === 'CLOSED' ? 'Cerrada' : thread.status === 'PENDING' ? 'Sin responder' : 'Abierta' },
+        { label: t('channel'), value: <ChannelBadge channel={thread.channel} size={12} showLabel /> },
+        { label: t('state'), value: thread.status === 'CLOSED' ? t('stateClosed') : thread.status === 'PENDING' ? t('pending') : t('stateOpen') },
         {
-          label: 'Lead',
+          label: t('lead'),
           value: thread.lead ? (
             <button
               type="button"
@@ -615,7 +621,7 @@ export function Inbox({
               {thread.lead.score != null && ` (${thread.lead.score})`}
             </button>
           ) : (
-            'Sin lead'
+            t('noLead')
           ),
         },
       ]}
