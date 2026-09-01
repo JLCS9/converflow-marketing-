@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, Textarea, buttonClass } from '@/components/ui/primitives';
 import { EntityPicker } from '@/components/ui/entity-picker';
 import { useFeedback } from '@/components/ui/feedback';
 import { useUnsavedWarning } from '@/lib/use-unsaved-warning';
-import { TASK_TYPE, PRIORITY } from '@/lib/labels';
+import { useLabelMaps } from '@/lib/use-labels';
 
 export function CreateTaskForm({
   defaultLeadId,
@@ -24,6 +25,8 @@ export function CreateTaskForm({
   defaultOpportunityId?: string;
   defaultOpportunityName?: string;
 } = {}) {
+  const tToasts = useTranslations('toasts');
+  const { TASK_TYPE, PRIORITY } = useLabelMaps();
   const router = useRouter();
   const { confirm, toast } = useFeedback();
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +73,7 @@ export function CreateTaskForm({
           startTransition(async () => {
             try {
               await apiFetch('/tasks', { method: 'POST', json: payload });
-              toast.success('Tarea creada');
+              toast.success(tToasts('taskCreated'));
               router.push('/app/tasks');
             } catch (err) {
               setError(err instanceof ApiError ? err.message : 'Error inesperado');

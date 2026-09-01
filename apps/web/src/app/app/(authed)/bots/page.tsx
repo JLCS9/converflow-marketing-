@@ -4,7 +4,8 @@ import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TabBar, IA_TABS } from '@/components/ui/tab-bar';
-import { BOT_STATUS, BOT_STATUS_COLOR, CHANNEL, statusColor, statusLabel } from '@/lib/labels';
+import { BOT_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
+import { getLabelMaps } from '@/lib/get-labels';
 
 interface BotRow {
   id: string;
@@ -20,6 +21,7 @@ interface BotRow {
 export const metadata = { title: 'Bots' };
 
 export default async function BotsPage() {
+  const { BOT_STATUS, CHANNEL } = await getLabelMaps();
   const bots = await serverApiFetch<BotRow[]>('/bots');
 
   return (

@@ -25,14 +25,8 @@ import { useSession } from '@/lib/session-context';
 import { useFeedback } from '@/components/ui/feedback';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { Avatar } from '@/components/ui/inbox-kit';
-import {
-  TASK_STATUS,
-  TASK_STATUS_COLOR,
-  TASK_TYPE,
-  PRIORITY,
-  PRIORITY_COLOR,
-  statusColor,
-} from '@/lib/labels';
+import { TASK_STATUS_COLOR, PRIORITY_COLOR, statusColor } from '@/lib/labels';
+import { useLabelMaps } from '@/lib/use-labels';
 
 interface Ref {
   id: string;
@@ -96,6 +90,7 @@ export function TasksWorkspace({
   assignees: Ref[];
 }) {
   const t = useTranslations();
+  const { TASK_STATUS, TASK_TYPE, PRIORITY } = useLabelMaps();
   const session = useSession();
   const fb = useFeedback();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
@@ -132,7 +127,7 @@ export function TasksWorkspace({
       await apiFetch(`/tasks/${id}`, { method: 'PATCH', json: data });
       await load();
     } catch {
-      fb.toast.error('No se pudo actualizar la tarea');
+      fb.toast.error(t('toasts.taskUpdateError'));
     } finally {
       setBusyId(null);
     }
@@ -142,10 +137,10 @@ export function TasksWorkspace({
     if (!ok) return;
     try {
       await apiFetch(`/tasks/${task.id}`, { method: 'DELETE' });
-      fb.toast.success('Tarea eliminada');
+      fb.toast.success(t('toasts.taskDeleted'));
       await load();
     } catch {
-      fb.toast.error('No se pudo eliminar');
+      fb.toast.error(t('toasts.deleteError'));
     }
   }
 

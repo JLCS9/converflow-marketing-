@@ -28,7 +28,8 @@ import { Avatar } from '@/components/ui/inbox-kit';
 import { CustomFieldsForm } from '@/components/custom-fields/form';
 import { CustomFieldsView } from '@/components/custom-fields/view';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
-import { LEAD_STATUS_OPTIONS, OPP_STATUS, OPP_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
+import { OPP_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
+import { useLabelMaps } from '@/lib/use-labels';
 import { LeadNotes, type LeadNote } from './lead-notes';
 import { LeadTimeline, type TimelineEvent } from './lead-timeline';
 
@@ -160,6 +161,7 @@ function Hero({
   onChanged: () => void;
 }) {
   const t = useTranslations();
+  const { LEAD_STATUS_OPTIONS, OPP_STATUS } = useLabelMaps();
   const router = useRouter();
   const { confirm, toast } = useFeedback();
   const [aiOpen, setAiOpen] = useState(false);
@@ -174,10 +176,10 @@ function Hero({
     startTransition(async () => {
       try {
         await apiFetch(`/leads/${lead.id}`, { method: 'PATCH', json: { status } });
-        toast.success('Estado actualizado');
+        toast.success(t('toasts.statusUpdated'));
         onChanged();
       } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'No se pudo guardar');
+        toast.error(err instanceof ApiError ? err.message : t('toasts.saveError'));
       }
     });
   }
@@ -224,10 +226,10 @@ function Hero({
     if (!ok) return;
     try {
       await apiFetch(`/leads/${lead.id}`, { method: 'DELETE' });
-      toast.success('Lead eliminado permanentemente');
+      toast.success(t('toasts.leadDeleted'));
       router.replace('/app/contacts');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'No se pudo eliminar');
+      toast.error(err instanceof ApiError ? err.message : t('toasts.deleteError'));
     }
   }
 
@@ -389,6 +391,7 @@ function InfoZone({
   definitions: CustomFieldDefinition[];
   onChanged: () => void;
 }) {
+  const { OPP_STATUS } = useLabelMaps();
   const t = useTranslations();
   const { toast } = useFeedback();
   const active = definitions.filter((d) => d.entityType === 'LEAD' && !d.archivedAt);
@@ -426,11 +429,11 @@ function InfoZone({
           ...(active.length ? { customFields: cfDraft } : {}),
         },
       });
-      toast.success('Cambios guardados');
+      toast.success(t('toasts.saved'));
       setEditing(false);
       onChanged();
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : 'No se pudo guardar';
+      const msg = e instanceof ApiError ? e.message : t('toasts.saveError');
       setErr(msg);
       toast.error(msg);
     } finally {

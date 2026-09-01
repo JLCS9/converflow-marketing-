@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
@@ -41,6 +42,7 @@ export function OpportunityEdit({
   opp: Opp;
   pipeline: Pipeline | null;
 }) {
+  const tToasts = useTranslations('toasts');
   const router = useRouter();
   const { toast } = useFeedback();
   const [editing, setEditing] = useState(false);
@@ -72,7 +74,7 @@ export function OpportunityEdit({
           stageId: form.stageId || undefined,
         },
       });
-      toast.success('Cambios guardados');
+      toast.success(tToasts('saved'));
       setEditing(false);
       router.refresh();
     } catch (e) {
@@ -93,7 +95,7 @@ export function OpportunityEdit({
         method: 'PATCH',
         json: { stageId },
       });
-      toast.success('Etapa actualizada');
+      toast.success(tToasts('stageUpdated'));
       router.refresh();
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : 'No se pudo mover';

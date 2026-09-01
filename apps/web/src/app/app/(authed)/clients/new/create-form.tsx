@@ -1,16 +1,19 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
 import { CustomFieldsForm } from '@/components/custom-fields/form';
 import { useFeedback } from '@/components/ui/feedback';
 import { useUnsavedWarning } from '@/lib/use-unsaved-warning';
-import { CLIENT_STATUS } from '@/lib/labels';
+import { useLabelMaps } from '@/lib/use-labels';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
 export function CreateClientForm({ customFields }: { customFields: CustomFieldDefinition[] }) {
+  const tToasts = useTranslations('toasts');
+  const { CLIENT_STATUS } = useLabelMaps();
   const router = useRouter();
   const { confirm, toast } = useFeedback();
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +62,7 @@ export function CreateClientForm({ customFields }: { customFields: CustomFieldDe
                 method: 'POST',
                 json: payload,
               });
-              toast.success('Cliente creado');
+              toast.success(tToasts('clientCreated'));
               router.push(`/app/clients/${c.id}`);
             } catch (err) {
               setSubmitting(false);

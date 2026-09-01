@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { Check, X } from 'lucide-react';
 import { Card } from '@/components/ui/primitives';
@@ -28,6 +29,7 @@ export function OnboardingChecklist({ steps }: { steps: OnboardingStep[] }) {
     setDismissed(localStorage.getItem(DISMISS_KEY) === '1');
   }, []);
 
+  const t = useTranslations('onboarding');
   const allDone = steps.every((s) => s.done);
   if (dismissed === null) return null; // first paint, don't flash
   if (allDone || dismissed) return null;
@@ -39,15 +41,15 @@ export function OnboardingChecklist({ steps }: { steps: OnboardingStep[] }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-mono uppercase tracking-wider text-primary-700">
-            Empieza por aquí
+            {t('title')}
           </h2>
           <p className="mt-1 text-sm text-ink-700">
-            Completa estos pasos para tener tu Converflow funcionando. {doneCount} de {steps.length} hecho.
+            {t('subtitle', { done: doneCount, total: steps.length })}
           </p>
         </div>
         <button
           type="button"
-          aria-label="Cerrar guía de inicio"
+          aria-label={t('closeAria')}
           className="rounded p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-700"
           onClick={() => {
             localStorage.setItem(DISMISS_KEY, '1');

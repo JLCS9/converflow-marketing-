@@ -17,7 +17,7 @@ import { useFeedback } from '@/components/ui/feedback';
 import { Field, Input, Select, Textarea, buttonClass } from '@/components/ui/primitives';
 import { Avatar } from '@/components/ui/inbox-kit';
 import { EntityPicker } from '@/components/ui/entity-picker';
-import { TASK_TYPE, TASK_STATUS, PRIORITY } from '@/lib/labels';
+import { useLabelMaps } from '@/lib/use-labels';
 
 export interface DrawerTask {
   id: string;
@@ -84,6 +84,7 @@ export function TaskDrawer({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { TASK_TYPE, TASK_STATUS, PRIORITY } = useLabelMaps();
   const t = useTranslations();
   const fb = useFeedback();
   const editing = !!task;
@@ -112,7 +113,7 @@ export function TaskDrawer({
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!title.trim()) {
-      fb.toast.error('El título es obligatorio');
+      fb.toast.error(t('toasts.titleRequired'));
       return;
     }
     const data = new FormData(e.currentTarget);
@@ -136,7 +137,7 @@ export function TaskDrawer({
         fb.toast.success(editing ? 'Tarea actualizada' : 'Tarea creada');
         onSaved();
       } catch {
-        fb.toast.error('No se pudo guardar la tarea');
+        fb.toast.error(t('toasts.taskSaveError'));
         setSaving(false);
       }
     })();

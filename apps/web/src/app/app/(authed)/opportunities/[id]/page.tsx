@@ -8,7 +8,8 @@ import { OpportunityNotes } from './opportunity-notes';
 import { OpportunityDelete } from './opportunity-delete';
 import { CustomFieldsCard } from '@/components/custom-fields/card';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
-import { LEAD_STATUS, LEAD_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
+import { LEAD_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
+import { getLabelMaps } from '@/lib/get-labels';
 
 interface Note {
   id: string;
@@ -93,6 +94,7 @@ export default async function OpportunityDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { LEAD_STATUS } = await getLabelMaps();
   const t = await getTranslations();
   const { id } = await params;
   let opp: OppDetail;

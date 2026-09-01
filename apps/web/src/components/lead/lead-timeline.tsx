@@ -13,7 +13,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { CHANNEL, OPP_STATUS, statusLabel } from '@/lib/labels';
+import { statusLabel } from '@/lib/labels';
+import { useLabelMaps, } from '@/lib/use-labels';
+import type { LabelMaps } from '@/lib/label-maps';
 
 /**
  * Contrato abierto del timeline. El backend deriva eventos de datos
@@ -33,7 +35,7 @@ interface EventMeta {
   tone: string; // clases del círculo del icono
   title: string;
   /** Línea secundaria específica del tipo; los renderers toleran payload incompleto. */
-  detail?: (payload: Record<string, unknown>) => React.ReactNode;
+  detail?: (payload: Record<string, unknown>, maps: LabelMaps) => React.ReactNode;
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
@@ -63,7 +65,7 @@ const EVENT_META: Record<string, EventMeta> = {
     icon: Target,
     tone: 'bg-amber-100 text-amber-700',
     title: 'Oportunidad creada',
-    detail: (p) => {
+    detail: (p, maps) => {
       const id = str(p.opportunityId);
       const name = str(p.name) ?? 'Oportunidad';
       const status = str(p.status);
@@ -76,7 +78,7 @@ const EVENT_META: Record<string, EventMeta> = {
           ) : (
             name
           )}
-          {status && <span className="ml-1.5 text-ink-400">· {statusLabel(OPP_STATUS, status)}</span>}
+          {status && <span className="ml-1.5 text-ink-400">· {statusLabel(maps.OPP_STATUS, status)}</span>}
         </>
       );
     },
@@ -107,12 +109,12 @@ const EVENT_META: Record<string, EventMeta> = {
     icon: MessageCircle,
     tone: 'bg-cyan-100 text-cyan-700',
     title: 'Conversación iniciada',
-    detail: (p) => {
+    detail: (p, maps) => {
       const channel = str(p.channel);
       // La bandeja no soporta deep-link por conversación todavía: enlazamos a la vista.
       return (
         <Link href="/app/conversations" className="text-primary-700 hover:underline">
-          {channel ? statusLabel(CHANNEL, channel) : 'Canal desconocido'}
+          {channel ? statusLabel(maps.CHANNEL, channel) : '—'}
         </Link>
       );
     },
@@ -145,6 +147,7 @@ function dateLabel(iso: string): string {
 
 export function LeadTimeline({ events }: { events: TimelineEvent[] }) {
   const t = useTranslations('leadCard');
+  const maps = useLabelMaps();
   if (!events.length) {
     return <p className="text-sm text-ink-500">{t('noActivity')}</p>;
   }
@@ -155,7 +158,7 @@ export function LeadTimeline({ events }: { events: TimelineEvent[] }) {
         const Icon = (meta ?? FALLBACK_META).icon;
         const tone = (meta ?? FALLBACK_META).tone;
         const title = meta?.title ?? humanize(ev.type);
-        const detail = meta?.detail ? meta.detail(ev.payload) : fallbackDetail(ev.payload);
+        const detail = meta?.detail ? meta.detail(ev.payload, maps) : fallbackDetail(ev.payload);
         return (
           <li key={`${ev.type}-${ev.date}-${i}`} className="relative flex gap-3">
             <span

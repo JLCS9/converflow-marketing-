@@ -8,10 +8,12 @@ import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primiti
 import { CustomFieldsForm } from '@/components/custom-fields/form';
 import { useFeedback } from '@/components/ui/feedback';
 import { useUnsavedWarning } from '@/lib/use-unsaved-warning';
-import { LEAD_STATUS_OPTIONS } from '@/lib/labels';
+import { useLabelMaps } from '@/lib/use-labels';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 
 export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefinition[] }) {
+  const tToasts = useTranslations('toasts');
+  const { LEAD_STATUS_OPTIONS } = useLabelMaps();
   const t = useTranslations();
   const router = useRouter();
   const { confirm, toast } = useFeedback();
@@ -61,7 +63,7 @@ export function CreateLeadForm({ customFields }: { customFields: CustomFieldDefi
                 method: 'POST',
                 json: payload,
               });
-              toast.success('Lead creado');
+              toast.success(tToasts('leadCreated'));
               router.push(`/app/leads/${lead.id}`);
             } catch (err) {
               setSubmitting(false);

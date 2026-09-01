@@ -4,7 +4,8 @@ import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TabBar, IA_TABS } from '@/components/ui/tab-bar';
-import { AGENT_STATUS, AGENT_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
+import { AGENT_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
+import { getLabelMaps } from '@/lib/get-labels';
 
 interface AgentRow {
   id: string;
@@ -31,6 +32,7 @@ const TYPE_COLOR: Record<AgentRow['type'], 'green' | 'blue' | 'yellow'> = {
 export const metadata = { title: 'Agentes IA' };
 
 export default async function AgentsPage() {
+  const { AGENT_STATUS } = await getLabelMaps();
   const agents = await serverApiFetch<AgentRow[]>('/agents');
 
   return (

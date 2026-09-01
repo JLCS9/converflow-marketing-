@@ -9,6 +9,7 @@ import { CopyButton } from '@/components/ui/copy-button';
 import { useFeedback } from '@/components/ui/feedback';
 import { Avatar } from '@/components/ui/inbox-kit';
 import { useSession } from '@/lib/session-context';
+import { useLabelMaps } from '@/lib/use-labels';
 
 export interface LeadNote {
   id: string;
@@ -33,15 +34,6 @@ const categoryColor: Record<string, 'gray' | 'green' | 'yellow' | 'red' | 'blue'
   OTHER: 'gray',
 };
 
-const categoryLabel: Record<string, string> = {
-  BUY_INTENT: 'Intención de compra',
-  OBJECTION: 'Objeción',
-  INFO_REQUEST: 'Pide info',
-  COMPLAINT: 'Queja',
-  SCHEDULING: 'Agendar',
-  OFF_TOPIC: 'Off-topic',
-  OTHER: 'Otro',
-};
 
 const sentimentEmoji: Record<string, string> = {
   POSITIVE: '😊',
@@ -74,6 +66,7 @@ export function LeadNotes({
   onChanged: () => void;
 }) {
   const session = useSession();
+  const { NOTE_CATEGORY } = useLabelMaps();
   const t = useTranslations('leadCard');
   const { confirm, toast } = useFeedback();
   const [draft, setDraft] = useState('');
@@ -133,7 +126,7 @@ export function LeadNotes({
                     <div className="mt-2 space-y-1.5 rounded-lg bg-ink-100/50 p-2 text-xs">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Badge color={categoryColor[note.aiCategory] ?? 'gray'}>
-                          {categoryLabel[note.aiCategory] ?? note.aiCategory}
+                          {NOTE_CATEGORY[note.aiCategory] ?? note.aiCategory}
                         </Badge>
                         {note.aiSentiment && (
                           <span className="font-mono">{sentimentEmoji[note.aiSentiment] ?? ''}</span>

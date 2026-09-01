@@ -11,7 +11,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Search, X } from 'lucide-react';
 import { Card } from '@/components/ui/primitives';
-import { LEAD_STATUS_OPTIONS } from '@/lib/labels';
+import { useLabelMaps } from '@/lib/use-labels';
 
 export interface OwnerOption {
   id: string;
@@ -22,6 +22,7 @@ const selectCls =
   'rounded-md border border-ink-200 bg-white py-1.5 pl-2 pr-8 text-xs text-ink-700 focus:border-ink-700 focus:outline-none disabled:opacity-40';
 
 export function ContactsFilters({ owners }: { owners: OwnerOption[] }) {
+  const { LEAD_STATUS_OPTIONS } = useLabelMaps();
   const t = useTranslations();
   const router = useRouter();
   const pathname = usePathname();

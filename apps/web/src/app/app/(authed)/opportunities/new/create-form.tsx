@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
@@ -24,6 +25,7 @@ export function CreateOpportunityForm({
   customFields,
   pipelines,
 }: Props) {
+  const tToasts = useTranslations('toasts');
   const router = useRouter();
   const { confirm, toast } = useFeedback();
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +95,7 @@ export function CreateOpportunityForm({
                 method: 'POST',
                 json: payload,
               });
-              toast.success('Oportunidad creada');
+              toast.success(tToasts('oppCreated'));
               router.push(`/app/opportunities/${opp.id}`);
             } catch (err) {
               setSubmitting(false);

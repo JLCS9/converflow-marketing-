@@ -1,5 +1,5 @@
 import { MessageCircle, Mail, MessageSquare, Camera } from 'lucide-react';
-import { CHANNEL } from '@/lib/labels';
+import { useLabelMaps } from '@/lib/use-labels';
 
 interface Props {
   channel: string;
@@ -26,6 +26,7 @@ const STYLE: Record<string, string> = {
 };
 
 export function ChannelBadge({ channel, size = 14, showLabel = false, className }: Props) {
+  const { CHANNEL } = useLabelMaps();
   const Icon = ICON[channel] ?? MessageSquare;
   const style = STYLE[channel] ?? 'bg-ink-100 text-ink-700';
   const label = CHANNEL[channel] ?? channel;

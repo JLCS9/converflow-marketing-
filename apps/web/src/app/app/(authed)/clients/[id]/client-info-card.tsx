@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Field, Input, Select, buttonClass } from '@/components/ui/primitives';
 import { useFeedback } from '@/components/ui/feedback';
-import { CLIENT_STATUS } from '@/lib/labels';
+import { useLabelMaps } from '@/lib/use-labels';
 
 interface ClientInfo {
   id: string;
@@ -21,6 +22,8 @@ interface ClientInfo {
 const STATUSES = ['ACTIVE', 'INACTIVE', 'ARCHIVED'] as const;
 
 export function ClientInfoCard({ client }: { client: ClientInfo }) {
+  const tToasts = useTranslations('toasts');
+  const { CLIENT_STATUS } = useLabelMaps();
   const router = useRouter();
   const { toast, confirm } = useFeedback();
   const [editing, setEditing] = useState(false);
@@ -51,7 +54,7 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
           status: form.status,
         },
       });
-      toast.success('Cambios guardados');
+      toast.success(tToasts('saved'));
       setEditing(false);
       router.refresh();
     } catch (e) {
@@ -158,7 +161,7 @@ export function ClientInfoCard({ client }: { client: ClientInfo }) {
     startDeleting(async () => {
       try {
         await apiFetch(`/clients/${client.id}`, { method: 'DELETE' });
-        toast.success('Cliente eliminado permanentemente');
+        toast.success(tToasts('clientDeleted'));
         router.replace('/app/clients');
       } catch (err) {
         toast.error(err instanceof ApiError ? err.message : 'No se pudo eliminar');

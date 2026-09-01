@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { buttonClass } from '@/components/ui/primitives';
 import { useFeedback } from '@/components/ui/feedback';
 
 export function OpportunityDelete({ opportunityId }: { opportunityId: string }) {
+  const tToasts = useTranslations('toasts');
   const router = useRouter();
   const { confirm, toast } = useFeedback();
   const [busy, setBusy] = useState(false);
@@ -25,7 +27,7 @@ export function OpportunityDelete({ opportunityId }: { opportunityId: string }) 
         setBusy(true);
         try {
           await apiFetch(`/opportunities/${opportunityId}`, { method: 'DELETE' });
-          toast.success('Oportunidad eliminada');
+          toast.success(tToasts('oppDeleted'));
           router.replace('/app/opportunities');
         } catch (e) {
           toast.error(e instanceof ApiError ? e.message : 'No se pudo eliminar');

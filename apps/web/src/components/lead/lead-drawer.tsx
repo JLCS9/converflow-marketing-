@@ -6,7 +6,8 @@ import { useTranslations } from 'next-intl';
 import { ExternalLink, X } from 'lucide-react';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Badge } from '@/components/ui/primitives';
-import { LEAD_STATUS, LEAD_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
+import { LEAD_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
+import { useLabelMaps } from '@/lib/use-labels';
 import type { CustomFieldDefinition } from '@/components/custom-fields/types';
 import { LeadCard, type LeadCardData } from './lead-card';
 import type { TimelineEvent } from './lead-timeline';
@@ -17,6 +18,7 @@ import type { TimelineEvent } from './lead-timeline';
  * misma tarjeta, mismo componente, con enlace a la página completa.
  */
 export function LeadDrawer({ leadId, onClose }: { leadId: string; onClose: () => void }) {
+  const { LEAD_STATUS } = useLabelMaps();
   const t = useTranslations();
   const [lead, setLead] = useState<LeadCardData | null>(null);
   const [definitions, setDefinitions] = useState<CustomFieldDefinition[]>([]);

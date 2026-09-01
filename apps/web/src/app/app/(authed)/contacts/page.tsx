@@ -5,13 +5,8 @@ import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TabBar, CRM_TABS } from '@/components/ui/tab-bar';
-import {
-  LEAD_STATUS,
-  LEAD_STATUS_COLOR,
-  CLIENT_STATUS,
-  statusColor,
-  statusLabel,
-} from '@/lib/labels';
+import { LEAD_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
+import { getLabelMaps } from '@/lib/get-labels';
 import { ContactsFilters, type OwnerOption } from './contacts-filters';
 
 /**
@@ -86,6 +81,7 @@ export default async function ContactsPage({
     page?: string;
   }>;
 }) {
+  const { LEAD_STATUS, CLIENT_STATUS } = await getLabelMaps();
   const t = await getTranslations();
   const params = await searchParams;
   // El tipo lo define el Estado: Lead/Perdido → solo leads; Cliente → leads

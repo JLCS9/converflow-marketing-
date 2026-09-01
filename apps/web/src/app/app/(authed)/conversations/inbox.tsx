@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { useLabelMaps } from '@/lib/use-labels';
 import Link from 'next/link';
 import { ArrowLeft, Zap, Settings } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
@@ -65,15 +66,6 @@ const TABS: { key: string; labelKey: 'pending' | 'all' | 'closed' }[] = [
   { key: 'CLOSED', labelKey: 'closed' },
 ];
 
-const categoryLabel: Record<string, string> = {
-  BUY_INTENT: 'Intención de compra',
-  OBJECTION: 'Objeción',
-  INFO_REQUEST: 'Pide info',
-  COMPLAINT: 'Queja',
-  SCHEDULING: 'Agendar',
-  OFF_TOPIC: 'Off-topic',
-  OTHER: 'Otro',
-};
 const categoryColor: Record<string, 'gray' | 'green' | 'yellow' | 'red' | 'blue'> = {
   BUY_INTENT: 'green',
   OBJECTION: 'yellow',
@@ -125,6 +117,7 @@ export function Inbox({
   imPending: number;
 }) {
   const t = useTranslations('conv');
+  const { NOTE_CATEGORY } = useLabelMaps();
   const tInbox = useTranslations('inbox');
   const dayLabels = { today: t('today'), yesterday: t('yesterday') };
   const titleOf = (c: { contactName: string | null; contactPhone: string | null; contactJid: string }) =>
@@ -468,7 +461,7 @@ export function Inbox({
                   <div className={`mt-1 flex items-center gap-2 text-[10px] ${out ? 'text-primary-100' : 'text-ink-400'}`}>
                     <span>{timeLabel(m.createdAt)}</span>
                     {m.aiCategory && (
-                      <Badge color={categoryColor[m.aiCategory] ?? 'gray'}>{categoryLabel[m.aiCategory] ?? m.aiCategory}</Badge>
+                      <Badge color={categoryColor[m.aiCategory] ?? 'gray'}>{NOTE_CATEGORY[m.aiCategory] ?? m.aiCategory}</Badge>
                     )}
                   </div>
                 </div>

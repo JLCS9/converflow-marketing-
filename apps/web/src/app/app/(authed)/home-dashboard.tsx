@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import {
   MessageCircle,
@@ -74,31 +75,31 @@ export interface DashboardData {
 // Two-column grid: cards are 'half' (one column) or 'full' (both columns).
 type Size = 'sm' | 'lg';
 interface WidgetItem { id: string; size: Size }
-interface WidgetDef { id: string; title: string; perm?: PermissionModule; defaultOn: boolean; size: Size }
+interface WidgetDef { id: string; titleKey: string; perm?: PermissionModule; defaultOn: boolean; size: Size }
 
 const WIDGETS: WidgetDef[] = [
-  { id: 'alerts', title: 'Alertas', defaultOn: true, size: 'sm' },
-  { id: 'pending-mail', title: 'Correo por contestar', perm: 'conversations', defaultOn: true, size: 'sm' },
-  { id: 'my-tasks', title: 'Mis tareas', perm: 'crm', defaultOn: true, size: 'sm' },
-  { id: 'my-conversations', title: 'Mis conversaciones', perm: 'conversations', defaultOn: true, size: 'sm' },
-  { id: 'unread-mail', title: 'Correo sin leer', perm: 'conversations', defaultOn: false, size: 'sm' },
-  { id: 'kpis', title: 'Indicadores (KPIs)', perm: 'crm', defaultOn: true, size: 'lg' },
-  { id: 'queue', title: 'Tu cola de hoy', defaultOn: false, size: 'sm' },
-  { id: 'ai-week', title: 'Tu IA esta semana', perm: 'agents', defaultOn: true, size: 'lg' },
-  { id: 'funnel', title: 'Embudo de leads', perm: 'crm', defaultOn: true, size: 'sm' },
-  { id: 'sources', title: 'Leads por fuente', perm: 'crm', defaultOn: false, size: 'sm' },
-  { id: 'recent-docs', title: 'Documentos recientes', perm: 'documents', defaultOn: false, size: 'sm' },
+  { id: 'alerts', titleKey: 'wAlerts', defaultOn: true, size: 'sm' },
+  { id: 'pending-mail', titleKey: 'wPendingMail', perm: 'conversations', defaultOn: true, size: 'sm' },
+  { id: 'my-tasks', titleKey: 'wMyTasks', perm: 'crm', defaultOn: true, size: 'sm' },
+  { id: 'my-conversations', titleKey: 'wMyConvs', perm: 'conversations', defaultOn: true, size: 'sm' },
+  { id: 'unread-mail', titleKey: 'wUnreadMail', perm: 'conversations', defaultOn: false, size: 'sm' },
+  { id: 'kpis', titleKey: 'wKpis', perm: 'crm', defaultOn: true, size: 'lg' },
+  { id: 'queue', titleKey: 'wQueue', defaultOn: false, size: 'sm' },
+  { id: 'ai-week', titleKey: 'wAiWeek', perm: 'agents', defaultOn: true, size: 'lg' },
+  { id: 'funnel', titleKey: 'wFunnel', perm: 'crm', defaultOn: true, size: 'sm' },
+  { id: 'sources', titleKey: 'wSources', perm: 'crm', defaultOn: false, size: 'sm' },
+  { id: 'recent-docs', titleKey: 'wRecentDocs', perm: 'documents', defaultOn: false, size: 'sm' },
 ];
 
 // Literal span classes so Tailwind JIT keeps them. Grid base: md:2 cols.
 const SIZE_SPAN: Record<Size, string> = { sm: '', lg: 'md:col-span-2' };
 const NEXT_SIZE: Record<Size, Size> = { sm: 'lg', lg: 'sm' };
-const SIZE_LABEL: Record<Size, string> = { sm: 'Media', lg: 'Ancha' };
+const SIZE_KEY = { sm: 'sizeSm', lg: 'sizeLg' } as const;
 
 // ---- helpers ----
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
-const leadStatusLabel: Record<string, string> = { NEW: 'Nuevo', CONTACTED: 'Contactado', QUALIFIED: 'Cualificado', CONVERTED: 'Convertido', LOST: 'Perdido' };
+const FUNNEL_KEY: Record<string, string> = { NEW: 'fNew', CONTACTED: 'fContacted', QUALIFIED: 'fQualified', CONVERTED: 'fConverted', LOST: 'fLost' };
 const leadStatusColor: Record<string, string> = { NEW: 'bg-ink-300', CONTACTED: 'bg-blue-400', QUALIFIED: 'bg-amber-400', CONVERTED: 'bg-green-500', LOST: 'bg-red-400' };
 const alertIcon: Record<string, LucideIcon> = { LEAD_STALE: Clock, OPPORTUNITY_DUE: Target, TASK_OVERDUE: ListChecks, HIGH_SCORE_LEAD: Flame };
 const toneChip: Record<string, string> = { blue: 'bg-blue-100 text-blue-800', red: 'bg-red-100 text-red-800', amber: 'bg-amber-100 text-amber-800', green: 'bg-green-100 text-green-800', gray: 'bg-ink-100 text-ink-500' };
@@ -111,11 +112,11 @@ function resourceHref(a: AlertItem): string {
   if (a.resourceType === 'opportunity') return `/app/opportunities/${a.resourceId}`;
   return '/app/tasks';
 }
-function greeting(): string {
+function greeting(g: { morning: string; afternoon: string; evening: string }): string {
   const hour = Number(new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', hour12: false }));
-  if (hour < 12) return 'Buenos días';
-  if (hour < 20) return 'Buenas tardes';
-  return 'Buenas noches';
+  if (hour < 12) return g.morning;
+  if (hour < 20) return g.afternoon;
+  return g.evening;
 }
 function formatBytes(b: number): string {
   if (b < 1024) return `${b} B`;
@@ -157,6 +158,11 @@ export function HomeDashboard({
 }) {
   const session = useSession();
   const fb = useFeedback();
+  const t = useTranslations('home');
+  const tCommon = useTranslations('common');
+  const tInbox = useTranslations('inbox');
+  const tMail = useTranslations('mail');
+  const locale = useLocale();
   const can = useCallback(
     (p?: PermissionModule) => !p || session.role === 'OWNER' || session.permissions.includes(p),
     [session.role, session.permissions],
@@ -224,9 +230,9 @@ export function HomeDashboard({
       await apiFetch('/me/dashboard', { method: 'PATCH', json: { widgets: items } });
       setSnapshot(items);
       setEditing(false);
-      fb.toast.success('Panel guardado');
+      fb.toast.success(t('panelSaved'));
     } catch {
-      fb.toast.error('No se pudo guardar el panel');
+      fb.toast.error(t('panelSaveError'));
     } finally {
       setSaving(false);
     }
@@ -267,11 +273,11 @@ export function HomeDashboard({
       case 'alerts':
         return (
           <Card className="h-full">
-            <CardTitle right={<Link href="/app/alerts" className="text-xs text-primary-700 hover:underline">Ver todas →</Link>}>
-              <Bell size={15} strokeWidth={1.75} className="text-red-500" /> Alertas
+            <CardTitle right={<Link href="/app/alerts" className="text-xs text-primary-700 hover:underline">{t('viewAll')}</Link>}>
+              <Bell size={15} strokeWidth={1.75} className="text-red-500" /> {t('wAlerts')}
             </CardTitle>
             {alerts.length === 0 ? (
-              <p className="text-sm text-ink-500">Sin alertas. Todo en orden. 🎉</p>
+              <p className="text-sm text-ink-500">{t('noAlerts')}</p>
             ) : (
               <div className="space-y-1.5">
                 {alerts.slice(0, 6).map((a) => (
@@ -292,11 +298,11 @@ export function HomeDashboard({
       case 'my-tasks':
         return (
           <Card className="h-full">
-            <CardTitle right={<Link href="/app/tasks" className="text-xs text-primary-700 hover:underline">Ver todas →</Link>}>
-              <ListChecks size={15} strokeWidth={1.75} className="text-primary-600" /> Mis tareas
+            <CardTitle right={<Link href="/app/tasks" className="text-xs text-primary-700 hover:underline">{t('viewAll')}</Link>}>
+              <ListChecks size={15} strokeWidth={1.75} className="text-primary-600" /> {t('wMyTasks')}
             </CardTitle>
             {myTasks.filter((t) => !doneIds.has(t.id)).length === 0 ? (
-              <p className="text-sm text-ink-500">Nada pendiente. 🎉</p>
+              <p className="text-sm text-ink-500">{t('noTasks')}</p>
             ) : (
               <ul className="space-y-1">
                 {myTasks.filter((t) => !doneIds.has(t.id)).slice(0, 6).map((t) => (
@@ -309,19 +315,19 @@ export function HomeDashboard({
       case 'my-conversations':
         return (
           <Card className="h-full">
-            <CardTitle right={<Link href="/app/conversations" className="text-xs text-primary-700 hover:underline">Bandeja →</Link>}>
-              <MessageCircle size={15} strokeWidth={1.75} className="text-blue-500" /> Mis conversaciones
+            <CardTitle right={<Link href="/app/conversations" className="text-xs text-primary-700 hover:underline">{t('inboxLink')}</Link>}>
+              <MessageCircle size={15} strokeWidth={1.75} className="text-blue-500" /> {t('wMyConvs')}
             </CardTitle>
             {convShown.length === 0 ? (
-              <p className="text-sm text-ink-500">Sin conversaciones pendientes. 🎉</p>
+              <p className="text-sm text-ink-500">{t('noConvs')}</p>
             ) : (
               <ul className="space-y-1">
                 {convShown.map((c) => (
                   <li key={c.id}>
                     <Link href="/app/conversations" className="block rounded p-1.5 hover:bg-ink-100/50">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium text-ink-900">{c.contactName || c.contactPhone || 'Contacto'}</span>
-                        {c.assignedUserId === session.userId && <span className="shrink-0 rounded bg-primary-100 px-1 text-[9px] font-medium text-primary-700">Mía</span>}
+                        <span className="truncate text-sm font-medium text-ink-900">{c.contactName || c.contactPhone || tInbox('contact')}</span>
+                        {c.assignedUserId === session.userId && <span className="shrink-0 rounded bg-primary-100 px-1 text-[9px] font-medium text-primary-700">{t('mineBadge')}</span>}
                       </div>
                       {c.lastMessagePreview && <div className="truncate text-xs text-ink-500">{c.lastMessagePreview}</div>}
                     </Link>
@@ -334,21 +340,21 @@ export function HomeDashboard({
       case 'pending-mail':
         return (
           <Card className="h-full">
-            <CardTitle right={<Link href="/app/mail" className="text-xs text-primary-700 hover:underline">Bandeja →</Link>}>
-              <Mail size={15} strokeWidth={1.75} className="text-primary-600" /> Correo por contestar
+            <CardTitle right={<Link href="/app/mail" className="text-xs text-primary-700 hover:underline">{t('inboxLink')}</Link>}>
+              <Mail size={15} strokeWidth={1.75} className="text-primary-600" /> {t('wPendingMail')}
             </CardTitle>
             {data.pendingMail.length === 0 ? (
-              <p className="text-sm text-ink-500">Sin correos pendientes. 🎉</p>
+              <p className="text-sm text-ink-500">{t('noPendingMail')}</p>
             ) : (
               <ul className="space-y-1">
                 {data.pendingMail.map((t) => (
                   <li key={t.id}>
                     <Link href="/app/mail" className="block rounded p-1.5 hover:bg-ink-100/50">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-medium text-ink-900">{(t.participants && t.participants[0]) || 'Contacto'}</span>
+                        <span className="truncate text-sm font-medium text-ink-900">{(t.participants && t.participants[0]) || tInbox('contact')}</span>
                         {t.unreadCount > 0 && <span className="shrink-0 rounded-full bg-primary-600 px-1.5 text-[10px] font-semibold text-white">{t.unreadCount}</span>}
                       </div>
-                      <div className="truncate text-xs text-ink-600">{t.subject || '(sin asunto)'}</div>
+                      <div className="truncate text-xs text-ink-600">{t.subject || tMail('noSubject')}</div>
                       {t.snippet && <div className="truncate text-xs text-ink-400">{t.snippet}</div>}
                     </Link>
                   </li>
@@ -363,29 +369,29 @@ export function HomeDashboard({
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700"><Mail size={20} strokeWidth={1.75} /></span>
             <div className="min-w-0 flex-1">
               <div className="text-2xl font-semibold tracking-tight">{mailUnread}</div>
-              <div className="text-xs text-ink-500">correos sin leer</div>
+              <div className="text-xs text-ink-500">{t('unreadFooter')}</div>
             </div>
           </Link>
         );
       case 'kpis':
         return (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Leads" value={overview.leads.total} hint={`${series.deltas.leadsCreated.current} nuevos · ${overview.clients.total} clientes`} spark={series.series.leadsCreated} delta={series.deltas.leadsCreated.pct} />
-            <StatCard label="Conversión" value={`${Math.round(overview.leads.conversionRate * 100)}%`} hint={`${series.deltas.conversions.current} convertidos`} spark={series.series.conversions} sparkStroke="stroke-green-500" delta={series.deltas.conversions.pct} />
-            <StatCard label="Ganado" value={eur.format(series.deltas.wonValue.current)} hint={`${eur.format(overview.opportunities.openValue)} en pipeline`} spark={series.series.wonValue} sparkStroke="stroke-amber-500" delta={series.deltas.wonValue.pct} />
-            <StatCard label="Tareas vencidas" value={overview.tasks.overdue} hint={`${overview.tasks.pending} pendientes`} />
+            <StatCard label={t('kLeads')} value={overview.leads.total} hint={`${series.deltas.leadsCreated.current} ${t('kNew')} · ${overview.clients.total} ${t('kClients')}`} spark={series.series.leadsCreated} delta={series.deltas.leadsCreated.pct} />
+            <StatCard label={t('kConversion')} value={`${Math.round(overview.leads.conversionRate * 100)}%`} hint={`${series.deltas.conversions.current} ${t('kConverted')}`} spark={series.series.conversions} sparkStroke="stroke-green-500" delta={series.deltas.conversions.pct} />
+            <StatCard label={t('kWon')} value={eur.format(series.deltas.wonValue.current)} hint={`${eur.format(overview.opportunities.openValue)} ${t('kPipeline')}`} spark={series.series.wonValue} sparkStroke="stroke-amber-500" delta={series.deltas.wonValue.pct} />
+            <StatCard label={t('kOverdue')} value={overview.tasks.overdue} hint={`${overview.tasks.pending} ${t('kPending')}`} />
           </div>
         );
       case 'queue': {
         const queue = [
-          ...data.convs.slice(0, 4).map((c) => ({ Icon: MessageCircle, tone: 'blue', title: `${c.contactName || c.contactPhone || 'Contacto'} · sin responder`, meta: c.lastMessagePreview, href: '/app/conversations', action: 'Responder' })),
-          ...alerts.slice(0, 4).map((a) => ({ Icon: alertIcon[a.type] ?? Bell, tone: severityTone(a.severity), title: a.title, meta: a.description, href: resourceHref(a), action: 'Ver' })),
+          ...data.convs.slice(0, 4).map((c) => ({ Icon: MessageCircle, tone: 'blue', title: `${c.contactName || c.contactPhone || tInbox('contact')} ${t('pendingSuffix')}`, meta: c.lastMessagePreview, href: '/app/conversations', action: t('respond') })),
+          ...alerts.slice(0, 4).map((a) => ({ Icon: alertIcon[a.type] ?? Bell, tone: severityTone(a.severity), title: a.title, meta: a.description, href: resourceHref(a), action: t('seeAction') })),
         ].slice(0, 6);
         return (
           <Card className="h-full">
-            <CardTitle>Tu cola de hoy</CardTitle>
+            <CardTitle>{t('wQueue')}</CardTitle>
             {queue.length === 0 ? (
-              <p className="text-center text-sm text-ink-500">🎉 Todo al día.</p>
+              <p className="text-center text-sm text-ink-500">{t('allClear')}</p>
             ) : (
               <div className="space-y-2">
                 {queue.map((q, i) => (
@@ -408,21 +414,21 @@ export function HomeDashboard({
         if (ai.handled === 0 && ai.leadsScored === 0 && ai.meetings === 0) {
           return (
             <Card className="h-full">
-              <CardTitle><Sparkles size={15} strokeWidth={1.75} className="text-primary-600" /> Tu IA esta semana</CardTitle>
-              <p className="text-sm text-ink-500">Tu IA aún no ha actuado esta semana.</p>
+              <CardTitle><Sparkles size={15} strokeWidth={1.75} className="text-primary-600" /> {t('wAiWeek')}</CardTitle>
+              <p className="text-sm text-ink-500">{t('aiNoActivity')}</p>
             </Card>
           );
         }
         const cards = [
-          { Icon: MessageCircle, label: 'Atendidas', value: ai.attended, hint: ai.autoResolvedPct !== null ? `${Math.round(ai.autoResolvedPct * 100)}% sin intervención` : `${ai.suggestions} sugerencias` },
-          { Icon: Star, label: 'Leads puntuados', value: ai.leadsScored, hint: 'Lead scoring' },
-          { Icon: CalendarCheck, label: 'Reuniones', value: ai.meetings, hint: 'Agendadas' },
-          { Icon: UserCog, label: 'Escaladas', value: ai.escalations, hint: 'A humano' },
+          { Icon: MessageCircle, label: t('aiAttended'), value: ai.attended, hint: ai.autoResolvedPct !== null ? `${Math.round(ai.autoResolvedPct * 100)}% ${t('aiNoIntervention')}` : `${ai.suggestions} ${t('aiSuggestions')}` },
+          { Icon: Star, label: t('aiScored'), value: ai.leadsScored, hint: t('aiScoringHint') },
+          { Icon: CalendarCheck, label: t('aiMeetings'), value: ai.meetings, hint: t('aiScheduled') },
+          { Icon: UserCog, label: t('aiEscalated'), value: ai.escalations, hint: t('aiToHuman') },
         ];
         return (
           <Card className="h-full">
-            <CardTitle right={<span className="font-mono text-xs text-ink-500">7 días</span>}>
-              <Sparkles size={15} strokeWidth={1.75} className="text-primary-600" /> Tu IA esta semana
+            <CardTitle right={<span className="font-mono text-xs text-ink-500">{t('ai7days')}</span>}>
+              <Sparkles size={15} strokeWidth={1.75} className="text-primary-600" /> {t('wAiWeek')}
             </CardTitle>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {cards.map((t) => (
@@ -440,10 +446,10 @@ export function HomeDashboard({
         const max = Math.max(1, ...overview.leads.byStatus.map((s) => s.count));
         return (
           <Card className="h-full">
-            <CardTitle>Embudo de leads</CardTitle>
+            <CardTitle>{t('wFunnel')}</CardTitle>
             <div className="space-y-3">
               {overview.leads.byStatus.map((s) => (
-                <Bar key={s.status} label={leadStatusLabel[s.status] ?? s.status} value={s.count} max={max} color={leadStatusColor[s.status] ?? 'bg-ink-300'} />
+                <Bar key={s.status} label={FUNNEL_KEY[s.status] ? t(FUNNEL_KEY[s.status] as never) : s.status} value={s.count} max={max} color={leadStatusColor[s.status] ?? 'bg-ink-300'} />
               ))}
             </div>
           </Card>
@@ -453,10 +459,10 @@ export function HomeDashboard({
         const max = Math.max(1, ...overview.leads.bySource.map((s) => s.count));
         return (
           <Card className="h-full">
-            <CardTitle>Leads por fuente</CardTitle>
+            <CardTitle>{t('wSources')}</CardTitle>
             <div className="space-y-3">
               {overview.leads.bySource.length === 0 ? (
-                <p className="text-sm text-ink-500">Sin datos de fuente.</p>
+                <p className="text-sm text-ink-500">{t('noSourceData')}</p>
               ) : (
                 overview.leads.bySource.map((s) => <Bar key={s.source} label={s.source} value={s.count} max={max} color="bg-primary-500" />)
               )}
@@ -467,11 +473,11 @@ export function HomeDashboard({
       case 'recent-docs':
         return (
           <Card className="h-full">
-            <CardTitle right={<Link href="/app/documents" className="text-xs text-primary-700 hover:underline">Ver →</Link>}>
-              <FileText size={15} strokeWidth={1.75} className="text-ink-500" /> Documentos
+            <CardTitle right={<Link href="/app/documents" className="text-xs text-primary-700 hover:underline">{t('view')}</Link>}>
+              <FileText size={15} strokeWidth={1.75} className="text-ink-500" /> {t('docs')}
             </CardTitle>
             {docs.length === 0 ? (
-              <p className="text-sm text-ink-500">Sin documentos.</p>
+              <p className="text-sm text-ink-500">{t('noDocs')}</p>
             ) : (
               <ul className="space-y-1.5">
                 {docs.slice(0, 6).map((d) => (
@@ -493,19 +499,19 @@ export function HomeDashboard({
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{greeting()} 👋</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{greeting({ morning: t('goodMorning'), afternoon: t('goodAfternoon'), evening: t('goodEvening') })} 👋</h1>
           <p className="mt-1 text-sm capitalize text-ink-500">
-            {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            {new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {editing && (
             <button type="button" onClick={() => void save()} disabled={saving} className={buttonClass('primary', 'text-sm')}>
-              {saving ? 'Guardando…' : 'Guardar'}
+              {saving ? tCommon('saving') : tCommon('save')}
             </button>
           )}
           <button type="button" onClick={editing ? cancelEdit : startEdit} className={buttonClass('ghost', 'flex items-center gap-1.5 text-sm')}>
-            <SlidersHorizontal size={14} /> {editing ? 'Cancelar' : 'Editar panel'}
+            <SlidersHorizontal size={14} /> {editing ? tCommon('cancel') : t('editPanel')}
           </button>
         </div>
       </header>
@@ -514,13 +520,13 @@ export function HomeDashboard({
 
       {editing && (
         <Card className="bg-ink-50/40">
-          <p className="mb-2 text-xs text-ink-500">Arrastra las tarjetas para reordenarlas · usa <strong>S/M/L</strong> para el tamaño · la ✕ las oculta.</p>
+          <p className="mb-2 text-xs text-ink-500">{t('dragHint')}</p>
           {hidden.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              <span className="text-xs text-ink-500">Añadir:</span>
+              <span className="text-xs text-ink-500">{t('addLabel')}</span>
               {hidden.map((w) => (
                 <button key={w.id} type="button" onClick={() => addWidget(w.id)} className="inline-flex items-center gap-1 rounded-full border border-ink-200 px-2 py-0.5 text-xs hover:bg-white">
-                  <Plus size={11} /> {w.title}
+                  <Plus size={11} /> {t(w.titleKey as never)}
                 </button>
               ))}
             </div>
@@ -530,7 +536,7 @@ export function HomeDashboard({
 
       {items.length === 0 ? (
         <Card className="text-center text-sm text-ink-500">
-          No hay tarjetas activas. Pulsa <strong>Editar panel</strong> para añadir alguna.
+          {t('noWidgets')}
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -547,11 +553,11 @@ export function HomeDashboard({
                 <div className={`rounded-lg border-2 border-dashed border-primary-200 ${dragId.current === it.id ? 'opacity-60' : ''}`}>
                   <div className="flex items-center gap-2 rounded-t-lg bg-primary-50 px-2 py-1 text-xs text-ink-600">
                     <GripVertical size={14} className="cursor-move text-ink-400" />
-                    <span className="flex-1 font-medium">{defOf(it.id)?.title ?? it.id}</span>
-                    <button type="button" onClick={() => cycleSize(it.id)} className="rounded border border-ink-200 bg-white px-1.5 hover:bg-ink-100" title="Tamaño">
-                      {SIZE_LABEL[it.size]}
+                    <span className="flex-1 font-medium">{defOf(it.id) ? t(defOf(it.id)!.titleKey as never) : it.id}</span>
+                    <button type="button" onClick={() => cycleSize(it.id)} className="rounded border border-ink-200 bg-white px-1.5 hover:bg-ink-100" title={t('sizeTitle')}>
+                      {t(SIZE_KEY[it.size])}
                     </button>
-                    <button type="button" onClick={() => removeWidget(it.id)} className="rounded p-0.5 text-ink-400 hover:text-red-600" aria-label="Ocultar"><X size={14} /></button>
+                    <button type="button" onClick={() => removeWidget(it.id)} className="rounded p-0.5 text-ink-400 hover:text-red-600" aria-label={t('hide')}><X size={14} /></button>
                   </div>
                   <div className="pointer-events-none p-2 opacity-90">{renderWidget(it.id)}</div>
                 </div>
@@ -567,14 +573,15 @@ export function HomeDashboard({
 }
 
 /** Vencimiento relativo, en lenguaje de persona: la fecha absoluta va en title. */
-function dueLabelOf(dueAt: string | null): { label: string; tone: 'overdue' | 'today' | 'soon' | 'none' } {
-  if (!dueAt) return { label: 'sin fecha', tone: 'none' };
+type DueLabels = { noDate: string; yesterday: string; daysAgo: (n: number) => string; today: string; tomorrow: string; inDays: (n: number) => string };
+function dueLabelOf(dueAt: string | null, L: DueLabels): { label: string; tone: 'overdue' | 'today' | 'soon' | 'none' } {
+  if (!dueAt) return { label: L.noDate, tone: 'none' };
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.round((startOfDay(new Date(dueAt)) - startOfDay(new Date())) / 86400000);
-  if (days < 0) return { label: days === -1 ? 'ayer' : `hace ${-days} días`, tone: 'overdue' };
-  if (days === 0) return { label: 'hoy', tone: 'today' };
-  if (days === 1) return { label: 'mañana', tone: 'soon' };
-  return { label: `en ${days} días`, tone: days <= 7 ? 'soon' : 'none' };
+  if (days < 0) return { label: days === -1 ? L.yesterday : L.daysAgo(-days), tone: 'overdue' };
+  if (days === 0) return { label: L.today, tone: 'today' };
+  if (days === 1) return { label: L.tomorrow, tone: 'soon' };
+  return { label: L.inDays(days), tone: days <= 7 ? 'soon' : 'none' };
 }
 
 const DUE_TONE: Record<string, string> = {
@@ -601,7 +608,15 @@ function TaskRow({
   meId: string;
   onComplete: () => void;
 }) {
-  const due = dueLabelOf(task.dueAt);
+  const t = useTranslations('home');
+  const due = dueLabelOf(task.dueAt, {
+    noDate: t('noDate'),
+    yesterday: t('yesterday'),
+    daysAgo: (n) => t('daysAgo', { n }),
+    today: t('today'),
+    tomorrow: t('tomorrow'),
+    inDays: (n) => t('inDays', { n }),
+  });
   const mine = task.ownerId === meId;
   return (
     <li className="group flex items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors hover:bg-ink-100/50">
@@ -610,7 +625,7 @@ function TaskRow({
         type="button"
         onClick={onComplete}
         title="Marcar como hecha"
-        aria-label={`Completar «${task.title}»`}
+        aria-label={task.title}
         className="relative h-8 w-1.5 shrink-0 overflow-visible rounded-full"
       >
         <span className={`absolute inset-0 rounded-full ${PRIORITY_BAR[task.priority] ?? 'bg-ink-200'} group-hover:opacity-0`} />
@@ -641,7 +656,7 @@ function TaskRow({
             </span>
           ) : (
             <span className="rounded-full border border-dashed border-ink-300 px-1.5 py-px text-[10px] text-ink-400">
-              sin asignar
+              {t('unassignedLower')}
             </span>
           )}
         </div>

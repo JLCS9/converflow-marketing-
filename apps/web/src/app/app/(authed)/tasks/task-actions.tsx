@@ -1,11 +1,13 @@
 'use client';
 
 import { useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { useFeedback } from '@/components/ui/feedback';
 
 export function TaskActions({ taskId, status }: { taskId: string; status: string }) {
+  const tToasts = useTranslations('toasts');
   const router = useRouter();
   const { confirm, toast } = useFeedback();
   const [pending, startTransition] = useTransition();
@@ -20,7 +22,7 @@ export function TaskActions({ taskId, status }: { taskId: string; status: string
             startTransition(async () => {
               try {
                 await apiFetch(`/tasks/${taskId}`, { method: 'PATCH', json: { status: 'DONE' } });
-                toast.success('Tarea completada');
+                toast.success(tToasts('taskDone'));
                 router.refresh();
               } catch (e) {
                 toast.error(e instanceof ApiError ? e.message : 'No se pudo completar');
@@ -45,7 +47,7 @@ export function TaskActions({ taskId, status }: { taskId: string; status: string
           startTransition(async () => {
             try {
               await apiFetch(`/tasks/${taskId}`, { method: 'DELETE' });
-              toast.success('Tarea eliminada');
+              toast.success(tToasts('taskDeleted'));
               router.refresh();
             } catch (e) {
               toast.error(e instanceof ApiError ? e.message : 'No se pudo eliminar');

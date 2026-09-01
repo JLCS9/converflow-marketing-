@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { serverApiFetch } from '@/lib/server-api';
 import type { OnboardingStep } from '@/components/ui/onboarding-checklist';
 import {
@@ -11,7 +12,10 @@ import {
   type PendingMailRow,
 } from './home-dashboard';
 
-export const metadata = { title: 'Inicio' };
+export async function generateMetadata() {
+  const t = await getTranslations();
+  return { title: t('nav.home') };
+}
 
 const EMPTY_SERIES: Series = {
   days: [],
@@ -42,11 +46,12 @@ export default async function TodayHome() {
       serverApiFetch<{ widgets: { id: string; size?: string }[] | null }>('/me/dashboard').catch(() => ({ widgets: null })),
     ]);
 
+  const t = await getTranslations('onboarding');
   const steps: OnboardingStep[] = [
-    { key: 'bot', label: 'Conecta un canal', description: 'WhatsApp, Email o Web Chat — el sitio donde te van a escribir.', done: bots.length > 0, href: '/app/bots/new', cta: 'Crear bot →' },
-    { key: 'agent', label: 'Crea tu primer agente IA', description: 'El asistente que clasifica, propone respuestas y agenda reuniones.', done: agents.length > 0, href: '/app/agents/new', cta: 'Crear agente →' },
-    { key: 'lead', label: 'Da de alta un lead o cliente', description: 'Para empezar a trackear conversaciones y oportunidades en el CRM.', done: overview.leads.total > 0 || overview.clients.total > 0, href: '/app/leads/new', cta: 'Nuevo lead →' },
-    { key: 'calendar', label: 'Conecta Google Calendar', description: 'Para que tu IA pueda proponer y agendar reuniones.', done: googleStatus.connected, href: '/app/settings', cta: 'Conectar →' },
+    { key: 'bot', label: t('botLabel'), description: t('botDesc'), done: bots.length > 0, href: '/app/bots/new', cta: t('botCta') },
+    { key: 'agent', label: t('agentLabel'), description: t('agentDesc'), done: agents.length > 0, href: '/app/agents/new', cta: t('agentCta') },
+    { key: 'lead', label: t('leadLabel'), description: t('leadDesc'), done: overview.leads.total > 0 || overview.clients.total > 0, href: '/app/leads/new', cta: t('leadCta') },
+    { key: 'calendar', label: t('calendarLabel'), description: t('calendarDesc'), done: googleStatus.connected, href: '/app/settings', cta: t('calendarCta') },
   ];
 
   return (
