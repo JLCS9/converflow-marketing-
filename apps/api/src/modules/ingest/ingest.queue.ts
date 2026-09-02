@@ -9,7 +9,8 @@ export const INGEST_QUEUE = 'data-plane';
 
 export type IngestJob =
   | { kind: 'ingest-batch'; tenantId: string; batch: EventBatchInput }
-  | { kind: 'lifecycle-sweep'; tenantId: string };
+  | { kind: 'lifecycle-sweep'; tenantId: string }
+  | { kind: 'embed'; tenantId: string };
 
 /**
  * Cola del plano de datos (patrón de lead-scoring.queue: Queue en el
@@ -55,6 +56,20 @@ export class IngestQueue implements OnModuleDestroy {
     return this.queue.add('ingest-batch', { kind: 'ingest-batch', tenantId, batch }, {
       jobId: `ingest:${tenantId}:${randomUUID()}`,
     });
+  }
+
+  /**
+   * Vectorización en diferido. jobId fijo por tenant + delay corto: varias
+   * altas seguidas de conocimiento colapsan en UNA pasada de embedPending.
+   */
+  enqueueEmbed(tenantId: string) {
+    return this.queue
+      .add('embed', { kind: 'embed', tenantId }, { jobId: `embed:${tenantId}`, delay: 2000 })
+      .catch((err: Error) => {
+        // jobId duplicado con job aún pendiente → ya hay pasada programada.
+        if (!/already exists/i.test(err.message)) throw err;
+        return null;
+      });
   }
 
   /** Barrido diario 04:15 — un job repetible por CADA tenant activo se

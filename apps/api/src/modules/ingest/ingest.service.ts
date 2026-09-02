@@ -3,6 +3,7 @@ import { eventBatchSchema, type EventBatchInput } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { ProfilesService } from '../profiles/profiles.service.js';
 import { LifecycleService } from '../lifecycle/lifecycle.service.js';
+import { RagService } from '../rag/rag.service.js';
 import { IngestQueue, type IngestJob } from './ingest.queue.js';
 
 /**
@@ -20,6 +21,7 @@ export class IngestService implements OnModuleInit {
     private readonly profiles: ProfilesService,
     private readonly lifecycle: LifecycleService,
     private readonly queue: IngestQueue,
+    private readonly rag: RagService,
   ) {}
 
   onModuleInit() {
@@ -27,6 +29,9 @@ export class IngestService implements OnModuleInit {
       const data = job.data as IngestJob;
       if (data.kind === 'ingest-batch') {
         await this.processBatch(data.tenantId, data.batch);
+      } else if (data.kind === 'embed') {
+        const res = await this.rag.embedPending(data.tenantId);
+        if (res.embedded) this.logger.log(`embed ${data.tenantId}: ${res.embedded} fragmentos`);
       } else {
         await this.lifecycle.sweep(data.tenantId);
       }

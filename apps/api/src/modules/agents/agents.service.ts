@@ -113,6 +113,7 @@ export class AgentsService {
     const agent = await this.findById(tenantId, id); // own its own short txn
 
     const call = await this.ai.complete({
+      tenantId: tenantId,
       model: agent.model,
       system: this.buildSystemPrompt(agent),
       userPrompt: data.message,

@@ -479,3 +479,39 @@ CREATE POLICY tenant_isolation ON ingest_sources
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- verified_answers (respuestas verificadas del bucle de mejora)
+ALTER TABLE verified_answers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE verified_answers FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON verified_answers;
+CREATE POLICY tenant_isolation ON verified_answers
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- tenant_instructions (reglas de la casa versionadas)
+ALTER TABLE tenant_instructions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_instructions FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON tenant_instructions;
+CREATE POLICY tenant_isolation ON tenant_instructions
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- knowledge_gaps (lagunas de conocimiento)
+ALTER TABLE knowledge_gaps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_gaps FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON knowledge_gaps;
+CREATE POLICY tenant_isolation ON knowledge_gaps
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- catalog_items (catálogo sincronizado)
+ALTER TABLE catalog_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE catalog_items FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON catalog_items;
+CREATE POLICY tenant_isolation ON catalog_items
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

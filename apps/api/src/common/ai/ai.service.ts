@@ -112,6 +112,45 @@ export class AiService {
     private readonly budget: AiBudgetService,
   ) {}
 
+  /**
+   * F2 · Prompt caching: a partir de este tamaño, el system prompt se marca
+   * con cache_control — el conocimiento del tenant (instrucciones + contexto)
+   * se reenvía en cada llamada y cachearlo recorta el coste de input ~90% en
+   * los hits. Umbral mínimo de Anthropic: 1024 tokens (~4k chars).
+   */
+  private static readonly CACHE_SYSTEM_MIN_CHARS = 4000;
+
+  private systemParam(system?: string): Anthropic.MessageCreateParams['system'] {
+    if (!system) return undefined;
+    if (system.length < AiService.CACHE_SYSTEM_MIN_CHARS) return system;
+    return [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
+  }
+
+  /**
+   * F2 · Guard central de presupuesto: si el caller identifica el tenant, el
+   * cap mensual se aplica AQUÍ, en el embudo — no en cada feature (antes solo
+   * el análisis de entrantes lo respetaba; scoring masivo y drafts gastaban
+   * sin tope).
+   */
+  private async guardBudget(tenantId?: string) {
+    if (tenantId) await this.budget.assertWithinBudget(tenantId);
+  }
+
+  /**
+   * F2 · Enrutado por tarea: el modelo se elige por lo que hay que hacer, no
+   * por quien llama. Tareas mecánicas → modelo rápido; escribir → el bueno.
+   */
+  modelFor(task: 'classify' | 'extract' | 'route' | 'summarize' | 'converse' | 'draft'): string {
+    switch (task) {
+      case 'classify':
+      case 'extract':
+      case 'route':
+        return env.ANTHROPIC_FAST_MODEL;
+      default:
+        return env.ANTHROPIC_DEFAULT_MODEL;
+    }
+  }
+
   private getClient(): Anthropic {
     if (this.client) return this.client;
     if (!env.ANTHROPIC_API_KEY) {
@@ -149,14 +188,17 @@ export class AiService {
     toolDescription: string;
     toolInputSchema: Record<string, unknown>;
     maxTokens?: number;
+    /** Con tenantId, el cap mensual se aplica en el embudo (guard central). */
+    tenantId?: string;
   }): Promise<AiCallResult<T>> {
+    await this.guardBudget(opts.tenantId);
     const model = opts.model ?? env.ANTHROPIC_DEFAULT_MODEL;
     const start = Date.now();
 
     const response = await this.invoke({
       model,
       max_tokens: opts.maxTokens ?? 1024,
-      system: opts.system,
+      system: this.systemParam(opts.system),
       tools: [
         {
           name: opts.toolName,
@@ -200,14 +242,16 @@ export class AiService {
     system?: string;
     userPrompt: string;
     maxTokens?: number;
+    tenantId?: string;
   }): Promise<AiCallResult<string>> {
+    await this.guardBudget(opts.tenantId);
     const model = opts.model ?? env.ANTHROPIC_DEFAULT_MODEL;
     const start = Date.now();
 
     const response = await this.invoke({
       model,
       max_tokens: opts.maxTokens ?? 600,
-      system: opts.system,
+      system: this.systemParam(opts.system),
       messages: [{ role: 'user', content: opts.userPrompt }],
     });
 
@@ -241,7 +285,9 @@ export class AiService {
     executeTool: (name: string, input: unknown) => Promise<string>;
     maxIterations?: number;
     maxTokens?: number;
+    tenantId?: string;
   }): Promise<AiCallResult<string> & { actions: { name: string; input: unknown; result: string }[] }> {
+    await this.guardBudget(opts.tenantId);
     const model = opts.model ?? env.ANTHROPIC_DEFAULT_MODEL;
     const start = Date.now();
     const messages: Anthropic.MessageParam[] = [{ role: 'user', content: opts.userPrompt }];
@@ -255,7 +301,7 @@ export class AiService {
       const res = await this.invoke({
         model,
         max_tokens: opts.maxTokens ?? 800,
-        system: opts.system,
+        system: this.systemParam(opts.system),
         tools: opts.tools as never,
         messages,
       });

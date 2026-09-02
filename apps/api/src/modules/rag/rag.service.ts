@@ -37,6 +37,11 @@ export class RagService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Embeddings crudos (lagunas, agrupaciones). Mismo proveedor que la memoria. */
+  embedTexts(texts: string[]): Promise<number[][]> {
+    return this.embeddings.embed(texts);
+  }
+
   /** Crea la colección si no existe; fija modelo+dimensión en su nacimiento. */
   async ensureCollection(tenantId: string, key: string, name?: string) {
     return this.prisma.withTenant(tenantId, (tx) =>
@@ -120,6 +125,62 @@ export class RagService {
       `;
       return rows;
     });
+  }
+
+  /**
+   * Vectorización incremental (F2): embebe los fragmentos pendientes
+   * (embedding NULL) en lotes. La escritura de conocimiento inserta el texto
+   * al momento y encola esto — así el alta nunca espera a la API de
+   * embeddings y un fallo de la API se reintenta sin perder nada.
+   */
+  async embedPending(tenantId: string, batchSize = 50): Promise<{ embedded: number }> {
+    let embedded = 0;
+    for (;;) {
+      const pending = await this.prisma.withTenant(tenantId, (tx) =>
+        tx.$queryRaw<{ id: string; content: string }[]>`
+          SELECT id, content FROM rag_chunks
+          WHERE embedding IS NULL
+          ORDER BY "createdAt"
+          LIMIT ${batchSize}
+        `,
+      );
+      if (pending.length === 0) break;
+      const vectors = await this.embeddings.embed(pending.map((c) => c.content));
+      await this.prisma.withTenant(tenantId, async (tx) => {
+        for (let i = 0; i < pending.length; i++) {
+          await tx.$executeRaw`
+            UPDATE rag_chunks
+            SET embedding = ${vectorLiteral(vectors[i]!)}::vector, "updatedAt" = now()
+            WHERE id = ${pending[i]!.id}
+          `;
+        }
+      });
+      embedded += pending.length;
+      if (pending.length < batchSize) break;
+    }
+    return { embedded };
+  }
+
+  /** Inserta fragmentos SIN vectorizar (los embebe el job embedPending). */
+  async addChunksDeferred(
+    tenantId: string,
+    collectionKey: string,
+    chunks: { content: string; meta?: Record<string, unknown>; sourceRef?: string }[],
+  ): Promise<{ inserted: number }> {
+    if (chunks.length === 0) return { inserted: 0 };
+    const collection = await this.ensureCollection(tenantId, collectionKey);
+    await this.prisma.withTenant(tenantId, (tx) =>
+      tx.ragChunk.createMany({
+        data: chunks.map((c) => ({
+          tenantId,
+          collectionId: collection.id,
+          content: c.content,
+          meta: (c.meta as never) ?? undefined,
+          sourceRef: c.sourceRef,
+        })),
+      }),
+    );
+    return { inserted: chunks.length };
   }
 
   /** Borra los fragmentos de un origen (re-vectorización incremental). */

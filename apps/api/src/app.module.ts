@@ -33,6 +33,7 @@ import { EmailTemplatesModule } from './modules/email-templates/email-templates.
 import { MailModule } from './modules/mail/mail.module.js';
 import { ConsentsModule } from './modules/consents/consents.module.js';
 import { IngestModule } from './modules/ingest/ingest.module.js';
+import { KnowledgeModule } from './modules/knowledge/knowledge.module.js';
 import { LifecycleModule } from './modules/lifecycle/lifecycle.module.js';
 import { VerticalsModule } from './modules/verticals/verticals.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
@@ -80,6 +81,7 @@ import { GuardsModule } from './common/guards/guards.module.js';
     MailModule,
     ConsentsModule,
     IngestModule,
+    KnowledgeModule,
     LifecycleModule,
     VerticalsModule,
     ProfilesModule,

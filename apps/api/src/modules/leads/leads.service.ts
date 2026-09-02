@@ -327,6 +327,7 @@ export class LeadsService {
 
     // 2. Claude call OUTSIDE the transaction (can take 5-15s).
     const call = await this.ai.callWithTool<ScoreLeadOutput>({
+      tenantId: tenantId,
       system:
         'Eres un analista comercial senior B2B en España. Devuelves resultados estructurados y concisos en castellano.',
       userPrompt,
