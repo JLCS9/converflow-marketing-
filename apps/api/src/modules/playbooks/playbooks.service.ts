@@ -313,6 +313,83 @@ export class PlaybooksService {
     });
   }
 
+  // ---- aprendizaje por resultados (F4) ---------------------------------------------
+
+  /**
+   * Mide el resultado de cada envío: ¿el contacto respondió después del
+   * seguimiento? 'replied' si hay un IN posterior al envío; 'no_reply' si
+   * pasaron 3 días sin respuesta. Corre con el barrido diario del tenant.
+   */
+  async sweepOutcomes(tenantId: string) {
+    const runs = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.playbookRun.findMany({
+        where: {
+          status: 'SENT',
+          sentAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
+        },
+        select: { id: true, conversationId: true, sentAt: true, meta: true },
+      }),
+    );
+    let measured = 0;
+    for (const run of runs) {
+      const meta = (run.meta as Record<string, unknown> | null) ?? {};
+      if (meta.outcome || !run.conversationId || !run.sentAt) continue;
+      const reply = await this.prisma.withTenant(tenantId, (tx) =>
+        tx.message.findFirst({
+          where: { conversationId: run.conversationId!, direction: 'IN', createdAt: { gt: run.sentAt! } },
+          orderBy: { createdAt: 'asc' },
+          select: { createdAt: true },
+        }),
+      );
+      let outcome: string | null = null;
+      if (reply) outcome = 'replied';
+      else if (Date.now() - run.sentAt.getTime() > 3 * 86_400_000) outcome = 'no_reply';
+      if (!outcome) continue;
+      await this.prisma.withTenant(tenantId, (tx) =>
+        tx.playbookRun.update({
+          where: { id: run.id },
+          data: {
+            meta: {
+              ...meta,
+              outcome,
+              ...(reply ? { repliedAfterHours: Math.round((reply.createdAt.getTime() - run.sentAt!.getTime()) / 3_600_000) } : {}),
+            } as never,
+          },
+        }),
+      );
+      measured++;
+    }
+    if (measured) this.logger.log(`outcomes ${tenantId}: ${measured} seguimientos medidos`);
+    return { measured };
+  }
+
+  /** Métricas por playbook para el panel: envíos, respuestas y supresiones. */
+  async stats(tenantId: string) {
+    const runs = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.playbookRun.findMany({
+        select: { playbookId: true, status: true, meta: true },
+      }),
+    );
+    const by = new Map<string, { sent: number; replied: number; noReply: number; suppressed: number; rejected: number }>();
+    for (const r of runs) {
+      const s = by.get(r.playbookId) ?? { sent: 0, replied: 0, noReply: 0, suppressed: 0, rejected: 0 };
+      if (r.status === 'SENT') {
+        s.sent++;
+        const outcome = (r.meta as Record<string, unknown> | null)?.outcome;
+        if (outcome === 'replied') s.replied++;
+        else if (outcome === 'no_reply') s.noReply++;
+      } else if (r.status === 'SUPPRESSED') s.suppressed++;
+      else if (r.status === 'REJECTED') s.rejected++;
+      by.set(r.playbookId, s);
+    }
+    return Object.fromEntries(
+      [...by.entries()].map(([id, s]) => [
+        id,
+        { ...s, replyRate: s.replied + s.noReply > 0 ? s.replied / (s.replied + s.noReply) : null },
+      ]),
+    );
+  }
+
   // ---- revisión humana ------------------------------------------------------------
 
   listRuns(tenantId: string, status?: string) {

@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { ProfilesService } from '../profiles/profiles.service.js';
 import { LifecycleService } from '../lifecycle/lifecycle.service.js';
 import { PlaybooksService } from '../playbooks/playbooks.service.js';
+import { AiReportsService } from '../ai-reports/ai-reports.service.js';
 import { RagService } from '../rag/rag.service.js';
 import { IngestQueue, type IngestJob } from './ingest.queue.js';
 
@@ -24,6 +25,7 @@ export class IngestService implements OnModuleInit {
     private readonly queue: IngestQueue,
     private readonly rag: RagService,
     private readonly playbooks: PlaybooksService,
+    private readonly reports: AiReportsService,
   ) {}
 
   onModuleInit() {
@@ -34,6 +36,14 @@ export class IngestService implements OnModuleInit {
       } else if (data.kind === 'embed') {
         const res = await this.rag.embedPending(data.tenantId);
         if (res.embedded) this.logger.log(`embed ${data.tenantId}: ${res.embedded} fragmentos`);
+      } else if (data.kind === 'monthly-report') {
+        // El día 1 se informa del mes que ACABA de terminar.
+        const prev = new Date();
+        prev.setUTCDate(0); // último día del mes anterior
+        const month = `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, '0')}`;
+        await this.reports.generate(data.tenantId, month);
+      } else if (data.kind === 'report-poll') {
+        await this.reports.pollPendingNarratives();
       } else {
         {
           const res = await this.lifecycle.sweep(data.tenantId);
@@ -42,12 +52,19 @@ export class IngestService implements OnModuleInit {
               .onTransition(data.tenantId, t.profileId, t.to)
               .catch((err) => this.logger.warn(`playbook onTransition falló: ${err.message}`));
           }
+          // F4 · Con la misma cadencia diaria: medir resultados de seguimientos.
+          await this.playbooks
+            .sweepOutcomes(data.tenantId)
+            .catch((err) => this.logger.warn(`playbook outcomes falló: ${err.message}`));
         }
       }
     });
     // Barrido diario por tenant activo (idempotente: jobId fijo por tenant).
     void this.scheduleSweeps().catch((err) =>
       this.logger.warn(`no se pudieron programar los barridos: ${err.message}`),
+    );
+    void this.queue.scheduleReportPoll().catch((err) =>
+      this.logger.warn(`no se pudo programar el poll de informes: ${err.message}`),
     );
   }
 
@@ -58,7 +75,10 @@ export class IngestService implements OnModuleInit {
         select: { id: true },
       }),
     );
-    for (const t of tenants) await this.queue.scheduleSweep(t.id);
+    for (const t of tenants) {
+      await this.queue.scheduleSweep(t.id);
+      await this.queue.scheduleMonthlyReport(t.id);
+    }
     this.logger.log(`lifecycle-sweep programado para ${tenants.length} tenants`);
   }
 

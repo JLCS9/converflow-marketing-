@@ -10,7 +10,9 @@ export const INGEST_QUEUE = 'data-plane';
 export type IngestJob =
   | { kind: 'ingest-batch'; tenantId: string; batch: EventBatchInput }
   | { kind: 'lifecycle-sweep'; tenantId: string }
-  | { kind: 'embed'; tenantId: string };
+  | { kind: 'embed'; tenantId: string }
+  | { kind: 'monthly-report'; tenantId: string }
+  | { kind: 'report-poll'; tenantId: string };
 
 /**
  * Cola del plano de datos (patrón de lead-scoring.queue: Queue en el
@@ -94,6 +96,24 @@ export class IngestQueue implements OnModuleDestroy {
         jobId: `sweep-${tenantId}`,
         repeat: { pattern: '15 4 * * *' },
       },
+    );
+  }
+
+  /** Informe mensual: día 1 a las 06:00 por tenant. */
+  scheduleMonthlyReport(tenantId: string) {
+    return this.queue.add(
+      'monthly-report',
+      { kind: 'monthly-report', tenantId },
+      { jobId: `report-${tenantId}`, repeat: { pattern: '0 6 1 * *' } },
+    );
+  }
+
+  /** Poll de narrativas en batch: cada 30 min, un único job global. */
+  scheduleReportPoll() {
+    return this.queue.add(
+      'report-poll',
+      { kind: 'report-poll', tenantId: '' },
+      { jobId: 'report-poll', repeat: { pattern: '*/30 * * * *' } },
     );
   }
 
