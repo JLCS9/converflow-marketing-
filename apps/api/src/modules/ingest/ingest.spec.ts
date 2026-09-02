@@ -28,8 +28,14 @@ function makeService(over: { duplicateOnSecond?: boolean } = {}) {
   const lifecycle = { applyEvent: vi.fn().mockResolvedValue('alumno'), sweep: vi.fn() };
   const queue = { registerProcessor: vi.fn(), scheduleSweep: vi.fn(), enqueueBatch: vi.fn(), enqueueEmbed: vi.fn() };
   const rag = { embedPending: vi.fn().mockResolvedValue({ embedded: 0 }) };
-  const svc = new IngestService(prisma, profiles as never, lifecycle as never, queue as never, rag as never);
-  return { svc, eventCreate, profiles, lifecycle, queue };
+  const playbooks = {
+    onEvent: vi.fn().mockResolvedValue(undefined),
+    onTransition: vi.fn().mockResolvedValue(undefined),
+  };
+  const svc = new IngestService(
+    prisma, profiles as never, lifecycle as never, queue as never, rag as never, playbooks as never,
+  );
+  return { svc, eventCreate, profiles, lifecycle, queue, playbooks };
 }
 
 const batch = (n: number) => ({

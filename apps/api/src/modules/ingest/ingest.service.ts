@@ -3,6 +3,7 @@ import { eventBatchSchema, type EventBatchInput } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { ProfilesService } from '../profiles/profiles.service.js';
 import { LifecycleService } from '../lifecycle/lifecycle.service.js';
+import { PlaybooksService } from '../playbooks/playbooks.service.js';
 import { RagService } from '../rag/rag.service.js';
 import { IngestQueue, type IngestJob } from './ingest.queue.js';
 
@@ -22,6 +23,7 @@ export class IngestService implements OnModuleInit {
     private readonly lifecycle: LifecycleService,
     private readonly queue: IngestQueue,
     private readonly rag: RagService,
+    private readonly playbooks: PlaybooksService,
   ) {}
 
   onModuleInit() {
@@ -33,7 +35,14 @@ export class IngestService implements OnModuleInit {
         const res = await this.rag.embedPending(data.tenantId);
         if (res.embedded) this.logger.log(`embed ${data.tenantId}: ${res.embedded} fragmentos`);
       } else {
-        await this.lifecycle.sweep(data.tenantId);
+        {
+          const res = await this.lifecycle.sweep(data.tenantId);
+          for (const t of res.transitions) {
+            void this.playbooks
+              .onTransition(data.tenantId, t.profileId, t.to)
+              .catch((err) => this.logger.warn(`playbook onTransition falló: ${err.message}`));
+          }
+        }
       }
     });
     // Barrido diario por tenant activo (idempotente: jobId fijo por tenant).
@@ -102,9 +111,22 @@ export class IngestService implements OnModuleInit {
 
       // 3. Ciclo de vida: solo los eventos NUEVOS transicionan estados.
       if (profile) {
-        await this.lifecycle
+        const newState = await this.lifecycle
           .applyEvent(tenantId, profile.id, ev.type)
-          .catch((err) => this.logger.warn(`lifecycle applyEvent falló: ${err.message}`));
+          .catch((err) => {
+            this.logger.warn(`lifecycle applyEvent falló: ${err.message}`);
+            return null;
+          });
+        // F3 · Playbooks: el evento y la transición (si la hubo) disparan
+        // acciones declarativas. Fire-and-forget: la ingesta nunca espera.
+        void this.playbooks
+          .onEvent(tenantId, profile.id, ev.type)
+          .catch((err) => this.logger.warn(`playbook onEvent falló: ${err.message}`));
+        if (newState) {
+          void this.playbooks
+            .onTransition(tenantId, profile.id, newState)
+            .catch((err) => this.logger.warn(`playbook onTransition falló: ${err.message}`));
+        }
       }
     }
 
