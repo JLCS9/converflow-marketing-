@@ -22,7 +22,7 @@ const CANDIDATES = [
   { provider: 'voyage', model: 'voyage-3.5', dim: 1024, env: 'VOYAGE_API_KEY', url: 'https://api.voyageai.com/v1/embeddings' },
   { provider: 'openai', model: 'text-embedding-3-small', dim: 1536, env: 'OPENAI_API_KEY', url: 'https://api.openai.com/v1/embeddings' },
 ];
-const K = 5;
+const K = Number(process.env.BENCH_K ?? 5);
 
 async function embed(cand, texts) {
   const key = process.env[cand.env];

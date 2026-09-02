@@ -5,15 +5,25 @@
 -- ============================================================================
 
 -- --- Índice vectorial de rag_chunks -----------------------------------------
--- PENDIENTE DEL BENCHMARK DE F0: HNSW exige dimensión fija en la columna.
--- Cuando se cierre modelo/dimensión (p. ej. voyage-3.5-lite → 1024):
---
---   ALTER TABLE rag_chunks ALTER COLUMN embedding TYPE vector(1024);
---   CREATE INDEX IF NOT EXISTS rag_chunks_embedding_hnsw
---     ON rag_chunks USING hnsw (embedding vector_cosine_ops);
---
--- Hasta entonces la recuperación va por escaneo exacto: correcto (y hasta
--- preferible) con el volumen del piloto.
+-- DECISIÓN F0 (benchmark 2026-09-02, recall@1 sobre los dos verticales):
+-- voyage-3.5-lite · dim 1024 — iguala o supera a voyage-3.5 costando ~6x
+-- menos. Cambiar de modelo = nueva colección re-vectorizada; si cambia la
+-- dimensión, este ALTER es el único sitio que tocar (con la tabla vacía o
+-- re-vectorizando antes).
+DO $$
+BEGIN
+  -- Tipa la columna solo si aún no tiene dimensión (idempotente).
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'rag_chunks' AND column_name = 'embedding'
+      AND (SELECT atttypmod FROM pg_attribute
+           WHERE attrelid = 'rag_chunks'::regclass AND attname = 'embedding') = -1
+  ) THEN
+    ALTER TABLE rag_chunks ALTER COLUMN embedding TYPE vector(1024);
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS rag_chunks_embedding_hnsw
+  ON rag_chunks USING hnsw (embedding vector_cosine_ops);
 
 -- --- Búsqueda por metadatos de fragmentos -----------------------------------
 CREATE INDEX IF NOT EXISTS rag_chunks_meta_gin ON rag_chunks USING gin (meta jsonb_path_ops);

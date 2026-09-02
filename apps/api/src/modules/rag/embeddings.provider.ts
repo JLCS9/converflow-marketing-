@@ -14,15 +14,22 @@ export interface EmbeddingsProvider {
   embed(texts: string[]): Promise<number[][]>;
 }
 
-/** Embedding determinista por hash — SOLO tests/desarrollo. */
+/**
+ * Embedding determinista por hash — SOLO tests/desarrollo. Misma dimensión
+ * que el proveedor real (1024, decisión F0) para que los tests convivan con
+ * la columna vector(1024) y el índice HNSW.
+ */
 export class StubEmbeddingsProvider implements EmbeddingsProvider {
   readonly model = 'stub-hash';
-  readonly dim = 8;
+  readonly dim = 1024;
 
   async embed(texts: string[]): Promise<number[][]> {
     return texts.map((t) => {
-      const h = createHash('sha256').update(t.toLowerCase().trim()).digest();
-      const v = Array.from({ length: this.dim }, (_, i) => h.readInt16BE(i * 2) / 32768);
+      const v: number[] = [];
+      for (let block = 0; v.length < this.dim; block++) {
+        const h = createHash('sha256').update(`${block}:${t.toLowerCase().trim()}`).digest();
+        for (let i = 0; i < 16 && v.length < this.dim; i++) v.push(h.readInt16BE(i * 2) / 32768);
+      }
       const norm = Math.sqrt(v.reduce((s, x) => s + x * x, 0)) || 1;
       return v.map((x) => x / norm);
     });
