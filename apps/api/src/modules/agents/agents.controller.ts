@@ -8,6 +8,16 @@ import {
   type AuthenticatedUser,
 } from '../../common/decorators/current-user.decorator.js';
 import { AgentsService } from './agents.service.js';
+import { z } from 'zod';
+import { AGENT_TOOLS, supportConfigSchema } from '@converflow/shared';
+
+const identitySchema = z.object({
+  tone: z.string().trim().max(160).optional(),
+  language: z.string().trim().max(20).optional(),
+  aiDisclosure: z.string().trim().max(500).optional(),
+  tools: z.array(z.enum(AGENT_TOOLS)).max(AGENT_TOOLS.length).optional(),
+  support: supportConfigSchema.optional(),
+});
 
 @ApiTags('agents')
 @UseGuards(TenantAuthGuard, PermissionsGuard)
@@ -19,6 +29,18 @@ export class AgentsController {
   @Get()
   list(@CurrentUser() user: AuthenticatedUser) {
     return this.agents.list(user.tenantId);
+  }
+
+  /** E3 · Identidad del asistente único del tenant. */
+  @Get('identity')
+  identity(@CurrentUser() user: AuthenticatedUser) {
+    return this.agents.getIdentity(user.tenantId);
+  }
+
+  @Patch('identity')
+  updateIdentity(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
+    const input = identitySchema.parse(body);
+    return this.agents.updateIdentity(user.tenantId, input);
   }
 
   @Get(':id')

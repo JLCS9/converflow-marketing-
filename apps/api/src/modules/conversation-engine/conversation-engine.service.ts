@@ -34,6 +34,8 @@ export interface EngineResult {
   actions: { name: string; result: string }[];
   /** Nº de fuentes recuperadas (para el probador y las métricas). */
   sources: number;
+  /** E3 · Fuentes literales del turno (solo las devuelve el probador). */
+  sourceBlocks?: { kind: string; content: string }[];
   /** E1 · Uso del turno. El REGISTRO lo hace el llamador cuando conoce el
    *  modo y si se entregó (mismo patrón que el legado → dashboard aiWeek). */
   usage: {
@@ -103,6 +105,8 @@ export class ConversationEngineService {
       /** E1 · Herramientas CRM inyectadas por llamada (el motor no depende
        *  de bots/email/CRM; el probador pasará un executor dry-run). */
       tools?: EngineTools | null;
+      /** E3 · Probador: NO persiste extracción, ni lagunas, ni consentimiento. */
+      dryRun?: boolean;
     },
   ): Promise<EngineResult> {
     // 1. Piezas del contexto (lecturas cortas, cada una en su transacción).
@@ -239,7 +243,13 @@ export class ConversationEngineService {
     };
 
     // 3. Extracción → perfil (validada contra definiciones; nunca inventa claves).
-    if (opts.profileId && out.extracted && extractableDefs.length) {
+    if (opts.dryRun && out.extracted && extractableDefs.length) {
+      // Probador: solo informar qué SE EXTRAERÍA.
+      result.extractedKeys = Object.keys(
+        sanitizeExtraction(extractableDefs as ExtractableFieldDef[], out.extracted),
+      );
+    }
+    if (!opts.dryRun && opts.profileId && out.extracted && extractableDefs.length) {
       const clean = sanitizeExtraction(extractableDefs as ExtractableFieldDef[], out.extracted);
       if (Object.keys(clean).length) {
         try {
@@ -266,7 +276,7 @@ export class ConversationEngineService {
     // 4. Laguna: el motor no sabía → registrar (prioritaria si hay lead
     //    esperando). EXCEPCIÓN: si el turno es una aceptación de contacto,
     //    no es una laguna de conocimiento — es la resolución del fallback.
-    if (!result.canAnswer && !out.wants_contact?.accepted) {
+    if (!opts.dryRun && !result.canAnswer && !out.wants_contact?.accepted) {
       try {
         const gap = await this.knowledge.recordGap(tenantId, opts.text, {
           hasWaitingLead: opts.leadWaiting ?? Boolean(opts.profileId),
@@ -279,7 +289,7 @@ export class ConversationEngineService {
     }
 
     // 5. Aceptación de contacto → consentimiento con evidencia LITERAL.
-    if (out.wants_contact?.accepted && opts.profileId) {
+    if (!opts.dryRun && out.wants_contact?.accepted && opts.profileId) {
       const channel = out.wants_contact.channel === 'phone' ? 'phone' : 'email';
       try {
         if (out.wants_contact.value) {
@@ -300,6 +310,9 @@ export class ConversationEngineService {
       }
     }
 
+    if (opts.dryRun) {
+      result.sourceBlocks = blocks.map((b) => ({ kind: b.kind, content: b.content.slice(0, 400) }));
+    }
     return result;
   }
 }

@@ -157,6 +157,30 @@ export class ReportsService {
   }
 
   /**
+   * E3 · Trabajo de IA que espera a una persona: lagunas abiertas (y cuántas
+   * con un lead esperando), borradores de playbooks y sugerencias sin revisar
+   * (IN con sugerencia posterior al último OUT de su conversación, aprox.:
+   * conversaciones PENDING con sugerencia en su último mensaje IN).
+   */
+  attention(tenantId: string) {
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const [openGaps, gapsWithLead, draftPlaybooks, pendingSuggestions] = await Promise.all([
+        tx.knowledgeGap.count({ where: { status: 'OPEN' } }),
+        tx.knowledgeGap.count({ where: { status: 'OPEN', hasWaitingLead: true } }),
+        tx.playbookRun.count({ where: { status: 'DRAFT' } }),
+        tx.conversation.count({
+          where: {
+            status: 'PENDING',
+            channel: { not: 'EMAIL' },
+            messages: { some: { direction: 'IN', aiSuggestedReply: { not: null } } },
+          },
+        }),
+      ]);
+      return { openGaps, gapsWithLead, draftPlaybooks, pendingSuggestions };
+    });
+  }
+
+  /**
    * Time series for the Hoy home: daily buckets over the last 14 calendar days
    * (TZ-aware) for the metrics that have a real event timestamp, plus
    * week-over-week deltas (last 7 days vs the prior 7) and a 7-day AI activity

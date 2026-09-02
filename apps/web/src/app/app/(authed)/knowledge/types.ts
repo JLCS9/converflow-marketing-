@@ -40,3 +40,30 @@ export interface RegressionRow {
   lastStatus: 'PASS' | 'FAIL' | null;
   lastRunAt: string | null;
 }
+
+export interface IdentityView {
+  agentId: string;
+  tone: string;
+  language: string;
+  aiDisclosure: string;
+  tools: string[];
+}
+
+export interface VerticalOption {
+  key: string;
+  name: string;
+  version: number;
+  fields: number;
+  states: number;
+}
+
+export interface TesterTurn {
+  direction: 'IN' | 'OUT';
+  body: string;
+  meta?: {
+    canAnswer: boolean;
+    wouldExtract: string[];
+    wouldActions: string[];
+    sources: { kind: string; content: string }[];
+  };
+}

@@ -1,7 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import { serverApiFetch } from '@/lib/server-api';
 import { PageHeader } from '@/components/ui/page-header';
-import { TabBar, IA_TABS } from '@/components/ui/tab-bar';
+import { IaTabs } from '@/components/ui/ia-tabs';
 import { AiReportPanel, type ReportRow } from './ai-report-panel';
 
 export async function generateMetadata() {
@@ -16,7 +16,7 @@ export default async function AiReportPage() {
 
   return (
     <div className="space-y-6">
-      <TabBar items={IA_TABS} />
+      <IaTabs />
       <PageHeader title={t('title')} description={t('description')} />
       <AiReportPanel initialReports={reports} />
     </div>

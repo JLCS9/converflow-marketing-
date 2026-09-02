@@ -7,9 +7,9 @@ import { Card, Badge, Field, Input, Textarea, buttonClass } from '@/components/u
 import { EmptyState } from '@/components/ui/empty-state';
 import { useFeedback } from '@/components/ui/feedback';
 import { cn } from '@/lib/cn';
-import type { GapRow, InstructionRow, RegressionRow, SourceRow, VerifiedRow } from './types';
+import type { GapRow, IdentityView, InstructionRow, RegressionRow, SourceRow, TesterTurn, VerticalOption, VerifiedRow } from './types';
 
-type Tab = 'sources' | 'gaps' | 'instructions' | 'regression';
+type Tab = 'identity' | 'sources' | 'gaps' | 'instructions' | 'regression' | 'tester';
 
 interface Props {
   initialSources: SourceRow[];
@@ -17,6 +17,8 @@ interface Props {
   initialInstructions: InstructionRow[];
   initialVerified: VerifiedRow[];
   initialRegression: RegressionRow[];
+  identity: IdentityView | null;
+  verticals: VerticalOption[];
 }
 
 export function KnowledgePanel({
@@ -25,20 +27,26 @@ export function KnowledgePanel({
   initialInstructions,
   initialVerified,
   initialRegression,
+  identity,
+  verticals,
 }: Props) {
   const t = useTranslations('knowledge');
   const [tab, setTab] = useState<Tab>('sources');
   const [gapCount, setGapCount] = useState(initialGaps.length);
 
   const tabs: { key: Tab; label: string; badge?: number }[] = [
+    { key: 'identity', label: t('tabIdentity') },
     { key: 'sources', label: t('tabSources') },
     { key: 'gaps', label: t('tabGaps'), badge: gapCount },
     { key: 'instructions', label: t('tabInstructions') },
     { key: 'regression', label: t('tabRegression') },
+    { key: 'tester', label: t('tabTester') },
   ];
+  const isFresh = initialSources.length === 0 && initialInstructions.length === 0;
 
   return (
     <div className="space-y-6">
+      {isFresh && verticals.length > 0 && <VerticalBanner verticals={verticals} />}
       <div className="flex flex-wrap items-center gap-2">
         {tabs.map((it) => (
           <button
@@ -67,6 +75,7 @@ export function KnowledgePanel({
         ))}
       </div>
 
+      {tab === 'identity' && <IdentityTab initial={identity} />}
       {tab === 'sources' && <SourcesTab initial={initialSources} />}
       {tab === 'gaps' && (
         <GapsTab
@@ -77,6 +86,7 @@ export function KnowledgePanel({
       )}
       {tab === 'instructions' && <InstructionsTab initial={initialInstructions} />}
       {tab === 'regression' && <RegressionTab initial={initialRegression} />}
+      {tab === 'tester' && <TesterTab />}
     </div>
   );
 }
@@ -642,5 +652,243 @@ function RegressionTab({ initial }: { initial: RegressionRow[] }) {
         </div>
       </Card>
     </div>
+  );
+}
+
+// =====================================================================
+// Identidad del asistente (E3 · un solo cerebro)
+// =====================================================================
+
+const TOOL_OPTIONS = [
+  'schedule_meeting',
+  'create_opportunity',
+  'update_opportunity',
+  'escalate_to_human',
+  'create_support_task',
+] as const;
+
+function IdentityTab({ initial }: { initial: IdentityView | null }) {
+  const t = useTranslations('knowledge');
+  const { toast } = useFeedback();
+  const [tone, setTone] = useState(initial?.tone ?? '');
+  const [language, setLanguage] = useState(initial?.language ?? '');
+  const [disclosure, setDisclosure] = useState(initial?.aiDisclosure ?? '');
+  const [tools, setTools] = useState<string[]>(initial?.tools ?? []);
+  const [saving, setSaving] = useState(false);
+
+  function toggleTool(name: string) {
+    setTools((prev) => (prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]));
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      await apiFetch('/agents/identity', {
+        method: 'PATCH',
+        json: { tone: tone.trim(), language: language.trim(), aiDisclosure: disclosure.trim(), tools },
+      });
+      toast.success(t('identitySaved'));
+    } catch {
+      toast.error(t('identityError'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-ink-500">{t('identityHint')}</p>
+      <Card className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t('identityTone')} help={t('identityToneHelp')}>
+            <Input value={tone} onChange={(e) => setTone(e.target.value)} placeholder={t('identityTonePlaceholder')} maxLength={160} />
+          </Field>
+          <Field label={t('identityLanguage')} help={t('identityLanguageHelp')}>
+            <Input value={language} onChange={(e) => setLanguage(e.target.value)} placeholder="español" maxLength={20} />
+          </Field>
+        </div>
+        <Field label={t('identityDisclosure')} help={t('identityDisclosureHelp')}>
+          <Textarea value={disclosure} onChange={(e) => setDisclosure(e.target.value)} rows={2} maxLength={500} />
+        </Field>
+        <Field label={t('identityTools')} help={t('identityToolsHelp')}>
+          <div className="space-y-2">
+            {TOOL_OPTIONS.map((name) => (
+              <label key={name} className="flex items-center gap-2 text-sm text-ink-700">
+                <input type="checkbox" checked={tools.includes(name)} onChange={() => toggleTool(name)} />
+                {t(`tool_${name}`)}
+              </label>
+            ))}
+          </div>
+        </Field>
+        <button type="button" onClick={() => void save()} disabled={saving} className={buttonClass('primary')}>
+          {saving ? t('saving') : t('identitySave')}
+        </button>
+      </Card>
+    </div>
+  );
+}
+
+// =====================================================================
+// Probador REAL (E3 · mismo motor y fuentes que producción, sin efectos)
+// =====================================================================
+
+function TesterTab() {
+  const t = useTranslations('knowledge');
+  const { toast } = useFeedback();
+  const [turns, setTurns] = useState<TesterTurn[]>([]);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function send() {
+    const message = text.trim();
+    if (!message || busy) return;
+    setBusy(true);
+    setText('');
+    const history = turns.map((x) => ({ direction: x.direction, body: x.body }));
+    setTurns((prev) => [...prev, { direction: 'IN', body: message }]);
+    try {
+      const res = await apiFetch<{
+        reply: string;
+        canAnswer: boolean;
+        wouldExtract: string[];
+        wouldActions: string[];
+        sources: { kind: string; content: string }[];
+      }>('/engine/test', { method: 'POST', json: { message, history } });
+      setTurns((prev) => [
+        ...prev,
+        {
+          direction: 'OUT',
+          body: res.reply,
+          meta: {
+            canAnswer: res.canAnswer,
+            wouldExtract: res.wouldExtract,
+            wouldActions: res.wouldActions,
+            sources: res.sources,
+          },
+        },
+      ]);
+    } catch {
+      toast.error(t('testerError'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-ink-500">{t('testerHint')}</p>
+      <Card className="space-y-3">
+        <div className="max-h-96 space-y-3 overflow-y-auto">
+          {turns.length === 0 && <p className="text-sm text-ink-400">{t('testerEmpty')}</p>}
+          {turns.map((turn, i) => (
+            <div key={i} className={turn.direction === 'IN' ? 'text-right' : ''}>
+              <div
+                className={cn(
+                  'inline-block max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm',
+                  turn.direction === 'IN' ? 'bg-ink-900 text-white' : 'bg-ink-100 text-ink-800',
+                )}
+              >
+                {turn.body}
+              </div>
+              {turn.meta && (
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {!turn.meta.canAnswer && <Badge color="yellow">{t('testerEscalates')}</Badge>}
+                  {turn.meta.wouldExtract.map((k) => (
+                    <Badge key={k} color="blue">{t('testerWouldExtract', { field: k })}</Badge>
+                  ))}
+                  {turn.meta.wouldActions.map((a) => (
+                    <Badge key={a} color="green">{t('testerWouldAction', { action: t(`tool_${a}`) })}</Badge>
+                  ))}
+                  {turn.meta.sources.length > 0 && (
+                    <details className="w-full text-xs text-ink-500">
+                      <summary className="cursor-pointer">
+                        {t('testerSources', { n: turn.meta.sources.length })}
+                      </summary>
+                      <ul className="mt-1 space-y-1">
+                        {turn.meta.sources.map((src, j) => (
+                          <li key={j} className="rounded bg-ink-100/60 p-2">
+                            {src.kind === 'verified' ? '✅ ' : '📄 '}
+                            {src.content}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+          {busy && <p className="text-xs text-ink-400">{t('testerThinking')}</p>}
+        </div>
+        <div className="flex gap-2">
+          <Input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+            placeholder={t('testerPlaceholder')}
+            className="flex-1"
+          />
+          <button type="button" onClick={() => void send()} disabled={busy || !text.trim()} className={buttonClass('primary')}>
+            {t('testerSend')}
+          </button>
+          {turns.length > 0 && (
+            <button type="button" onClick={() => setTurns([])} className={buttonClass('ghost')}>
+              {t('testerReset')}
+            </button>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// =====================================================================
+// Plantillas de vertical (E3 · arranque con algo que ya funciona)
+// =====================================================================
+
+function VerticalBanner({ verticals }: { verticals: VerticalOption[] }) {
+  const t = useTranslations('knowledge');
+  const { toast } = useFeedback();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [applied, setApplied] = useState(false);
+
+  async function apply(key: string) {
+    setBusy(key);
+    try {
+      await apiFetch(`/verticals/${key}/apply`, { method: 'POST' });
+      toast.success(t('verticalApplied'));
+      setApplied(true);
+      window.location.reload();
+    } catch {
+      toast.error(t('verticalError'));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (applied) return null;
+  return (
+    <Card className="border-primary-200 bg-primary-50/40">
+      <h2 className="text-sm font-semibold text-ink-900">{t('verticalTitle')}</h2>
+      <p className="mt-1 text-sm text-ink-600">{t('verticalHint')}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {verticals.map((v) => (
+          <button
+            key={v.key}
+            type="button"
+            onClick={() => void apply(v.key)}
+            disabled={busy != null}
+            className={buttonClass('secondary', 'text-xs')}
+          >
+            {busy === v.key ? t('verticalApplying') : v.name}
+          </button>
+        ))}
+      </div>
+    </Card>
   );
 }

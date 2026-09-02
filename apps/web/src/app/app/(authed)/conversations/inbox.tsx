@@ -58,6 +58,19 @@ interface Thread {
   status: string;
   lead: { id: string; name: string; score: number | null; status: string; company: string | null } | null;
   messages: ThreadMsg[];
+  /** E3 · Contexto que el asistente dejó al escalar (F3). */
+  handoffContext?: {
+    question?: string;
+    gapId?: string | null;
+    extracted?: string[];
+    consentGranted?: boolean;
+  } | null;
+}
+
+interface AiSummary {
+  bullets: string[];
+  asks: string[];
+  nextStep: string;
 }
 
 const TABS: { key: string; labelKey: 'pending' | 'all' | 'closed' }[] = [
@@ -437,6 +450,14 @@ export function Inbox({
         <div role="note" aria-label={t('aiNoticeAria')} className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
           <strong>{t('aiNoticeTitle')}</strong> {t('aiNoticeBody')}
         </div>
+        {thread.handoffContext?.question && thread.status === 'PENDING' && (
+          <div className="mb-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+            <strong>{t('handoffTitle')}</strong>{' '}
+            {t('handoffBody', { question: thread.handoffContext.question })}
+            {thread.handoffContext.consentGranted && <> · {t('handoffConsent')}</>}
+          </div>
+        )}
+        <AiSummaryPanel threadId={thread.id} messageCount={thread.messages.length} />
         {thread.messages.map((m) => {
           const k = dayKey(m.createdAt);
           const sep = k !== lastDay ? <DateSeparator label={dayLabel(m.createdAt, dayLabels)} /> : null;
@@ -644,5 +665,71 @@ export function Inbox({
         />
       )}
     </>
+  );
+}
+
+/**
+ * E3 · Resumen IA de la conversación (endpoint F3, cacheado en BD). Mismo
+ * patrón que el panel del correo: botón manual — es POST porque gasta.
+ */
+function AiSummaryPanel({ threadId, messageCount }: { threadId: string; messageCount: number }) {
+  const t = useTranslations('conversations');
+  const [summary, setSummary] = useState<AiSummary | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    setSummary(null);
+    setError(false);
+  }, [threadId]);
+
+  async function load() {
+    setBusy(true);
+    setError(false);
+    try {
+      const res = await apiFetch<{ summary: AiSummary }>(`/conversations/${threadId}/ai/summary`, {
+        method: 'POST',
+        json: {},
+      });
+      setSummary(res.summary);
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (messageCount < 4 && !summary) return null;
+
+  return (
+    <div className="mb-2">
+      {summary ? (
+        <div className="rounded-md border border-ink-200 bg-white px-3 py-2 text-xs text-ink-800">
+          <div className="mb-1 font-mono uppercase tracking-wider text-ink-500">{t('summaryTitle')}</div>
+          <ul className="list-disc space-y-0.5 pl-4">
+            {summary.bullets.map((b, i) => (
+              <li key={i}>{b}</li>
+            ))}
+          </ul>
+          {summary.asks.length > 0 && (
+            <p className="mt-1">
+              <strong>{t('summaryAsks')}:</strong> {summary.asks.join(' · ')}
+            </p>
+          )}
+          <p className="mt-1">
+            <strong>{t('summaryNext')}:</strong> {summary.nextStep}
+          </p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => void load()}
+          disabled={busy}
+          className="text-xs font-medium text-primary-700 hover:underline disabled:opacity-50"
+        >
+          {busy ? t('summaryLoading') : error ? t('summaryRetry') : t('summaryButton')}
+        </button>
+      )}
+    </div>
   );
 }
