@@ -40,8 +40,8 @@ ls -1t "$DIR"/cfai-*.dump 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm -f
 
 # Copia fuera del VPS (opcional pero objetivo de F0)
 if command -v rclone >/dev/null 2>&1 && rclone listremotes 2>/dev/null | grep -q '^cfai-backups:'; then
-  rclone copy "$FILE" cfai-backups:cfai-postgres/ --s3-no-check-bucket
-  echo "$(date -Is) subido a cfai-backups:cfai-postgres/"
+  rclone copy "$FILE" cfai-backups:cfai-backups/postgres/ --s3-no-check-bucket
+  echo "$(date -Is) subido a cfai-backups:cfai-backups/postgres/"
 else
   echo "$(date -Is) AVISO: rclone/cfai-backups no configurado — el backup es solo local"
 fi
