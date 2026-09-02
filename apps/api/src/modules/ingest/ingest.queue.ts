@@ -54,7 +54,7 @@ export class IngestQueue implements OnModuleDestroy {
 
   enqueueBatch(tenantId: string, batch: EventBatchInput) {
     return this.queue.add('ingest-batch', { kind: 'ingest-batch', tenantId, batch }, {
-      jobId: `ingest:${tenantId}:${randomUUID()}`,
+      jobId: `ingest-${tenantId}-${randomUUID()}`,
     });
   }
 
@@ -64,7 +64,7 @@ export class IngestQueue implements OnModuleDestroy {
    */
   enqueueEmbed(tenantId: string) {
     return this.queue
-      .add('embed', { kind: 'embed', tenantId }, { jobId: `embed:${tenantId}`, delay: 2000 })
+      .add('embed', { kind: 'embed', tenantId }, { jobId: `embed-${tenantId}`, delay: 2000 })
       .catch((err: Error) => {
         // jobId duplicado con job aún pendiente → ya hay pasada programada.
         if (!/already exists/i.test(err.message)) throw err;
@@ -79,7 +79,7 @@ export class IngestQueue implements OnModuleDestroy {
       'lifecycle-sweep',
       { kind: 'lifecycle-sweep', tenantId },
       {
-        jobId: `sweep:${tenantId}`,
+        jobId: `sweep-${tenantId}`,
         repeat: { pattern: '15 4 * * *' },
       },
     );

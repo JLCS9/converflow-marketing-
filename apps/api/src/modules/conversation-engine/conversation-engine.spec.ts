@@ -92,8 +92,8 @@ describe('ConversationEngineService.respond', () => {
     expect(knowledge.recordGap).toHaveBeenCalledWith('t1', base.text, { hasWaitingLead: true });
   });
 
-  it('aceptación de contacto → consentimiento con la frase literal como evidencia', async () => {
-    const { svc, consents } = makeService({
+  it('aceptación de contacto → consentimiento con la frase literal como evidencia (y sin laguna)', async () => {
+    const { svc, consents, knowledge } = makeService({
       reply: 'Te llamamos.',
       can_answer: false,
       wants_contact: { accepted: true, channel: 'phone', value: '600 111 222' },
@@ -104,6 +104,8 @@ describe('ConversationEngineService.respond', () => {
     expect(channel).toBe('phone');
     expect(purpose).toBe('followup');
     expect(evidence.textShown).toBe('Sí, llamadme al 600 111 222');
+    // la aceptación de contacto no es una laguna de conocimiento
+    expect(knowledge.recordGap).not.toHaveBeenCalled();
   });
 });
 

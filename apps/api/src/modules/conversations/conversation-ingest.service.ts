@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConversationEngineService } from '../conversation-engine/conversation-engine.service.js';
 import { ProfilesService } from '../profiles/profiles.service.js';
+import { IngestQueue } from '../ingest/ingest.queue.js';
 import { z } from 'zod';
 import { type PrismaClient } from '@converflow/db';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
@@ -43,6 +44,7 @@ export class ConversationIngestService {
     private readonly budget: AiBudgetService,
     private readonly engine: ConversationEngineService,
     private readonly profiles: ProfilesService,
+    private readonly ingestQueue: IngestQueue,
   ) {}
 
   /**
@@ -200,7 +202,7 @@ export class ConversationIngestService {
     const phone = input.phone?.trim().slice(0, 40) || undefined;
     if (!sessionId || !name) return { ok: false as const, reason: 'invalid_input' };
 
-    await this.prisma.withTenant(tenantId, async (tx) => {
+    const result = await this.prisma.withTenant(tenantId, async (tx) => {
       const existing = await tx.conversation.findUnique({
         where: { tenantId_channel_contactJid: { tenantId, channel: 'WEBCHAT', contactJid: sessionId } },
       });
@@ -250,7 +252,27 @@ export class ConversationIngestService {
           },
         });
       }
+      return { leadId };
     });
+
+    // F2 · Glue CRM → plano de datos: el alta por webchat emite lead_created
+    // (con dedupe por lead) para que el ciclo de vida arranque
+    // («interesado» en la plantilla de e-learning, «consulta» en residencias).
+    if (email) {
+      void this.ingestQueue
+        .enqueueBatch(tenantId, {
+          source: 'crm',
+          events: [
+            {
+              type: 'lead_created',
+              externalId: `lead-${result.leadId}`,
+              identity: { email },
+              props: { channel: 'webchat', name },
+            },
+          ],
+        })
+        .catch((err) => this.logger.warn({ err }, 'lead_created no emitido'));
+    }
 
     return { ok: true as const };
   }

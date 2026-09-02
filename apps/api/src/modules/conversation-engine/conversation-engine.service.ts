@@ -184,8 +184,10 @@ export class ConversationEngineService {
       }
     }
 
-    // 4. Laguna: el motor no sabía → registrar (prioritaria si hay lead esperando).
-    if (!result.canAnswer) {
+    // 4. Laguna: el motor no sabía → registrar (prioritaria si hay lead
+    //    esperando). EXCEPCIÓN: si el turno es una aceptación de contacto,
+    //    no es una laguna de conocimiento — es la resolución del fallback.
+    if (!result.canAnswer && !out.wants_contact?.accepted) {
       try {
         const gap = await this.knowledge.recordGap(tenantId, opts.text, {
           hasWaitingLead: opts.leadWaiting ?? Boolean(opts.profileId),
