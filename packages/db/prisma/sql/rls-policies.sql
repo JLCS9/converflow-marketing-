@@ -515,3 +515,21 @@ CREATE POLICY tenant_isolation ON catalog_items
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- playbooks (acciones automáticas F3)
+ALTER TABLE playbooks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE playbooks FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON playbooks;
+CREATE POLICY tenant_isolation ON playbooks
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- playbook_runs (ejecuciones y supresiones F3)
+ALTER TABLE playbook_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE playbook_runs FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON playbook_runs;
+CREATE POLICY tenant_isolation ON playbook_runs
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

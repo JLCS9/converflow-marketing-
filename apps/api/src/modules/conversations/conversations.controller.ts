@@ -8,13 +8,17 @@ import {
   type AuthenticatedUser,
 } from '../../common/decorators/current-user.decorator.js';
 import { ConversationsService } from './conversations.service.js';
+import { ConversationAiService } from './conversation-ai.service.js';
 
 @ApiTags('conversations')
 @UseGuards(TenantOrApiKeyGuard, PermissionsGuard)
 @RequirePerm('conversations')
 @Controller(['conversations', 'v1/conversations'])
 export class ConversationsController {
-  constructor(private readonly conversations: ConversationsService) {}
+  constructor(
+    private readonly conversations: ConversationsService,
+    private readonly conversationAi: ConversationAiService,
+  ) {}
 
   @Get()
   list(
@@ -62,7 +66,23 @@ export class ConversationsController {
     @Body() body: { text?: string; html?: string; documentIds?: string[] },
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.conversations.sendText(user.tenantId, id, body?.text ?? '', body?.html, body?.documentIds);
+    return this.conversations.sendText(user.tenantId, id, body?.text ?? '', body?.html, body?.documentIds, {
+      userId: user.userId,
+      email: user.email,
+    });
+  }
+
+  /** F3 · Resumen IA cacheado (POST: gasta dinero y escribe caché). */
+  @Post(':id/ai/summary')
+  aiSummary(
+    @Param('id') id: string,
+    @Body() body: { force?: boolean; locale?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.conversationAi.summarize(user.tenantId, id, {
+      force: body?.force === true,
+      locale: body?.locale,
+    });
   }
 
   @Post(':id/send-document')

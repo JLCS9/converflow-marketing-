@@ -619,6 +619,18 @@ export class ConversationIngestService {
         { name: lead.name, source: 'webchat' },
       );
       profileId = profile?.id ?? null;
+      // F3 · Glue CRM↔plano de datos: el lead queda unido a su perfil (los
+      // playbooks navegan perfil→lead→conversación para elegir canal).
+      if (profileId) {
+        await this.prisma
+          .withTenant(tenantId, (tx) =>
+            tx.lead.updateMany({
+              where: { id: lead.id, profileId: null },
+              data: { profileId },
+            }),
+          )
+          .catch((err) => this.logger.warn({ err }, 'lead↔profile no enlazado'));
+      }
     }
 
     const history = await this.prisma.withTenant(tenantId, (tx) =>
@@ -636,6 +648,7 @@ export class ConversationIngestService {
       history: history.reverse().map((m) => ({ direction: m.direction as 'IN' | 'OUT', body: m.body ?? '' })),
       profileId,
       leadWaiting: Boolean(lead),
+      conversationId,
     });
 
     // Entrega webchat: el OUT es lo que sondea el widget (sin transporte).
@@ -652,6 +665,19 @@ export class ConversationIngestService {
           // Sin respuesta suficiente → la conversación queda PENDIENTE para
           // el equipo (hay una persona esperando contacto humano).
           ...(res.canAnswer ? { status: 'ANSWERED' as const } : { status: 'PENDING' as const }),
+          // F3 · Contexto de handoff SIN coste extra: lo que el motor ya sabe
+          // de este escalado, para que quien lo coja no lea todo el hilo.
+          ...(!res.canAnswer || res.consentGranted
+            ? {
+                handoffContext: {
+                  question: body.slice(0, 500),
+                  gapId: res.gapId ?? null,
+                  extracted: res.extractedKeys,
+                  consentGranted: res.consentGranted,
+                  at: new Date().toISOString(),
+                } as never,
+              }
+            : {}),
         },
       });
     });

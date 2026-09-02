@@ -35,6 +35,7 @@ import { ConsentsModule } from './modules/consents/consents.module.js';
 import { ConversationEngineModule } from './modules/conversation-engine/conversation-engine.module.js';
 import { WhatsappCloudModule } from './modules/channels/whatsapp-cloud/whatsapp-cloud.module.js';
 import { IngestModule } from './modules/ingest/ingest.module.js';
+import { PlaybooksModule } from './modules/playbooks/playbooks.module.js';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module.js';
 import { LifecycleModule } from './modules/lifecycle/lifecycle.module.js';
 import { VerticalsModule } from './modules/verticals/verticals.module.js';
@@ -85,6 +86,7 @@ import { GuardsModule } from './common/guards/guards.module.js';
     ConversationEngineModule,
     WhatsappCloudModule,
     IngestModule,
+    PlaybooksModule,
     KnowledgeModule,
     LifecycleModule,
     VerticalsModule,

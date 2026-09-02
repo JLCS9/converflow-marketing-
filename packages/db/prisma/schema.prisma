@@ -179,6 +179,8 @@ model Tenant {
   tenantInstructions       TenantInstruction[]
   knowledgeGaps            KnowledgeGap[]
   catalogItems             CatalogItem[]
+  playbooks                Playbook[]
+  playbookRuns             PlaybookRun[]
 
   @@map("tenants")
 }
@@ -1003,6 +1005,15 @@ model Conversation {
   unreadCount        Int                @default(0)
   assignedUserId     String?
 
+  /// Resumen IA cacheado (patrón EmailThread: se regenera solo si cambió el
+  /// nº de mensajes o el idioma solicitado). F3.
+  aiSummary         Json?
+  aiSummaryAt       DateTime?
+  aiSummaryMsgCount Int?
+  /// Contexto de handoff que el motor F2 deja SIN coste extra al escalar:
+  /// { question, extracted, consent, lifecycleState }. F3.
+  handoffContext    Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1032,6 +1043,9 @@ model Message {
   aiConfidence     Float?
   aiSuggestedReply String?
   aiAnalyzedAt     DateTime?
+
+  /// Usuario que envió este OUT desde el panel (null = bot o sistema). F3.
+  sentByUserId String?
 
   createdAt DateTime @default(now())
 
@@ -1526,6 +1540,11 @@ model Profile {
   /// lifecycle_states). NULL = aún sin evaluar.
   lifecycleState String?
 
+  /// Enriquecimiento B2B fase 1 (F3): extraído de la web pública del dominio
+  /// corporativo. { domain, sector, sizeHint, summary, services }.
+  enrichment Json?
+  enrichedAt DateTime?
+
   identities       ProfileIdentity[]
   events           Event[]
   lifecycleHistory LifecycleState[]
@@ -1800,11 +1819,14 @@ model KnowledgeGap {
   embedding      Unsupported("vector")?
   /// Últimos ejemplos literales (sin identificar a la persona).
   samples        Json?
+  /// Conversación que la originó (para el bucle corrección→verificada, F3).
+  conversationId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([tenantId, status])
+  @@index([tenantId, conversationId])
   @@map("knowledge_gaps")
 }
 
@@ -1840,4 +1862,84 @@ model CatalogItem {
   @@unique([tenantId, source, externalId])
   @@index([tenantId, kind])
   @@map("catalog_items")
+}
+
+/// Playbook (F3): acción automática declarativa por tenant. REGLA DURA del
+/// plan: toda acción nace en modo borrador-para-aprobar; el tenant la pasa
+/// a AUTO por playbook cuando se fía del resultado.
+model Playbook {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name   String
+  active Boolean @default(false)
+
+  /// Disparador declarativo:
+  /// { on: 'transition', toState: 'dormido' } |
+  /// { on: 'event', eventType: 'cart_abandoned' }
+  trigger    Json
+  /// Acción: { kind: 'followup', instructions: '<qué decir y con qué tono>' }
+  action     Json
+  mode       PlaybookMode @default(DRAFT_APPROVE)
+  /// Guardarraíles: { maxPerContactDays: 7, quietStartHour: 21, quietEndHour: 9 }
+  /// La frecuencia y el consentimiento se comprueban SIEMPRE (no opcionales).
+  guardrails Json?
+
+  runs PlaybookRun[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId, active])
+  @@map("playbooks")
+}
+
+enum PlaybookMode {
+  DRAFT_APPROVE // genera borrador; un humano aprueba y entonces se envía
+  AUTO // envía directamente (autonomía ganada, por playbook y tenant)
+}
+
+/// Ejecución de un playbook sobre un contacto. Registra también las NO
+/// ejecuciones (SUPPRESSED con reason) — son la evidencia de guardarraíles
+/// y la materia prima del aprendizaje por resultados (F4).
+model PlaybookRun {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  playbookId String
+  playbook   Playbook @relation(fields: [playbookId], references: [id], onDelete: Cascade)
+
+  profileId      String?
+  leadId         String?
+  conversationId String?
+
+  status     PlaybookRunStatus @default(DRAFT)
+  /// Borrador generado (lo que el humano aprueba/edita).
+  draftText  String?
+  /// Texto realmente enviado (puede diferir del borrador si se editó).
+  sentText   String?
+  /// Motivo de SUPPRESSED/FAILED (p. ej. 'no_consent', 'frequency_cap').
+  reason     String?
+  /// Email del usuario que aprobó/rechazó.
+  reviewedBy String?
+  sentAt     DateTime?
+  meta       Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, profileId, createdAt])
+  @@map("playbook_runs")
+}
+
+enum PlaybookRunStatus {
+  DRAFT // borrador esperando revisión humana
+  APPROVED // aprobado, en curso de envío
+  SENT
+  REJECTED // el humano lo descartó
+  SUPPRESSED // guardarraíl lo impidió (reason)
+  FAILED
 }

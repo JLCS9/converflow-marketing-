@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AppError, BadRequestError, NotFoundError } from '@converflow/shared';
+import { ConversationAiService } from './conversation-ai.service.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { BotRunnerService } from '../bots/bot-runner.service.js';
 import { DocumentsService } from '../documents/documents.service.js';
@@ -11,11 +12,14 @@ type Status = (typeof STATUSES)[number];
 
 @Injectable()
 export class ConversationsService {
+  private readonly logger = new Logger(ConversationsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly botRunner: BotRunnerService,
     private readonly documents: DocumentsService,
     private readonly email: EmailService,
+    private readonly conversationAi: ConversationAiService,
   ) {}
 
   list(tenantId: string, opts: { status?: string; limit?: number } = {}) {
@@ -66,7 +70,14 @@ export class ConversationsService {
   }
 
   /** Send a text reply through the conversation's channel and record it. */
-  async sendText(tenantId: string, id: string, text: string, html?: string, documentIds?: string[]) {
+  async sendText(
+    tenantId: string,
+    id: string,
+    text: string,
+    html?: string,
+    documentIds?: string[],
+    actor?: { userId: string; email: string },
+  ) {
     const conv = await this.requireSendable(tenantId, id);
 
     // EMAIL supports rich HTML + attachments; other channels are plain text only.
@@ -103,12 +114,23 @@ export class ConversationsService {
     }
     // WEBCHAT: no transport — the visitor's widget polls and picks up the OUT message.
 
-    return this.recordOutbound(tenantId, id, {
+    const res = await this.recordOutbound(tenantId, id, {
       body,
       bodyHtml,
       waMessageId: sentId,
       preview: body.slice(0, 140),
+      sentByUserId: actor?.userId,
     });
+
+    // F3 · Bucle corrección→verificada: si esta conversación tiene una laguna
+    // abierta, la respuesta humana puede cubrirla. Fire-and-forget: el envío
+    // nunca espera (ni falla) por el aprendizaje.
+    if (actor) {
+      void this.conversationAi
+        .learnFromHumanReply(tenantId, id, body, actor.email)
+        .catch((err) => this.logger.warn({ err, id }, 'corrección no capturada'));
+    }
+    return res;
   }
 
   /** Resolve stored-document ids into email attachments (presigned URLs). */
@@ -279,7 +301,14 @@ export class ConversationsService {
   private async recordOutbound(
     tenantId: string,
     conversationId: string,
-    msg: { body: string; bodyHtml?: string; waMessageId?: string; mediaType?: string; preview: string },
+    msg: {
+      body: string;
+      bodyHtml?: string;
+      waMessageId?: string;
+      mediaType?: string;
+      preview: string;
+      sentByUserId?: string;
+    },
   ) {
     return this.prisma.withTenant(tenantId, async (tx) => {
       const now = new Date();
@@ -294,6 +323,7 @@ export class ConversationsService {
           body: msg.body,
           bodyHtml: msg.bodyHtml ?? null,
           mediaType: msg.mediaType ?? null,
+          sentByUserId: msg.sentByUserId ?? null,
         },
       });
       await tx.conversation.update({

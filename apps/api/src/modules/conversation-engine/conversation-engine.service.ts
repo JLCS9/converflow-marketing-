@@ -78,6 +78,7 @@ export class ConversationEngineService {
       history: { direction: 'IN' | 'OUT'; body: string }[];
       profileId?: string | null;
       leadWaiting?: boolean;
+      conversationId?: string;
     },
   ): Promise<EngineResult> {
     // 1. Piezas del contexto (lecturas cortas, cada una en su transacción).
@@ -191,6 +192,7 @@ export class ConversationEngineService {
       try {
         const gap = await this.knowledge.recordGap(tenantId, opts.text, {
           hasWaitingLead: opts.leadWaiting ?? Boolean(opts.profileId),
+          conversationId: opts.conversationId,
         });
         result.gapId = gap.id;
       } catch (err) {

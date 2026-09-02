@@ -85,9 +85,12 @@ export class LifecycleService {
    * Barrido de reglas temporales («sin compra en 90 días → dormido»). Se
    * ejecuta como job diario por tenant. Devuelve cuántos perfiles cambiaron.
    */
-  async sweep(tenantId: string, now = new Date()): Promise<number> {
+  async sweep(
+    tenantId: string,
+    now = new Date(),
+  ): Promise<{ changed: number; transitions: { profileId: string; to: string }[] }> {
     const def = await this.getActiveDefinition(tenantId);
-    if (!def) return 0;
+    if (!def) return { changed: 0, transitions: [] };
     const temporalTypes = [
       ...new Set(
         def.transitions
@@ -96,9 +99,10 @@ export class LifecycleService {
           .map((x) => x.eventType ?? '*'),
       ),
     ];
-    if (temporalTypes.length === 0) return 0;
+    if (temporalTypes.length === 0) return { changed: 0, transitions: [] };
 
     let changed = 0;
+    const transitions: { profileId: string; to: string }[] = [];
     // Lotes pequeños: el barrido es diario y el volumen de piloto, modesto.
     const profiles = await this.prisma.withTenant(tenantId, (tx) =>
       tx.profile.findMany({ select: { id: true, lifecycleState: true, custom: true }, take: 5000 }),
@@ -130,8 +134,9 @@ export class LifecycleService {
         });
       });
       changed++;
+      transitions.push({ profileId: p.id, to: hit.to });
     }
     if (changed) this.logger.log(`lifecycle sweep ${tenantId}: ${changed} perfiles transicionados`);
-    return changed;
+    return { changed, transitions };
   }
 }
