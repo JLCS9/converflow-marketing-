@@ -8,11 +8,22 @@ interface ScoreOneOpts {
   agentId: string | null;
   updateStatus: boolean;
   createOpportunities: boolean;
+  /** Nombre de feature en AiUsage ('lead_scoring' para el camino individual). */
+  feature?: string;
 }
 
 interface ScoreOneResult {
   statusUpdated: boolean;
   oppCreated: boolean;
+  ai: {
+    score: number;
+    priority: 'LOW' | 'MEDIUM' | 'HIGH';
+    reasoning: string;
+    recommendedActions: string[];
+    model: string;
+    durationMs: number;
+    costUsd: number;
+  };
 }
 
 interface ScoreBatchOutput {
@@ -49,9 +60,20 @@ export class ScoringRunner {
     opts: ScoreOneOpts,
   ): Promise<ScoreOneResult> {
     const lead = await this.prisma.withTenant(tenantId, (tx) =>
-      tx.lead.findUnique({ where: { id: leadId } }),
+      tx.lead.findUnique({
+        where: { id: leadId },
+        include: { notes: { orderBy: { createdAt: 'desc' }, take: 20 } },
+      }),
     );
     if (!lead) throw new NotFoundError(`Lead ${leadId} no encontrado`);
+
+    // F3.5 · Unificación: las notas (histórico humano) entran SIEMPRE al
+    // contexto — era lo único que el camino individual aportaba sobre este.
+    const noteSummary = lead.notes.length
+      ? lead.notes
+          .map((n) => `- [${n.createdAt.toISOString().slice(0, 10)}] ${n.body.slice(0, 200)}`)
+          .join('\n')
+      : '(sin notas)';
 
     // Funnel rules from the chosen Agent (if any). We feed name + description
     // + systemPrompt verbatim so the user controls tone and rules in one place.
@@ -81,9 +103,20 @@ export class ScoringRunner {
       : null;
     const defaultStage = defaultPipeline?.stages?.[0] ?? null;
 
-    const customFields = lead.customFields
-      ? JSON.stringify(lead.customFields, null, 2)
-      : '(sin campos)';
+    // Campos personalizados LEÍDOS VÍA DEFINICIONES: etiquetas del panel y
+    // solo claves definidas — el modelo ve lo mismo que ve el usuario.
+    const defs = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.customFieldDefinition.findMany({
+        where: { entityType: 'LEAD', archivedAt: null },
+        select: { key: true, label: true },
+        orderBy: { order: 'asc' },
+      }),
+    );
+    const raw = (lead.customFields as Record<string, unknown> | null) ?? {};
+    const lines = defs
+      .filter((d) => raw[d.key] !== undefined && raw[d.key] !== null && raw[d.key] !== '')
+      .map((d) => `- ${d.label}: ${JSON.stringify(raw[d.key])}`);
+    const customFields = lines.length ? lines.join('\n') : '(sin campos)';
 
     const userPrompt = [
       'Analiza este lead comercial y dale un score de 0 a 100 según su potencial de cierre.',
@@ -95,6 +128,9 @@ export class ScoringRunner {
       `Fuente: ${lead.source ?? '(no indicada)'}`,
       `Estado actual: ${lead.status}`,
       `Creado el: ${lead.createdAt.toISOString()}`,
+      '',
+      'Notas/interacciones recientes:',
+      noteSummary,
       '',
       'Campos personalizados:',
       customFields,
@@ -222,12 +258,24 @@ export class ScoringRunner {
 
     void this.ai.recordUsage({
       tenantId,
-      feature: 'lead_scoring_batch',
+      feature: opts.feature ?? 'lead_scoring_batch',
       callResult: call,
       resourceType: 'lead',
       resourceId: lead.id,
     });
 
-    return { statusUpdated, oppCreated };
+    return {
+      statusUpdated,
+      oppCreated,
+      ai: {
+        score: call.result.score,
+        priority: call.result.priority,
+        reasoning: call.result.reasoning,
+        recommendedActions: call.result.recommendedActions,
+        model: call.model,
+        durationMs: call.durationMs,
+        costUsd: call.costUsd,
+      },
+    };
   }
 }

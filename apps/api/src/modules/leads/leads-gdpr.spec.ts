@@ -24,7 +24,7 @@ function makeService(over: { profileId?: string | null } = {}) {
   const prisma = {
     withTenant: (_t: string, fn: (tx: unknown) => unknown) => Promise.resolve(fn(tx)),
   } as never;
-  const svc = new LeadsService(prisma, {} as never, {} as never);
+  const svc = new LeadsService(prisma, {} as never, {} as never, {} as never);
   return { svc, convDeleteMany, profileDelete, leadDelete, logCreate };
 }
 
