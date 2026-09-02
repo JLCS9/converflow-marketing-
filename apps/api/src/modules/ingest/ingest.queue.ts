@@ -64,7 +64,19 @@ export class IngestQueue implements OnModuleDestroy {
    */
   enqueueEmbed(tenantId: string) {
     return this.queue
-      .add('embed', { kind: 'embed', tenantId }, { jobId: `embed-${tenantId}`, delay: 2000 })
+      .add(
+        'embed',
+        { kind: 'embed', tenantId },
+        {
+          jobId: `embed-${tenantId}`,
+          delay: 2000,
+          // Autolimpieza inmediata: un job completado que siga en Redis
+          // bloquea silenciosamente el siguiente add con el mismo jobId
+          // (la coalescencia solo debe aplicar mientras está pendiente).
+          removeOnComplete: true,
+          removeOnFail: true,
+        },
+      )
       .catch((err: Error) => {
         // jobId duplicado con job aún pendiente → ya hay pasada programada.
         if (!/already exists/i.test(err.message)) throw err;

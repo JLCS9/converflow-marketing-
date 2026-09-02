@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
@@ -35,10 +35,26 @@ const coverGapSchema = z.object({ answer: z.string().trim().min(2).max(8000) });
 export class KnowledgeController {
   constructor(private readonly knowledge: KnowledgeService) {}
 
+  @Get('sources')
+  listSources(@CurrentUser() user: AuthenticatedUser) {
+    return this.knowledge.listSources(user.tenantId);
+  }
+
+  @Delete('sources')
+  deleteSource(@Query('ref') ref: string, @CurrentUser() user: AuthenticatedUser) {
+    const sourceRef = z.string().trim().min(6).max(120).parse(ref);
+    return this.knowledge.deleteSource(user.tenantId, sourceRef);
+  }
+
   @Post('sources/text')
   addText(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
     const input = textSourceSchema.parse(body);
     return this.knowledge.addTextSource(user.tenantId, input);
+  }
+
+  @Get('verified')
+  listVerified(@CurrentUser() user: AuthenticatedUser) {
+    return this.knowledge.listVerifiedAnswers(user.tenantId);
   }
 
   @Post('verified')
@@ -79,6 +95,11 @@ export class KnowledgeController {
   ) {
     const input = coverGapSchema.parse(body);
     return this.knowledge.coverGap(user.tenantId, id, input.answer, user.email);
+  }
+
+  @Post('gaps/:id/dismiss')
+  dismissGap(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.knowledge.dismissGap(user.tenantId, id);
   }
 
   /** Búsqueda de prueba para el panel (qué recuperaría el motor). */

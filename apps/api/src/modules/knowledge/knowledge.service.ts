@@ -50,6 +50,41 @@ export class KnowledgeService {
     return { ...res, sourceRef };
   }
 
+  /** Fuentes del panel: agrupadas por sourceRef con su estado de indexado. */
+  async listSources(tenantId: string) {
+    const rows = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.$queryRaw<
+        { sourceRef: string; chunks: number; embedded: number; updatedAt: Date; sample: string }[]
+      >`
+        SELECT c."sourceRef",
+               count(*)::int                    AS "chunks",
+               count(c."embedding")::int        AS "embedded",
+               max(c."updatedAt")               AS "updatedAt",
+               min(c."content")                 AS "sample"
+        FROM rag_chunks c
+        JOIN rag_collections col ON col."id" = c."collectionId"
+        WHERE col."key" = 'knowledge' AND c."sourceRef" IS NOT NULL
+        GROUP BY c."sourceRef"
+        ORDER BY max(c."updatedAt") DESC
+      `,
+    );
+    // El título viaja como primera línea de cada fragmento (addTextSource).
+    return rows.map((r) => ({
+      sourceRef: r.sourceRef,
+      title: r.sample.split('\n')[0] ?? r.sourceRef,
+      chunks: r.chunks,
+      embedded: r.embedded,
+      updatedAt: r.updatedAt,
+    }));
+  }
+
+  /** Baja de una fuente completa (todos sus fragmentos). */
+  async deleteSource(tenantId: string, sourceRef: string) {
+    if (!sourceRef.startsWith('text:')) throw new NotFoundError('Fuente no encontrada');
+    await this.rag.deleteBySourceRef(tenantId, 'knowledge', sourceRef);
+    return { ok: true };
+  }
+
   // ---- respuestas verificadas ----------------------------------------------
 
   /** Nace de una corrección humana. El texto va GENERALIZADO (sin PII). */
@@ -84,6 +119,19 @@ export class KnowledgeService {
     ]);
     await this.queue.enqueueEmbed(tenantId);
     return row;
+  }
+
+  async listVerifiedAnswers(tenantId: string) {
+    return this.prisma.withTenant(tenantId, (tx) =>
+      tx.verifiedAnswer.findMany({
+        where: { active: true },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, question: true, answer: true, verifiedBy: true,
+          validUntil: true, createdAt: true,
+        },
+      }),
+    );
   }
 
   async deactivateVerifiedAnswer(tenantId: string, id: string) {
@@ -203,6 +251,16 @@ export class KnowledgeService {
         },
       }),
     );
+  }
+
+  /** Descartar una laguna (ruido, fuera de alcance…). No genera verificada. */
+  async dismissGap(tenantId: string, gapId: string) {
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const gap = await tx.knowledgeGap.findUnique({ where: { id: gapId }, select: { id: true } });
+      if (!gap) throw new NotFoundError('Laguna no encontrada');
+      await tx.knowledgeGap.update({ where: { id: gapId }, data: { status: 'DISMISSED' } });
+      return { ok: true };
+    });
   }
 
   /** Cerrar una laguna respondiéndola: crea la verificada y marca COVERED. */
