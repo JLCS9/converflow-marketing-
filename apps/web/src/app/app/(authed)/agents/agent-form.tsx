@@ -252,9 +252,6 @@ export function AgentForm({
             <Select value={type} onChange={(e) => setType(e.target.value as AgentType)}>
               <option value="CONVERSATIONAL">{t('optConversational')}</option>
               <option value="OPPORTUNITIES">{t('optOpportunities')}</option>
-              <option value="UTILITY" disabled>
-                {t('optUtility')}
-              </option>
             </Select>
           </Field>
         )}

@@ -77,3 +77,14 @@ export function buildReplyAllRecipients(
   const cc = external.filter((e) => norm(e) !== norm(to));
   return { to, cc };
 }
+
+/**
+ * Remitentes que nunca son clientes reales: daemons, bounces, no-reply…
+ * ÚNICA fuente (antes triplicado en poller/ingest). E2.
+ */
+export const AUTOMATED_SENDER_RE =
+  /^(mailer-daemon|postmaster|no-?reply|do-?not-?reply|bounce|bounces|notifications?|mailer|abuse)[@+]/i;
+
+export function isAutomatedSender(address: string): boolean {
+  return AUTOMATED_SENDER_RE.test(address.trim());
+}

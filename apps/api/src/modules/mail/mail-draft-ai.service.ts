@@ -5,6 +5,7 @@ import { AiService } from '../../common/ai/ai.service.js';
 import { htmlToText, sanitizeEmailHtml } from '../../common/utils/email-html.js';
 import { env } from '../../config/env.js';
 import { MailConnectionsService } from './mail-connections.service.js';
+import { KnowledgeService } from '../knowledge/knowledge.service.js';
 import { guessLanguage, SUPPORTED_LANGS } from './mail-ai.service.js';
 
 interface Actor {
@@ -103,7 +104,31 @@ export class MailDraftAiService {
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
     private readonly connections: MailConnectionsService,
+    private readonly knowledge: KnowledgeService,
   ) {}
+
+  /**
+   * E2 · El conocimiento del negocio viene del Conocimiento del tenant
+   * (instrucciones + RAG), no del config de «el último agente publicado».
+   * FUERA de cualquier transacción: la recuperación embebe la consulta.
+   */
+  private async tenantKnowledge(tenantId: string, query: string): Promise<string> {
+    const [instructions, blocks] = await Promise.all([
+      this.knowledge.listInstructions(tenantId).catch(() => []),
+      query.trim().length >= 4
+        ? this.knowledge.retrieve(tenantId, query, { k: 3 }).catch(() => [])
+        : Promise.resolve([]),
+    ]);
+    const parts = [
+      instructions.length
+        ? `REGLAS DE LA CASA:\n${instructions.map((i) => `- ${i.content}`).join('\n')}`
+        : null,
+      blocks.length
+        ? `INFORMACIÓN DEL NEGOCIO (fuentes):\n${blocks.map((b) => b.content).join('\n---\n')}`
+        : null,
+    ].filter(Boolean);
+    return parts.join('\n\n');
+  }
 
   /** Draft a reply to an existing thread. */
   async draftReply(
@@ -141,10 +166,14 @@ export class MailDraftAiService {
     const counterparty = lastInbound?.fromAddress ?? this.firstParticipant(thread.participants);
     const context = await this.gatherContext(tenantId, counterparty);
     const replyLang = this.replyLanguage(messages);
+    const agentKnowledge = await this.tenantKnowledge(
+      tenantId,
+      `${thread.subject ?? ''} ${(lastInbound?.text ?? '').slice(0, 300)}`,
+    );
 
     const call = await this.run(tenantId, {
       system: this.systemPrompt({
-        agentKnowledge: context.agentKnowledge,
+        agentKnowledge,
         replyLang,
         tone: this.pickTone(input.tone),
         length: this.pickLength(input.length),
@@ -177,10 +206,11 @@ export class MailDraftAiService {
     const instruction = this.cleanInstruction(input.instruction);
     const conn = await this.connections.assertAccess(tenantId, connectionId, actor);
     const context = await this.gatherContext(tenantId, (input.to ?? '').trim().toLowerCase() || null);
+    const agentKnowledge = await this.tenantKnowledge(tenantId, instruction);
 
     const call = await this.run(tenantId, {
       system: this.systemPrompt({
-        agentKnowledge: context.agentKnowledge,
+        agentKnowledge,
         replyLang: 'es',
         tone: this.pickTone(input.tone),
         length: this.pickLength(input.length),
@@ -327,22 +357,7 @@ export class MailDraftAiService {
           })
         : [];
 
-      // Company knowledge lives on the tenant's published agent — reused rather
-      // than duplicated in a second place the user would have to maintain.
-      const agent = await tx.agent.findFirst({
-        where: { status: 'PUBLISHED' },
-        orderBy: { updatedAt: 'desc' },
-        select: { config: true },
-      });
-      const cfg = (agent?.config ?? {}) as { businessInfo?: string; faqs?: string };
-      const knowledge = [
-        cfg.businessInfo ? `INFORMACIÓN DE LA EMPRESA / PRODUCTO:\n${cfg.businessInfo}` : null,
-        cfg.faqs ? `PREGUNTAS FRECUENTES:\n${cfg.faqs}` : null,
-      ]
-        .filter(Boolean)
-        .join('\n\n');
-
-      return { email, lead, client, opportunities, notes, agentKnowledge: knowledge };
+      return { email, lead, client, opportunities, notes };
     });
   }
 

@@ -12,34 +12,18 @@ export const AGENT_TOOLS = [
 
 export const TASK_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const;
 
-// LEGACY: reply mode used to live on the agent. It is now a Bot field
-// (Bot.replyMode). Schema kept for one deploy so old clients still validate.
-export const agentModeSchema = z.enum(['SUGGEST', 'AUTO']);
 export const agentStatusSchema = z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']);
 // The Agent.type stored in the DB is the *runtime engine*, not the wizard
-// purpose. The 12 funnel pieces the wizard shows collapse into these three.
-export const agentTypeSchema = z.enum([
-  'CONVERSATIONAL',
-  'OPPORTUNITIES',
-  'UTILITY',
-]);
+// purpose. (UTILITY se retiró en E2: nunca tuvo runner; el valor sigue en el
+// enum de Postgres solo como resto histórico.)
+export const agentTypeSchema = z.enum(['CONVERSATIONAL', 'OPPORTUNITIES']);
 
 export type AgentType = z.infer<typeof agentTypeSchema>;
 
-// Structured settings stored in Agent.config (Json). Varies by Agent.type:
-//   CONVERSATIONAL → language, tone, businessInfo, faqs, aiDisclosure, tools
-//   SCORING        → defaultPipelineId, defaultUpdateStatus, defaultCreateOpportunities
-//   TRIAGE         → products[], fallbackOwnerId  (future)
-// `mode` stays as a soft-deprecated alias of Bot.replyMode for one deploy.
-// Per-product routing for AGENDA_PROPOSAL agents.
-export const productOwnerSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  ownerId: z.string().cuid().optional(),
-  keywords: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
-});
-
-export const leadSourceSchema = z.enum(['IMPORT', 'AUTOMATIC']);
-
+// Structured settings stored in Agent.config (Json):
+//   CONVERSATIONAL → language, tone, businessInfo*, faqs*, aiDisclosure, tools, support
+//     (*deprecated en E1: migran a Conocimiento; el motor no los lee)
+//   OPPORTUNITIES  → defaults del modal de scoring por lote
 // SUPPORT — topic→responsible routing for auto-created support tickets.
 // A route matches when the AI-chosen topic equals route.topic OR any of its
 // keywords appears in the conversation text. The matched route's ownerId gets
@@ -58,37 +42,18 @@ export const supportConfigSchema = z.object({
 });
 
 export const agentConfigSchema = z.object({
-  // CONVERSATIONAL
+  // CONVERSATIONAL — identidad del asistente
   language: z.string().trim().max(20).optional(),
   tone: z.string().trim().max(160).optional(),
+  /** DEPRECATED (E1): migrado a Conocimiento; el motor no lo lee. */
   businessInfo: z.string().trim().max(8000).optional(),
+  /** DEPRECATED (E1): migrado a Conocimiento; el motor no lo lee. */
   faqs: z.string().trim().max(8000).optional(),
   aiDisclosure: z.string().trim().max(500).optional(),
   tools: z.array(z.enum(AGENT_TOOLS)).max(AGENT_TOOLS.length).optional(),
-  mode: agentModeSchema.optional(),
-  // OPPORTUNITIES — legacy "default" flags kept for the bulk-score modal.
-  defaultPipelineId: z.string().cuid().optional(),
+  // OPPORTUNITIES — defaults del modal de scoring por lote.
   defaultUpdateStatus: z.boolean().optional(),
   defaultCreateOpportunities: z.boolean().optional(),
-  // OPPORTUNITIES — new opportunity-engine fields (Commit D).
-  /** Where leads come from. IMPORT = CSV upload, AUTOMATIC = inbound channels. */
-  leadSource: leadSourceSchema.optional(),
-  /** Score ≥ thresholdClient → state = CLIENT. */
-  thresholdClient: z.number().int().min(0).max(100).optional(),
-  /** Score ≤ thresholdLost → state = LOST. Anything in between stays LEAD. */
-  thresholdLost: z.number().int().min(0).max(100).optional(),
-  /** Open an opportunity when the score is decided. */
-  actionOpenOpportunity: z.boolean().optional(),
-  /** Assign owner from the opportunity defaults. */
-  actionAssignOwner: z.boolean().optional(),
-  /** Create a follow-up task when score is above this threshold (off when undefined). */
-  actionCreateTaskAbove: z.number().int().min(0).max(100).optional(),
-  /** Vigilancia: open a task if an opportunity goes N days without activity. */
-  watcherDaysWithoutActivity: z.number().int().min(0).max(365).optional(),
-  // AGENDA_PROPOSAL
-  invitationTemplate: z.string().trim().max(2000).optional(),
-  productOwners: z.array(productOwnerSchema).max(50).optional(),
-  defaultMeetingDurationMin: z.number().int().min(15).max(240).optional(),
   // SUPPORT / tickets — auto-create + route + email a responsible.
   support: supportConfigSchema.optional(),
 });

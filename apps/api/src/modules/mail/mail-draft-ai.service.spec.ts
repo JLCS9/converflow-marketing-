@@ -15,7 +15,6 @@ function makeService(over: { toolResult?: unknown; completeResult?: string; tx?:
     client: { findFirst: vi.fn().mockResolvedValue(null) },
     opportunity: { findMany: vi.fn().mockResolvedValue([]) },
     note: { findMany: vi.fn().mockResolvedValue([]) },
-    agent: { findFirst: vi.fn().mockResolvedValue({ config: { businessInfo: 'Vendemos licencias', faqs: 'P: ¿plazos? R: 30 días' } }) },
   };
   const prisma = {
     withTenant: (_t: string, fn: (tx: unknown) => unknown) => Promise.resolve(fn(tx)),
@@ -47,7 +46,16 @@ function makeService(over: { toolResult?: unknown; completeResult?: string; tx?:
   const connections = {
     assertAccess: vi.fn().mockResolvedValue({ signature: 'Equipo\nVentas', fromAddress: 'ventas@a.com' }),
   } as never;
-  return { svc: new MailDraftAiService(prisma, ai as never, connections), ai, usage, tx };
+  const knowledge = {
+    listInstructions: vi.fn().mockResolvedValue([{ content: 'Nunca prometas plazas.' }]),
+    retrieve: vi.fn().mockResolvedValue([
+      { kind: 'knowledge', content: 'El curso dura seis semanas.', distance: 0.2 },
+    ]),
+  };
+  return {
+    svc: new MailDraftAiService(prisma, ai as never, connections, knowledge as never),
+    ai, usage, tx, knowledge,
+  };
 }
 
 describe('MailDraftAiService.draftReply — contexto del prompt', () => {
@@ -60,8 +68,9 @@ describe('MailDraftAiService.draftReply — contexto del prompt', () => {
     expect(userPrompt).toContain('Acme');
     expect(userPrompt).toContain('pago a 60 días'); // el hilo
     expect(userPrompt).toContain('Dile que aceptamos a 30 días'); // la instrucción
-    expect(system).toContain('Vendemos licencias'); // conocimiento del agente
-    expect(system).toContain('PREGUNTAS FRECUENTES');
+    // E2 · El conocimiento viene del Conocimiento del tenant, no del agente.
+    expect(system).toContain('El curso dura seis semanas.');
+    expect(system).toContain('Nunca prometas plazas.');
   });
 
   it('incluye siempre la regla de no inventar', async () => {
@@ -91,10 +100,9 @@ describe('MailDraftAiService.draftReply — contexto del prompt', () => {
     expect(ai.callWithTool).not.toHaveBeenCalled();
   });
 
-  it('funciona sin ficha en el CRM y sin agente publicado', async () => {
+  it('funciona sin ficha en el CRM y sin conocimiento', async () => {
     const { svc, usage, tx } = makeService();
     (tx.lead as { findFirst: ReturnType<typeof vi.fn> }).findFirst.mockResolvedValue(null);
-    (tx.agent as { findFirst: ReturnType<typeof vi.fn> }).findFirst.mockResolvedValue(null);
     const res = await svc.draftReply('t', 't1', actor, { instruction: 'algo' });
     expect(res.variants).toHaveLength(2);
     expect(usage.input[0]!.userPrompt).toContain('Sin ficha en el CRM');

@@ -1,7 +1,7 @@
 /**
  * Source of truth for the 12 wizard "templates" — the funnel tiles the
  * user sees on /app/agents/new. Each tile maps to ONE of the three
- * persisted engines (CONVERSATIONAL / OPPORTUNITIES / UTILITY).
+ * persisted engines (CONVERSATIONAL / OPPORTUNITIES).
  *
  * `id` is what gets persisted in Agent.template and what goes in the URL
  * (?template=conversacional). `available` controls whether the card is
@@ -71,17 +71,6 @@ const PROMPT_OPPORTUNITIES = [
 ].join('\n');
 
 export const AGENT_TEMPLATES: AgentTemplate[] = [
-  // ── Calificar ──────────────────────────────────────────────────────
-  {
-    id: 'triage',
-    label: 'Triage',
-    subtitle: 'Clasifica y rutea',
-    engine: 'CONVERSATIONAL',
-    funnelStage: 'CALIFICAR',
-    family: 'DECIDE',
-    available: false,
-    defaults: {},
-  },
   {
     id: 'oportunidades',
     label: 'Oportunidades',
@@ -95,17 +84,6 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       systemPrompt: PROMPT_OPPORTUNITIES,
     },
   },
-  {
-    id: 'enriquecimiento',
-    label: 'Enriquecimiento',
-    subtitle: 'Completa datos',
-    engine: 'UTILITY',
-    funnelStage: 'CALIFICAR',
-    family: 'DATA',
-    available: false,
-    defaults: {},
-  },
-
   // ── Vender ─────────────────────────────────────────────────────────
   {
     id: 'conversacional',
@@ -134,80 +112,6 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       systemPrompt: PROMPT_AGENDA,
       tools: ['schedule_meeting'],
     },
-  },
-  {
-    id: 'seguimiento',
-    label: 'Seguimiento',
-    subtitle: 'Sigue a tiempo',
-    engine: 'CONVERSATIONAL',
-    funnelStage: 'VENDER',
-    family: 'PEOPLE',
-    available: false,
-    defaults: {},
-  },
-
-  // ── Fidelizar ──────────────────────────────────────────────────────
-  {
-    id: 'onboarding',
-    label: 'Onboarding',
-    subtitle: 'Primeros días',
-    engine: 'CONVERSATIONAL',
-    funnelStage: 'FIDELIZAR',
-    family: 'PEOPLE',
-    available: false,
-    defaults: {},
-  },
-  {
-    id: 'soporte',
-    label: 'Soporte',
-    subtitle: 'Resuelve y escala',
-    engine: 'CONVERSATIONAL',
-    funnelStage: 'FIDELIZAR',
-    family: 'PEOPLE',
-    available: false,
-    defaults: {},
-  },
-  {
-    id: 'reactivacion',
-    label: 'Reactivación',
-    subtitle: 'Recupera inactivos',
-    engine: 'CONVERSATIONAL',
-    funnelStage: 'FIDELIZAR',
-    family: 'PEOPLE',
-    available: false,
-    defaults: {},
-  },
-
-  // ── Transversal ────────────────────────────────────────────────────
-  {
-    id: 'limpieza',
-    label: 'Limpieza de datos',
-    subtitle: 'Normaliza y dedup.',
-    engine: 'UTILITY',
-    funnelStage: 'TRANSVERSAL',
-    family: 'DATA',
-    available: false,
-    defaults: {},
-  },
-  {
-    id: 'informes',
-    label: 'Informes',
-    subtitle: 'Comercial, marketing',
-    engine: 'UTILITY',
-    funnelStage: 'TRANSVERSAL',
-    family: 'DATA',
-    available: false,
-    defaults: {},
-  },
-  {
-    id: 'resumenes',
-    label: 'Resúmenes',
-    subtitle: 'Charlas y reuniones',
-    engine: 'UTILITY',
-    funnelStage: 'TRANSVERSAL',
-    family: 'DATA',
-    available: false,
-    defaults: {},
   },
 ];
 

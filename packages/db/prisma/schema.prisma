@@ -1056,7 +1056,6 @@ model Message {
   // AI classification (inbound only)
   aiCategory       NoteCategory?
   aiSentiment      NoteSentiment?
-  aiConfidence     Float?
   aiSuggestedReply String?
   aiAnalyzedAt     DateTime?
 
