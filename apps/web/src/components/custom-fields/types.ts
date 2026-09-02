@@ -11,7 +11,7 @@ export type CustomFieldType =
   | 'PHONE'
   | 'DOCUMENT';
 
-export type CustomFieldEntity = 'LEAD' | 'CLIENT' | 'OPPORTUNITY';
+export type CustomFieldEntity = 'LEAD' | 'CLIENT' | 'OPPORTUNITY' | 'PROFILE';
 
 export interface CustomFieldOption {
   value: string;
@@ -61,4 +61,5 @@ export const ENTITY_LABEL_KEY: Record<CustomFieldEntity, string> = {
   LEAD: 'entityLeadClient',
   CLIENT: 'entityLeadClient',
   OPPORTUNITY: 'entityOpportunity',
+  PROFILE: 'entityProfile',
 };

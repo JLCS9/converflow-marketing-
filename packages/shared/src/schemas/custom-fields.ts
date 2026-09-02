@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const customFieldEntitySchema = z.enum(['LEAD', 'CLIENT', 'OPPORTUNITY']);
+export const customFieldEntitySchema = z.enum(['LEAD', 'CLIENT', 'OPPORTUNITY', 'PROFILE']);
 export type CustomFieldEntity = z.infer<typeof customFieldEntitySchema>;
 
 export const customFieldTypeSchema = z.enum([

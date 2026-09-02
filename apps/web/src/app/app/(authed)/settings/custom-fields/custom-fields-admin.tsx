@@ -46,6 +46,7 @@ export function CustomFieldsAdmin({ initial }: { initial: CustomFieldDefinition[
       LEAD: [],
       CLIENT: [],
       OPPORTUNITY: [],
+      PROFILE: [],
     };
     for (const d of defs) m[d.entityType].push(d);
     for (const k of ENTITIES) {

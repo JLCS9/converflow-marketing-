@@ -171,6 +171,9 @@ model Tenant {
   events                   Event[]
   ragCollections           RagCollection[]
   ragChunks                RagChunk[]
+  lifecycleDefinitions     LifecycleDefinition[]
+  lifecycleStates          LifecycleState[]
+  consents                 Consent[]
 
   @@map("tenants")
 }
@@ -507,11 +510,14 @@ enum ClientStatus {
 }
 
 model Lead {
-  id       String  @id @default(cuid())
-  tenantId String
-  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  clientId String?
-  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  /// F1 · Perfil unificado del plano de datos (se rellena al resolver identidad).
+  profileId String?
+  profile   Profile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
 
   name         String
   lastName     String?
@@ -612,20 +618,27 @@ model Opportunity {
 // ============================================
 
 model CustomFieldDefinition {
-  id         String            @id @default(cuid())
-  tenantId   String
-  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  entityType CustomFieldEntity
-  key        String // stable slug used as Json property name
-  label      String
-  type       CustomFieldType
-  required   Boolean           @default(false)
-  options    Json? // SELECT/MULTISELECT options: [{value,label}]
-  helpText   String?
-  order      Int               @default(0)
-  archivedAt DateTime?
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
+  id            String            @id @default(cuid())
+  tenantId      String
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entityType    CustomFieldEntity
+  key           String // stable slug used as Json property name
+  label         String
+  type          CustomFieldType
+  required      Boolean           @default(false)
+  options       Json? // SELECT/MULTISELECT options: [{value,label}]
+  helpText      String?
+  order         Int               @default(0)
+  /// F1 · Dato sensible: afecta a retención/borrado y exige consentimiento.
+  sensitive     Boolean           @default(false)
+  /// F1 · Días de retención del VALOR tras la baja del perfil.
+  retentionDays Int?
+  /// F1 · Extraíble por el motor conversacional (el esquema del LLM se
+  /// genera desde las definiciones marcadas).
+  extractable   Boolean           @default(false)
+  archivedAt    DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@unique([tenantId, entityType, key])
   @@index([tenantId, entityType])
@@ -636,6 +649,7 @@ enum CustomFieldEntity {
   LEAD
   CLIENT
   OPPORTUNITY
+  PROFILE
 }
 
 enum CustomFieldType {
@@ -880,6 +894,7 @@ enum AlertType {
   TASK_OVERDUE
   HIGH_SCORE_LEAD
   CLIENT_INACTIVITY
+  B2B_DOMAIN
   OTHER
 }
 
@@ -1498,13 +1513,21 @@ model Profile {
   /// Campos del vertical (validados contra CustomFieldDefinition, F1).
   custom   Json?
 
-  identities ProfileIdentity[]
-  events     Event[]
+  /// Estado de ciclo de vida VIGENTE (denormalizado; histórico en
+  /// lifecycle_states). NULL = aún sin evaluar.
+  lifecycleState String?
+
+  identities       ProfileIdentity[]
+  events           Event[]
+  lifecycleHistory LifecycleState[]
+  consents         Consent[]
+  leads            Lead[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([tenantId, updatedAt])
+  @@index([tenantId, lifecycleState])
   @@map("profiles")
 }
 
@@ -1611,4 +1634,67 @@ model RagChunk {
 
   @@index([tenantId, collectionId])
   @@map("rag_chunks")
+}
+
+/// Máquina de estados del ciclo de vida, declarada por tenant (F1).
+model LifecycleDefinition {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name        String
+  /// [{ key, label }] — el primer estado es el inicial.
+  states      Json
+  /// Reglas declarativas (ver lifecycle.engine.ts):
+  /// [{ from: string|null, to: string, when: {...} }]
+  transitions Json
+  active      Boolean @default(true)
+  /// Plantilla de vertical de origen ('elearning', 'residencias'…).
+  template    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, name])
+  @@map("lifecycle_definitions")
+}
+
+/// Histórico de transiciones (append-only); el vigente está en Profile.
+model LifecycleState {
+  id        String  @id @default(cuid())
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  state    String
+  previous String?
+  /// Qué disparó la transición ('event:purchase', 'rule:inactivity-90d'…).
+  reason   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, profileId, createdAt])
+  @@map("lifecycle_states")
+}
+
+/// Consentimiento por perfil, canal y finalidad, con evidencia (F1).
+model Consent {
+  id        String  @id @default(cuid())
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  channel  String
+  purpose  String
+  granted  Boolean
+  /// { at, where, textShown, ip? } — la evidencia que exige el RGPD.
+  evidence Json
+
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([tenantId, profileId, channel, purpose])
+  @@map("consents")
 }

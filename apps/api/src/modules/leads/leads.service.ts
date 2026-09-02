@@ -234,11 +234,43 @@ export class LeadsService {
     });
   }
 
-  async remove(tenantId: string, id: string) {
+  /**
+   * Borrado RGPD (art. 17). Elimina TODO lo que la UI promete: el lead, sus
+   * conversaciones con mensajes (colgaban con SetNull y sobrevivían — deuda
+   * corregida en F1), y su perfil del plano de datos (cascade: identidades,
+   * eventos, estados y consentimientos). Deja una entrada técnica en el
+   * registro de auditoría SIN datos personales.
+   */
+  async remove(tenantId: string, id: string, actorEmail?: string) {
     return this.prisma.withTenant(tenantId, async (tx) => {
-      const lead = await tx.lead.findUnique({ where: { id } });
+      const lead = await tx.lead.findUnique({
+        where: { id },
+        select: { id: true, profileId: true },
+      });
       if (!lead) throw new NotFoundError('Lead no encontrado');
+
+      // Conversaciones del lead (los mensajes caen por FK cascade).
+      const convs = await tx.conversation.deleteMany({ where: { leadId: id } });
+
+      // Perfil del plano de datos, si existe (cascade sobre identidades,
+      // eventos, lifecycle_states y consents).
+      if (lead.profileId) {
+        await tx.profile.delete({ where: { id: lead.profileId } }).catch(() => undefined);
+      }
+
       await tx.lead.delete({ where: { id } });
+
+      // Auditoría técnica sin PII (lo que promete el diálogo de la UI).
+      await tx.accessLog.create({
+        data: {
+          tenantId,
+          email: actorEmail ?? 'system',
+          action: 'gdpr.lead_delete',
+          resource: `lead:${id}`,
+          success: true,
+          metadata: { conversationsDeleted: convs.count, profileDeleted: Boolean(lead.profileId) },
+        },
+      });
     });
   }
 

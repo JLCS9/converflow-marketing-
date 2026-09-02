@@ -1821,6 +1821,7 @@ const es = {
     moveTo: 'Mover a {status}',
   },
   uiBits: {
+    entityProfile: 'Perfil de contacto',
     permEvents: 'Eventos (API de datos)',
     permEventsDesc: 'Enviar eventos al plano de datos vía /events (integraciones y API keys).',
     fieldsSaved: 'Campos guardados',

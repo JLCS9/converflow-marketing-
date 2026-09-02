@@ -31,7 +31,9 @@ import { ApiKeysModule } from './modules/api-keys/api-keys.module.js';
 import { CampaignsModule } from './modules/campaigns/campaigns.module.js';
 import { EmailTemplatesModule } from './modules/email-templates/email-templates.module.js';
 import { MailModule } from './modules/mail/mail.module.js';
+import { ConsentsModule } from './modules/consents/consents.module.js';
 import { IngestModule } from './modules/ingest/ingest.module.js';
+import { LifecycleModule } from './modules/lifecycle/lifecycle.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { RagModule } from './modules/rag/rag.module.js';
 import { AiModule } from './common/ai/ai.module.js';
@@ -75,7 +77,9 @@ import { GuardsModule } from './common/guards/guards.module.js';
     CampaignsModule,
     EmailTemplatesModule,
     MailModule,
+    ConsentsModule,
     IngestModule,
+    LifecycleModule,
     ProfilesModule,
     RagModule,
   ],
