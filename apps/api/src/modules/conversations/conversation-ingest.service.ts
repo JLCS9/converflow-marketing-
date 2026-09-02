@@ -636,6 +636,7 @@ export class ConversationIngestService {
       history: history.reverse().map((m) => ({ direction: m.direction as 'IN' | 'OUT', body: m.body ?? '' })),
       profileId,
       leadWaiting: Boolean(lead),
+      conversationId,
     });
 
     // Entrega webchat: el OUT es lo que sondea el widget (sin transporte).
@@ -652,6 +653,19 @@ export class ConversationIngestService {
           // Sin respuesta suficiente → la conversación queda PENDIENTE para
           // el equipo (hay una persona esperando contacto humano).
           ...(res.canAnswer ? { status: 'ANSWERED' as const } : { status: 'PENDING' as const }),
+          // F3 · Contexto de handoff SIN coste extra: lo que el motor ya sabe
+          // de este escalado, para que quien lo coja no lea todo el hilo.
+          ...(!res.canAnswer || res.consentGranted
+            ? {
+                handoffContext: {
+                  question: body.slice(0, 500),
+                  gapId: res.gapId ?? null,
+                  extracted: res.extractedKeys,
+                  consentGranted: res.consentGranted,
+                  at: new Date().toISOString(),
+                } as never,
+              }
+            : {}),
         },
       });
     });

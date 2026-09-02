@@ -207,7 +207,7 @@ export class KnowledgeService {
   async recordGap(
     tenantId: string,
     question: string,
-    opts: { hasWaitingLead?: boolean } = {},
+    opts: { hasWaitingLead?: boolean; conversationId?: string } = {},
   ) {
     const [vector] = await this.rag.embedTexts([question]);
     const lit = `[${vector!.join(',')}]`;
@@ -226,14 +226,15 @@ export class KnowledgeService {
           SET count = count + 1,
               "hasWaitingLead" = "hasWaitingLead" OR ${opts.hasWaitingLead ?? false},
               samples = (COALESCE(samples, '[]'::jsonb) || to_jsonb(${question}::text)),
+              "conversationId" = COALESCE(${opts.conversationId ?? null}, "conversationId"),
               "updatedAt" = now()
           WHERE id = ${hit.id}
         `;
         return { id: hit.id, grouped: true };
       }
       const rows = await tx.$queryRaw<{ id: string }[]>`
-        INSERT INTO knowledge_gaps ("id", "tenantId", "question", "count", "status", "hasWaitingLead", "embedding", "samples", "createdAt", "updatedAt")
-        VALUES (gen_random_uuid()::text, ${tenantId}, ${question}, 1, 'OPEN', ${opts.hasWaitingLead ?? false}, ${lit}::vector, to_jsonb(ARRAY[${question}::text]), now(), now())
+        INSERT INTO knowledge_gaps ("id", "tenantId", "question", "count", "status", "hasWaitingLead", "embedding", "samples", "conversationId", "createdAt", "updatedAt")
+        VALUES (gen_random_uuid()::text, ${tenantId}, ${question}, 1, 'OPEN', ${opts.hasWaitingLead ?? false}, ${lit}::vector, to_jsonb(ARRAY[${question}::text]), ${opts.conversationId ?? null}, now(), now())
         RETURNING id
       `;
       return { id: rows[0]!.id, grouped: false };
