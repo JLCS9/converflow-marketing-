@@ -37,8 +37,11 @@ for i in {1..30}; do
   sleep 2
 done
 
-echo "→ Running migrations + RLS + seed (idempotent)"
-$COMPOSE exec -T api sh -c "cd /app && npx --yes prisma migrate deploy --schema=/app/node_modules/@converflow/db/prisma/schema.prisma" || true
+echo "→ Running schema push + RLS + DDL (idempotent)"
+# Ruta REAL dentro del contenedor: /repo/packages/db (no /app). Sin '|| true':
+# si esto falla, el deploy debe parar — un push silenciosamente omitido dejó
+# la IA caída en producción (incidente F0).
+$COMPOSE exec -T api sh -c "cd /repo/packages/db && npx prisma db push --skip-generate && npx prisma db execute --file prisma/sql/rls-policies.sql && npx prisma db execute --file prisma/sql/ddl.sql"
 
 echo "→ Health checks"
 sleep 3
