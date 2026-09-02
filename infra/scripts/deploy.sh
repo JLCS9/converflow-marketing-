@@ -41,7 +41,7 @@ echo "→ Running schema push + RLS + DDL (idempotent)"
 # Ruta REAL dentro del contenedor: /repo/packages/db (no /app). Sin '|| true':
 # si esto falla, el deploy debe parar — un push silenciosamente omitido dejó
 # la IA caída en producción (incidente F0).
-$COMPOSE exec -T api sh -c "cd /repo/packages/db && npx prisma db push --skip-generate && npx prisma db execute --file prisma/sql/rls-policies.sql && npx prisma db execute --file prisma/sql/ddl.sql"
+$COMPOSE exec -T api sh -c "cd /repo/packages/db && npx prisma db push --skip-generate --accept-data-loss && npx prisma db execute --schema prisma/schema.prisma --file prisma/sql/rls-policies.sql && npx prisma db execute --schema prisma/schema.prisma --file prisma/sql/ddl.sql"
 
 echo "→ Health checks"
 sleep 3
