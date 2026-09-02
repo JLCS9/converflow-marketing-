@@ -18,6 +18,11 @@ export class ReportsController {
     return this.reports.overview(user.tenantId);
   }
 
+  @Get('attention')
+  attention(@CurrentUser() user: AuthenticatedUser) {
+    return this.reports.attention(user.tenantId);
+  }
+
   @Get('series')
   series(@CurrentUser() user: AuthenticatedUser) {
     return this.reports.series(user.tenantId);

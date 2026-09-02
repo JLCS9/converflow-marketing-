@@ -87,10 +87,12 @@ export const CRM_TABS: TabItem[] = [
   { href: '/app/opportunities', label: 'Oportunidades', labelKey: 'opportunities.title' },
 ];
 
+// E3 · «Agentes IA» desaparece: un solo Asistente, configurado junto al
+// Conocimiento. La ruta /app/agents sigue viva (scoring de oportunidades)
+// pero ya no es una pestaña.
 export const IA_TABS: TabItem[] = [
-  { href: '/app/bots', label: 'Bots', labelKey: 'uiBits.tabBots' },
-  { href: '/app/agents', label: 'Agentes IA', labelKey: 'uiBits.tabAgents' },
-  { href: '/app/knowledge', label: 'Conocimiento', labelKey: 'uiBits.tabKnowledge' },
+  { href: '/app/bots', label: 'Canales', labelKey: 'uiBits.tabBots' },
+  { href: '/app/knowledge', label: 'Asistente', labelKey: 'uiBits.tabKnowledge' },
   { href: '/app/playbooks', label: 'Seguimientos', labelKey: 'uiBits.tabPlaybooks' },
   { href: '/app/ai-report', label: 'Informe', labelKey: 'uiBits.tabAiReport' },
 ];

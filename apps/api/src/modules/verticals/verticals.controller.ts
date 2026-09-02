@@ -6,7 +6,7 @@ import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/cur
 import { VerticalsService } from './verticals.service.js';
 
 @UseGuards(TenantAuthGuard, PermissionsGuard)
-@RequirePerm('settings')
+@RequirePerm('agents')
 @Controller('verticals')
 export class VerticalsController {
   constructor(private readonly verticals: VerticalsService) {}

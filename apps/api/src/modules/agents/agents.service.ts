@@ -77,6 +77,83 @@ export class AgentsService {
     });
   }
 
+  // ---- E3 · Identidad del asistente único ------------------------------------
+
+  /** El asistente por defecto del tenant: el CONVERSATIONAL publicado más
+   *  reciente; si no existe, se crea («Asistente») y se asigna a los bots
+   *  sin agente. Un solo cerebro visible para el usuario. */
+  async getOrCreateAssistant(tenantId: string) {
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      let agent = await tx.agent.findFirst({
+        where: { type: 'CONVERSATIONAL', status: 'PUBLISHED' },
+        orderBy: { updatedAt: 'desc' },
+      });
+      agent ??= await tx.agent.findFirst({
+        where: { type: 'CONVERSATIONAL' },
+        orderBy: { updatedAt: 'desc' },
+      });
+      if (!agent) {
+        agent = await tx.agent.create({
+          data: {
+            tenantId,
+            name: 'Asistente',
+            systemPrompt: '',
+            config: {},
+            status: 'PUBLISHED',
+            type: 'CONVERSATIONAL',
+          },
+        });
+      }
+      await tx.bot.updateMany({ where: { agentId: null }, data: { agentId: agent.id } });
+      return agent;
+    });
+  }
+
+  async getIdentity(tenantId: string) {
+    const agent = await this.getOrCreateAssistant(tenantId);
+    const cfg = (agent.config ?? {}) as Record<string, unknown>;
+    return {
+      agentId: agent.id,
+      tone: (cfg.tone as string) ?? '',
+      language: (cfg.language as string) ?? '',
+      aiDisclosure: (cfg.aiDisclosure as string) ?? '',
+      tools: (cfg.tools as string[]) ?? [],
+      support: cfg.support ?? null,
+    };
+  }
+
+  async updateIdentity(
+    tenantId: string,
+    input: {
+      tone?: string;
+      language?: string;
+      aiDisclosure?: string;
+      tools?: string[];
+      support?: unknown;
+    },
+  ) {
+    const agent = await this.getOrCreateAssistant(tenantId);
+    await this.prisma.withTenant(tenantId, async (tx) => {
+      const current = ((await tx.agent.findUnique({ where: { id: agent.id }, select: { config: true } }))
+        ?.config ?? {}) as Record<string, unknown>;
+      await tx.agent.update({
+        where: { id: agent.id },
+        data: {
+          status: 'PUBLISHED',
+          config: {
+            ...current,
+            ...(input.tone !== undefined ? { tone: input.tone } : {}),
+            ...(input.language !== undefined ? { language: input.language } : {}),
+            ...(input.aiDisclosure !== undefined ? { aiDisclosure: input.aiDisclosure } : {}),
+            ...(input.tools !== undefined ? { tools: input.tools } : {}),
+            ...(input.support !== undefined ? { support: input.support } : {}),
+          } as never,
+        },
+      });
+    });
+    return this.getIdentity(tenantId);
+  }
+
   /**
    * Build the system prompt for an agent from its prompt + config (knowledge,
    * tone, language) with a strict no-hallucination guardrail. Shared by the

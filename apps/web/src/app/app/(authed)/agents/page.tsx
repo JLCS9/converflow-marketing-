@@ -4,7 +4,7 @@ import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
-import { TabBar, IA_TABS } from '@/components/ui/tab-bar';
+import { IaTabs } from '@/components/ui/ia-tabs';
 import { AGENT_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
 import { getLabelMaps } from '@/lib/get-labels';
 
@@ -40,7 +40,7 @@ export default async function AgentsPage() {
 
   return (
     <div className="space-y-6">
-      <TabBar items={IA_TABS} />
+      <IaTabs />
       <PageHeader
         title={t('title')}
         description={t('description')}
