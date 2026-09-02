@@ -184,6 +184,24 @@ export class RagService {
   }
 
   /** Borra los fragmentos de un origen (re-vectorización incremental). */
+  /** Renombra el sourceRef de un lote de fragmentos (staging del set de
+   *  regresión F4: el contenido viejo pasa a `<ref>#prev` mientras se
+   *  comprueba el nuevo, y se restaura si la regresión bloquea). */
+  async renameSourceRef(tenantId: string, collectionKey: string, from: string, to: string) {
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const collection = await tx.ragCollection.findUnique({
+        where: { tenantId_key: { tenantId, key: collectionKey } },
+        select: { id: true },
+      });
+      if (!collection) return { renamed: 0 };
+      const res = await tx.ragChunk.updateMany({
+        where: { collectionId: collection.id, sourceRef: from },
+        data: { sourceRef: to },
+      });
+      return { renamed: res.count };
+    });
+  }
+
   async deleteBySourceRef(tenantId: string, collectionKey: string, sourceRef: string) {
     return this.prisma.withTenant(tenantId, async (tx) => {
       const collection = await tx.ragCollection.findUnique({

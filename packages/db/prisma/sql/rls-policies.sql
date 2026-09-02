@@ -533,3 +533,21 @@ CREATE POLICY tenant_isolation ON playbook_runs
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- regression_checks (set de regresión F4)
+ALTER TABLE regression_checks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE regression_checks FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON regression_checks;
+CREATE POLICY tenant_isolation ON regression_checks
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- monthly_reports (informe mensual F4)
+ALTER TABLE monthly_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE monthly_reports FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON monthly_reports;
+CREATE POLICY tenant_isolation ON monthly_reports
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

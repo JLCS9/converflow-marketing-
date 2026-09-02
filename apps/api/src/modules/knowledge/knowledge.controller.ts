@@ -5,6 +5,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
 import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/current-user.decorator.js';
 import { KnowledgeService } from './knowledge.service.js';
+import { RegressionService } from './regression.service.js';
 
 const textSourceSchema = z.object({
   title: z.string().trim().min(2).max(120),
@@ -33,7 +34,10 @@ const coverGapSchema = z.object({ answer: z.string().trim().min(2).max(8000) });
 @RequirePerm('agents')
 @Controller('knowledge')
 export class KnowledgeController {
-  constructor(private readonly knowledge: KnowledgeService) {}
+  constructor(
+    private readonly knowledge: KnowledgeService,
+    private readonly regression: RegressionService,
+  ) {}
 
   @Get('sources')
   listSources(@CurrentUser() user: AuthenticatedUser) {
@@ -43,13 +47,14 @@ export class KnowledgeController {
   @Delete('sources')
   deleteSource(@Query('ref') ref: string, @CurrentUser() user: AuthenticatedUser) {
     const sourceRef = z.string().trim().min(6).max(120).parse(ref);
-    return this.knowledge.deleteSource(user.tenantId, sourceRef);
+    return this.regression.guardedDeleteSource(user.tenantId, sourceRef);
   }
 
   @Post('sources/text')
   addText(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
     const input = textSourceSchema.parse(body);
-    return this.knowledge.addTextSource(user.tenantId, input);
+    // F4 · Pasa por la puerta del set de regresión (no-op sin checks activos).
+    return this.regression.guardedAddTextSource(user.tenantId, input);
   }
 
   @Get('verified')
@@ -100,6 +105,36 @@ export class KnowledgeController {
   @Post('gaps/:id/dismiss')
   dismissGap(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.knowledge.dismissGap(user.tenantId, id);
+  }
+
+  // ---- set de regresión (F4) ---------------------------------------------
+
+  @Get('regression')
+  listRegression(@CurrentUser() user: AuthenticatedUser) {
+    return this.regression.list(user.tenantId);
+  }
+
+  @Post('regression')
+  upsertRegression(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
+    const input = z
+      .object({
+        id: z.string().optional(),
+        question: z.string().trim().min(5).max(500),
+        expect: z.string().trim().min(3).max(300),
+        active: z.boolean().optional(),
+      })
+      .parse(body);
+    return this.regression.upsert(user.tenantId, input);
+  }
+
+  @Delete('regression/:id')
+  removeRegression(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.regression.remove(user.tenantId, id);
+  }
+
+  @Post('regression/run')
+  runRegression(@CurrentUser() user: AuthenticatedUser) {
+    return this.regression.run(user.tenantId);
   }
 
   /** Búsqueda de prueba para el panel (qué recuperaría el motor). */
