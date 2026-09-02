@@ -6,7 +6,7 @@ import { ConversationDeliveryService } from './conversation-delivery.service.js'
 import { CrmActionsService, enabledToolDefs } from './crm-actions.service.js';
 import { z } from 'zod';
 import { type PrismaClient } from '@converflow/db';
-import type { AgentConfig } from '@converflow/shared';
+import { isAutomatedSender, type AgentConfig } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { AiService } from '../../common/ai/ai.service.js';
 import { AiBudgetService } from '../../common/ai/ai-budget.service.js';
@@ -29,12 +29,6 @@ export const whatsappEventSchema = z.object({
 });
 export type WhatsappEventInput = z.infer<typeof whatsappEventSchema>;
 
-// Senders that are never real customers — bounces, daemons, no-reply boxes.
-const AUTOMATED_SENDER =
-  /^(mailer-daemon|postmaster|no-?reply|do-?not-?reply|bounce|bounces|notifications?|mailer|abuse)[@+]/i;
-function isAutomatedSender(address: string): boolean {
-  return AUTOMATED_SENDER.test(address.trim());
-}
 
 @Injectable()
 export class ConversationIngestService {
@@ -878,7 +872,6 @@ export class ConversationIngestService {
         data: {
           aiCategory: call.result.category as never,
           aiSentiment: call.result.sentiment as never,
-          aiConfidence: call.result.confidence,
           aiSuggestedReply: call.result.suggestedReply,
           aiAnalyzedAt: new Date(),
         },

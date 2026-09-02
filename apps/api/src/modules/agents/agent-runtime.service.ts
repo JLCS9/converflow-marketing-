@@ -227,8 +227,8 @@ export class AgentRuntimeService {
         })
         .then((c) => c?.bot ?? null),
     );
-    const mode: 'OFF' | 'SUGGEST' | 'AUTO' =
-      bot?.replyMode ?? (config.mode === 'AUTO' ? 'AUTO' : 'SUGGEST');
+    // E2 · config.mode (legacy) murió: Bot.replyMode es la única fuente.
+    const mode: 'OFF' | 'SUGGEST' | 'AUTO' = bot?.replyMode ?? 'SUGGEST';
     let delivered = false;
     if (mode === 'OFF') {
       // Channel is recording-only. We don't even store a suggestion.

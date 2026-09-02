@@ -6,6 +6,7 @@ import { ConversationIngestService } from './conversation-ingest.service.js';
 import { ConversationAiService } from './conversation-ai.service.js';
 import { ConversationDeliveryService } from './conversation-delivery.service.js';
 import { CrmActionsService } from './crm-actions.service.js';
+import { BotEmailPollerService } from './bot-email-poller.service.js';
 import { BotsModule } from '../bots/bots.module.js';
 import { ConversationEngineModule } from '../conversation-engine/conversation-engine.module.js';
 import { ProfilesModule } from '../profiles/profiles.module.js';
@@ -19,7 +20,7 @@ import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 @Module({
   imports: [BotsModule, DocumentsModule, AgentsModule, EmailModule, ConversationEngineModule, ProfilesModule, IngestQueueModule, KnowledgeModule],
   controllers: [ConversationsController, WhatsappCloudController],
-  providers: [ConversationsService, ConversationIngestService, ConversationAiService, ConversationDeliveryService, CrmActionsService, TenantAuthGuard],
+  providers: [ConversationsService, ConversationIngestService, ConversationAiService, ConversationDeliveryService, CrmActionsService, BotEmailPollerService, TenantAuthGuard],
   exports: [ConversationIngestService, ConversationsService, ConversationDeliveryService],
 })
 export class ConversationsModule {}

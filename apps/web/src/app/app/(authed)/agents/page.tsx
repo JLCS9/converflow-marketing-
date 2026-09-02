@@ -14,7 +14,7 @@ interface AgentRow {
   description: string | null;
   model: string;
   status: string;
-  type: 'CONVERSATIONAL' | 'OPPORTUNITIES' | 'UTILITY';
+  type: 'CONVERSATIONAL' | 'OPPORTUNITIES';
   template: string | null;
   updatedAt: string;
 }
@@ -22,12 +22,10 @@ interface AgentRow {
 const TYPE_LABEL_KEY = {
   CONVERSATIONAL: 'typeConversational',
   OPPORTUNITIES: 'typeOpportunities',
-  UTILITY: 'typeUtility',
 } as const;
-const TYPE_COLOR: Record<AgentRow['type'], 'green' | 'blue' | 'yellow'> = {
+const TYPE_COLOR: Record<AgentRow['type'], 'green' | 'blue'> = {
   CONVERSATIONAL: 'green',
   OPPORTUNITIES: 'blue',
-  UTILITY: 'yellow',
 };
 
 export async function generateMetadata() {
