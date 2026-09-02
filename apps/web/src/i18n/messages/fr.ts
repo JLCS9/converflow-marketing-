@@ -173,6 +173,7 @@ const fr: Messages = {
     assistantSender: 'Assistant',
     aiDraftTitle: 'L’Assistant a préparé cette réponse.',
     aiDraftBody: 'Relisez-la, modifiez-la si besoin et cliquez Envoyer. Rien ne part sans vous.',
+    aiDraftLoad: 'Voir la réponse proposée',
     noContent: 'Sans contenu',
     details: 'Détails',
     hideDetails: 'Masquer les détails',
