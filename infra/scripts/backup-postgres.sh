@@ -12,9 +12,19 @@
 #   2. Rota: conserva los últimos 14 dumps locales en /opt/converflow-ai/backups.
 #   3. Si hay rclone configurado con un remoto `cfai-backups:` (R2/S3/B2…),
 #      sube el dump — ESO es lo que saca la copia fuera del VPS.
-#      Configurar: `rclone config` → remoto S3-compatible con las credenciales
-#      R2 existentes; sin rclone, el backup queda solo local (mejor que nada,
-#      pero el objetivo de F0 es fuera del VPS).
+#      Configuración VERIFICADA para Cloudflare R2 (2026-09; rclone 1.60 del
+#      apt de Debian 13 sirve) — escribir /root/.config/rclone/rclone.conf:
+#        [cfai-backups]
+#        type = s3
+#        provider = Cloudflare
+#        access_key_id = <R2 API token: Access Key ID>
+#        secret_access_key = <R2 API token: Secret>
+#        endpoint = https://<ACCOUNT_ID>.eu.r2.cloudflarestorage.com
+#        no_check_bucket = true
+#      OJO: SIN línea `acl = ...` — R2 no implementa ACLs y responde
+#      «501 Not Implemented» a cualquier subida que la lleve.
+#      Sin rclone, el backup queda solo local (mejor que nada, pero el
+#      objetivo de F0 es fuera del VPS).
 #
 # Restaurar:
 #   docker exec -i cfai-postgres pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists < backups/<fichero>
