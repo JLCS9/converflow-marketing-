@@ -7,7 +7,7 @@ import { createMailDriver, type DriverConfig } from './drivers/index.js';
 import { MailConnectionsService } from './mail-connections.service.js';
 import { MailAttachmentsService, type StagedAttachment } from './mail-attachments.service.js';
 import { MailSharedService } from './mail-shared.service.js';
-import { normalizeSubject } from './mail-ingest.service.js';
+import { normalizeSubject } from './mail-subject.js';
 
 interface Actor {
   userId: string;
