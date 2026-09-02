@@ -173,6 +173,7 @@ const en: Messages = {
     assistantSender: 'Assistant',
     aiDraftTitle: 'The Assistant prepared this reply.',
     aiDraftBody: 'Review it, tweak it if needed and press Send. Nothing goes out without you.',
+    aiDraftLoad: 'View the proposed reply',
     noContent: 'No content',
     details: 'Details',
     hideDetails: 'Hide details',

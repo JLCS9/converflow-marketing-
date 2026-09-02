@@ -251,6 +251,9 @@ export function MailWorkspace({
   const [composerOpen, setComposerOpen] = useState(false);
   // Atención autónoma: el borrador precargado lo preparó el Asistente.
   const [aiDraftPending, setAiDraftPending] = useState(false);
+  // Borrador del Asistente llegado DESPUÉS de abrir el hilo (la generación
+  // tarda unos segundos): se ofrece con un botón, jamás pisa lo escrito.
+  const [aiDraftReady, setAiDraftReady] = useState<ComposerInitial | null>(null);
   const [leadDrawerId, setLeadDrawerId] = useState<string | null>(null);
   const [composerTab, setComposerTab] = useState<'reply' | 'note'>('reply');
   const [loadingList, setLoadingList] = useState(true);
@@ -420,6 +423,15 @@ export function MailWorkspace({
       try {
         const d = await apiFetch<Detail>(`/mail/threads/${id}`);
         setDetail((prev) => (prev && prev.thread.id === id ? d : prev));
+        // El Asistente redacta en segundo plano: si su borrador aparece
+        // DESPUÉS de abrir el hilo, ofrecerlo (sin tocar el compositor).
+        const aiDraft = d.messages.find((m) => m.isDraft && m.sentByAi);
+        if (aiDraft) {
+          setAiDraftPending((pending) => {
+            if (!pending) setAiDraftReady(draftToInit(aiDraft));
+            return pending;
+          });
+        }
       } catch {
         /* keep last */
       }
@@ -471,6 +483,23 @@ export function MailWorkspace({
     return parts.find((p) => p.toLowerCase() !== selfAddress) ?? parts[0] ?? '';
   }
 
+  function draftToInit(draft: Detail['messages'][number]): ComposerInitial {
+    return {
+      draftId: draft.id,
+      to: list(draft.toAddresses),
+      cc: list(draft.ccAddresses),
+      bcc: list(draft.bccAddresses),
+      subject: draft.subject ?? '',
+      html: draft.html ?? '',
+      attachments: draft.attachments.map((a) => ({
+        storageKey: a.storageKey,
+        filename: a.filename,
+        mimeType: a.mimeType,
+        sizeBytes: a.sizeBytes,
+      })),
+    };
+  }
+
   async function openThread(id: string) {
     setSelectedId(id);
     setDetail(null);
@@ -481,26 +510,14 @@ export function MailWorkspace({
     setComposerOpen(false);
     setComposerTab('reply');
     setAiDraftPending(false);
+    setAiDraftReady(null);
     apiFetch<NoteRow[]>(`/mail/threads/${id}/notes`).then(setNotes).catch(() => {});
     try {
       const d = await apiFetch<Detail>(`/mail/threads/${id}`);
       const draft = d.messages.find((m) => m.isDraft);
       setAiDraftPending(Boolean(draft?.sentByAi));
       if (draft) {
-        const init: ComposerInitial = {
-          draftId: draft.id,
-          to: list(draft.toAddresses),
-          cc: list(draft.ccAddresses),
-          bcc: list(draft.bccAddresses),
-          subject: draft.subject ?? '',
-          html: draft.html ?? '',
-          attachments: draft.attachments.map((a) => ({
-            storageKey: a.storageKey,
-            filename: a.filename,
-            mimeType: a.mimeType,
-            sizeBytes: a.sizeBytes,
-          })),
-        };
+        const init: ComposerInitial = draftToInit(draft);
         if (d.thread.folder === 'DRAFTS') {
           // Brand-new email draft → reopen it in the modal composer.
           setSelectedId(null);
@@ -842,6 +859,25 @@ export function MailWorkspace({
         />
       </div>
 
+      {aiDraftReady && !aiDraftPending && (
+        <div className="mx-4 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+          <span>✨ <strong>{t('aiDraftTitle')}</strong></span>
+          <button
+            type="button"
+            onClick={() => {
+              setReplyInit(aiDraftReady);
+              setReplyKey((k) => k + 1);
+              setComposerOpen(true);
+              setComposerTab('reply');
+              setAiDraftPending(true);
+              setAiDraftReady(null);
+            }}
+            className="rounded-full bg-emerald-600 px-3 py-1 font-medium text-white hover:bg-emerald-700"
+          >
+            {t('aiDraftLoad')}
+          </button>
+        </div>
+      )}
       <ReplyNoteTabs
         tab={composerTab}
         onTab={setComposerTab}

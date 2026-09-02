@@ -179,6 +179,7 @@ const es = {
     assistantSender: 'Asistente',
     aiDraftTitle: 'El Asistente ha preparado esta respuesta.',
     aiDraftBody: 'Revísala, edítala si quieres y pulsa Enviar. No se envía nada sin ti.',
+    aiDraftLoad: 'Ver la respuesta propuesta',
     noContent: 'Sin contenido',
     details: 'Detalles',
     hideDetails: 'Ocultar detalles',
