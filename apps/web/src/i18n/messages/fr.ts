@@ -171,6 +171,8 @@ const fr: Messages = {
     errAttachment: 'Impossible de télécharger la pièce jointe',
     yourTeam: 'Votre équipe',
     assistantSender: 'Assistant',
+    aiDraftTitle: 'L’Assistant a préparé cette réponse.',
+    aiDraftBody: 'Relisez-la, modifiez-la si besoin et cliquez Envoyer. Rien ne part sans vous.',
     noContent: 'Sans contenu',
     details: 'Détails',
     hideDetails: 'Masquer les détails',

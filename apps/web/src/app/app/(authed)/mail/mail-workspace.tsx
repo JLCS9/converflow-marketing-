@@ -249,6 +249,8 @@ export function MailWorkspace({
   const [noteDraft, setNoteDraft] = useState('');
   const [lock, setLock] = useState<LockState | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
+  // Atención autónoma: el borrador precargado lo preparó el Asistente.
+  const [aiDraftPending, setAiDraftPending] = useState(false);
   const [leadDrawerId, setLeadDrawerId] = useState<string | null>(null);
   const [composerTab, setComposerTab] = useState<'reply' | 'note'>('reply');
   const [loadingList, setLoadingList] = useState(true);
@@ -478,10 +480,12 @@ export function MailWorkspace({
     setLock(null);
     setComposerOpen(false);
     setComposerTab('reply');
+    setAiDraftPending(false);
     apiFetch<NoteRow[]>(`/mail/threads/${id}/notes`).then(setNotes).catch(() => {});
     try {
       const d = await apiFetch<Detail>(`/mail/threads/${id}`);
       const draft = d.messages.find((m) => m.isDraft);
+      setAiDraftPending(Boolean(draft?.sentByAi));
       if (draft) {
         const init: ComposerInitial = {
           draftId: draft.id,
@@ -845,6 +849,11 @@ export function MailWorkspace({
         reply={
           composerOpen ? (
             <div className="space-y-2">
+              {aiDraftPending && (
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                  ✨ <strong>{t('aiDraftTitle')}</strong> {t('aiDraftBody')}
+                </div>
+              )}
               <div className="flex items-center justify-between text-xs">
                 <span className="font-medium text-ink-600">{t('reply')}</span>
                 <button type="button" onClick={() => setComposerOpen(false)} className="text-ink-400 hover:text-ink-700">✕ {t('close')}</button>

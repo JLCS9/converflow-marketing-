@@ -171,6 +171,8 @@ const en: Messages = {
     errAttachment: 'Could not download the attachment',
     yourTeam: 'Your team',
     assistantSender: 'Assistant',
+    aiDraftTitle: 'The Assistant prepared this reply.',
+    aiDraftBody: 'Review it, tweak it if needed and press Send. Nothing goes out without you.',
     noContent: 'No content',
     details: 'Details',
     hideDetails: 'Hide details',
