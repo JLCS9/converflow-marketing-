@@ -619,6 +619,18 @@ export class ConversationIngestService {
         { name: lead.name, source: 'webchat' },
       );
       profileId = profile?.id ?? null;
+      // F3 · Glue CRM↔plano de datos: el lead queda unido a su perfil (los
+      // playbooks navegan perfil→lead→conversación para elegir canal).
+      if (profileId) {
+        await this.prisma
+          .withTenant(tenantId, (tx) =>
+            tx.lead.updateMany({
+              where: { id: lead.id, profileId: null },
+              data: { profileId },
+            }),
+          )
+          .catch((err) => this.logger.warn({ err }, 'lead↔profile no enlazado'));
+      }
     }
 
     const history = await this.prisma.withTenant(tenantId, (tx) =>
