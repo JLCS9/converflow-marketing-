@@ -1823,6 +1823,7 @@ const fr: Messages = {
     moveTo: 'Déplacer vers {status}',
   },
   uiBits: {
+    entityProfile: 'Profil de contact',
     permEvents: 'Événements (API de données)',
     permEventsDesc: 'Envoyer des événements au plan de données via /events (intégrations et clés API).',
     fieldsSaved: 'Champs enregistrés',

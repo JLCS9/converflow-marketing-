@@ -20,6 +20,9 @@ async function bootstrap() {
       trustProxy: true,
       logger: env.NODE_ENV === 'development',
     }),
+    // rawBody: los webhooks de integraciones verifican la firma HMAC sobre el
+    // cuerpo CRUDO — el JSON re-serializado no vale (F1, plano de datos).
+    { rawBody: true },
   );
 
   // Casts work around Fastify plugin type augmentation conflicts across @fastify/* plugins.

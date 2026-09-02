@@ -1810,6 +1810,7 @@ const en: Messages = {
     moveTo: 'Move to {status}',
   },
   uiBits: {
+    entityProfile: 'Contact profile',
     permEvents: 'Events (data API)',
     permEventsDesc: 'Send events to the data plane via /events (integrations and API keys).',
     fieldsSaved: 'Fields saved',

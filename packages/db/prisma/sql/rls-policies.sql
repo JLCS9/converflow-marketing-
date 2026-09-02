@@ -443,3 +443,39 @@ CREATE POLICY tenant_isolation ON rag_chunks
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- lifecycle_definitions (máquina de estados del ciclo de vida por tenant)
+ALTER TABLE lifecycle_definitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lifecycle_definitions FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON lifecycle_definitions;
+CREATE POLICY tenant_isolation ON lifecycle_definitions
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- lifecycle_states (histórico de transiciones de perfil)
+ALTER TABLE lifecycle_states ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lifecycle_states FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON lifecycle_states;
+CREATE POLICY tenant_isolation ON lifecycle_states
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- consents (consentimientos con evidencia (RGPD))
+ALTER TABLE consents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE consents FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON consents;
+CREATE POLICY tenant_isolation ON consents
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- ingest_sources (fuentes de webhook del plano de datos)
+ALTER TABLE ingest_sources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ingest_sources FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ingest_sources;
+CREATE POLICY tenant_isolation ON ingest_sources
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

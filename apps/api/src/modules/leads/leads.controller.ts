@@ -93,7 +93,7 @@ export class LeadsController {
 
   @Delete(':id')
   async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    await this.leads.remove(user.tenantId, id);
+    await this.leads.remove(user.tenantId, id, user.email);
     return { ok: true };
   }
 
