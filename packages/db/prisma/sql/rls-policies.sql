@@ -470,3 +470,12 @@ CREATE POLICY tenant_isolation ON consents
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- ingest_sources (fuentes de webhook del plano de datos)
+ALTER TABLE ingest_sources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ingest_sources FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ingest_sources;
+CREATE POLICY tenant_isolation ON ingest_sources
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

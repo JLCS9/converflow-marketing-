@@ -34,6 +34,7 @@ import { MailModule } from './modules/mail/mail.module.js';
 import { ConsentsModule } from './modules/consents/consents.module.js';
 import { IngestModule } from './modules/ingest/ingest.module.js';
 import { LifecycleModule } from './modules/lifecycle/lifecycle.module.js';
+import { VerticalsModule } from './modules/verticals/verticals.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { RagModule } from './modules/rag/rag.module.js';
 import { AiModule } from './common/ai/ai.module.js';
@@ -80,6 +81,7 @@ import { GuardsModule } from './common/guards/guards.module.js';
     ConsentsModule,
     IngestModule,
     LifecycleModule,
+    VerticalsModule,
     ProfilesModule,
     RagModule,
   ],
