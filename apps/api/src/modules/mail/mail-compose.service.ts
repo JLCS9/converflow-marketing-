@@ -119,16 +119,28 @@ export class MailComposeService {
     });
   }
 
-  /** Borrador de respuesta creado por el Asistente (modo Sugiere / degradación). */
+  /** Borrador de respuesta creado por el Asistente (modo Sugiere /
+   *  degradación). LISTO PARA ENVIAR: destinatario, asunto y threading
+   *  resueltos igual que en una respuesta — sin esto, el compositor se
+   *  abriría sin «Para» y sendDraft fallaría. */
   async saveAssistantDraft(tenantId: string, threadId: string, input: { html: string }) {
     const safeHtml = sanitizeEmailHtml(input.html.trim());
     if (!safeHtml) throw new BadRequestError('Borrador vacío');
     return this.prisma.withTenant(tenantId, async (tx) => {
       const thread = await tx.emailThread.findUnique({
         where: { id: threadId },
-        select: { id: true, connectionId: true },
+        select: { id: true, connectionId: true, subject: true, participants: true },
       });
       if (!thread) throw new NotFoundError('Hilo no encontrado');
+      const last = await tx.emailMessage.findFirst({
+        where: { threadId, isDraft: false },
+        orderBy: { createdAt: 'desc' },
+        select: { direction: true, replyTo: true, fromAddress: true, subject: true, rfcMessageId: true, references: true },
+      });
+      const participants = Array.isArray(thread.participants) ? (thread.participants as string[]) : [];
+      const defaultTo =
+        (last?.direction === 'IN' ? last.replyTo || last.fromAddress : null) ?? participants[0];
+      const base = normalizeSubject(thread.subject ?? last?.subject ?? '');
       const draft = await tx.emailMessage.create({
         data: {
           tenantId,
@@ -138,6 +150,10 @@ export class MailComposeService {
           folder: 'DRAFTS',
           isDraft: true,
           sentByAi: true,
+          toAddresses: defaultTo ? [defaultTo] : [],
+          subject: base ? `Re: ${base}` : 'Re:',
+          inReplyTo: last?.rfcMessageId ?? undefined,
+          references: [last?.references, last?.rfcMessageId].filter(Boolean).join(' ') || undefined,
           html: safeHtml,
           text: htmlToText(safeHtml),
           snippet: htmlToText(safeHtml).slice(0, 200),

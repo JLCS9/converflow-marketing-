@@ -177,6 +177,8 @@ const es = {
     errAttachment: 'No se pudo descargar el adjunto',
     yourTeam: 'Tu equipo',
     assistantSender: 'Asistente',
+    aiDraftTitle: 'El Asistente ha preparado esta respuesta.',
+    aiDraftBody: 'Revísala, edítala si quieres y pulsa Enviar. No se envía nada sin ti.',
     noContent: 'Sin contenido',
     details: 'Detalles',
     hideDetails: 'Ocultar detalles',
