@@ -119,6 +119,10 @@ export class RagService {
         FROM rag_chunks
         WHERE "collectionId" = ${collection.id}
           AND embedding IS NOT NULL
+          -- Invariante F4: el staging del set de regresión (#prev) JAMÁS se
+          -- recupera — si no, el conocimiento viejo «responde por» el nuevo
+          -- durante la comprobación y la regresión no salta.
+          AND ("sourceRef" IS NULL OR "sourceRef" NOT LIKE '%#prev')
           ${metaFilter}
         ORDER BY embedding <=> ${vectorLiteral(queryVector!)}::vector
         LIMIT ${k}

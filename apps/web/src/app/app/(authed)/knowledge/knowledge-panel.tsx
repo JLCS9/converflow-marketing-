@@ -2,20 +2,21 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Badge, Field, Input, Textarea, buttonClass } from '@/components/ui/primitives';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useFeedback } from '@/components/ui/feedback';
 import { cn } from '@/lib/cn';
-import type { GapRow, InstructionRow, SourceRow, VerifiedRow } from './types';
+import type { GapRow, InstructionRow, RegressionRow, SourceRow, VerifiedRow } from './types';
 
-type Tab = 'sources' | 'gaps' | 'instructions';
+type Tab = 'sources' | 'gaps' | 'instructions' | 'regression';
 
 interface Props {
   initialSources: SourceRow[];
   initialGaps: GapRow[];
   initialInstructions: InstructionRow[];
   initialVerified: VerifiedRow[];
+  initialRegression: RegressionRow[];
 }
 
 export function KnowledgePanel({
@@ -23,6 +24,7 @@ export function KnowledgePanel({
   initialGaps,
   initialInstructions,
   initialVerified,
+  initialRegression,
 }: Props) {
   const t = useTranslations('knowledge');
   const [tab, setTab] = useState<Tab>('sources');
@@ -32,6 +34,7 @@ export function KnowledgePanel({
     { key: 'sources', label: t('tabSources') },
     { key: 'gaps', label: t('tabGaps'), badge: gapCount },
     { key: 'instructions', label: t('tabInstructions') },
+    { key: 'regression', label: t('tabRegression') },
   ];
 
   return (
@@ -73,6 +76,7 @@ export function KnowledgePanel({
         />
       )}
       {tab === 'instructions' && <InstructionsTab initial={initialInstructions} />}
+      {tab === 'regression' && <RegressionTab initial={initialRegression} />}
     </div>
   );
 }
@@ -110,8 +114,13 @@ function SourcesTab({ initial }: { initial: SourceRow[] }) {
       setText('');
       setShowForm(false);
       await refresh();
-    } catch {
-      toast.error(t('sourceError'));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        const n = (err.detail as { error?: { details?: { regressions?: unknown[] } } })?.error?.details?.regressions?.length ?? 0;
+        toast.error(t('regressionBlocked', { n }));
+      } else {
+        toast.error(t('sourceError'));
+      }
     } finally {
       setSaving(false);
     }
@@ -130,8 +139,13 @@ function SourcesTab({ initial }: { initial: SourceRow[] }) {
       });
       toast.success(t('sourceDeleted'));
       await refresh();
-    } catch {
-      toast.error(t('sourceError'));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        const n = (err.detail as { error?: { details?: { regressions?: unknown[] } } })?.error?.details?.regressions?.length ?? 0;
+        toast.error(t('regressionBlocked', { n }));
+      } else {
+        toast.error(t('sourceError'));
+      }
     }
   }
 
@@ -498,6 +512,133 @@ function InstructionsTab({ initial }: { initial: InstructionRow[] }) {
           >
             {saving ? t('saving') : t('saveInstructions')}
           </button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// =====================================================================
+// Set de regresión (F4)
+// =====================================================================
+
+function RegressionTab({ initial }: { initial: RegressionRow[] }) {
+  const t = useTranslations('knowledge');
+  const { toast, confirm } = useFeedback();
+  const [checks, setChecks] = useState(initial);
+  const [question, setQuestion] = useState('');
+  const [expect, setExpect] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function refresh() {
+    setChecks(await apiFetch<RegressionRow[]>('/knowledge/regression'));
+  }
+
+  async function add() {
+    if (question.trim().length < 5 || expect.trim().length < 3) {
+      toast.error(t('regFormIncomplete'));
+      return;
+    }
+    setBusy(true);
+    try {
+      await apiFetch('/knowledge/regression', {
+        method: 'POST',
+        json: { question: question.trim(), expect: expect.trim() },
+      });
+      setQuestion('');
+      setExpect('');
+      toast.success(t('regSaved'));
+      await refresh();
+    } catch {
+      toast.error(t('regError'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(row: RegressionRow) {
+    const ok = await confirm({ title: t('regDeleteTitle'), description: row.question, danger: true });
+    if (!ok) return;
+    try {
+      await apiFetch(`/knowledge/regression/${row.id}`, { method: 'DELETE' });
+      await refresh();
+    } catch {
+      toast.error(t('regError'));
+    }
+  }
+
+  async function runAll() {
+    setBusy(true);
+    try {
+      const res = await apiFetch<{ total: number; passed: number }>('/knowledge/regression/run', {
+        method: 'POST',
+      });
+      toast.success(t('regRunDone', { passed: res.passed, total: res.total }));
+      await refresh();
+    } catch {
+      toast.error(t('regError'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-ink-500">{t('regHint')}</p>
+
+      {checks.length > 0 && (
+        <Card className="divide-y divide-ink-100 p-0">
+          {checks.map((c) => (
+            <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink-900">{c.question}</p>
+                <p className="mt-0.5 text-xs text-ink-500">
+                  {t('regExpectLabel')}: «{c.expect}»
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {c.lastStatus === 'PASS' && <Badge color="green">{t('regPass')}</Badge>}
+                {c.lastStatus === 'FAIL' && <Badge color="red">{t('regFail')}</Badge>}
+                {c.lastStatus == null && <Badge color="gray">{t('regPending')}</Badge>}
+                <button
+                  type="button"
+                  onClick={() => void remove(c)}
+                  className="text-xs font-medium text-red-600 hover:underline"
+                >
+                  {t('delete')}
+                </button>
+              </div>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      <Card className="space-y-4">
+        <Field label={t('regQuestionLabel')}>
+          <Input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder={t('regQuestionPlaceholder')}
+            maxLength={500}
+          />
+        </Field>
+        <Field label={t('regExpectLabel')} help={t('regExpectHelp')}>
+          <Input
+            value={expect}
+            onChange={(e) => setExpect(e.target.value)}
+            placeholder={t('regExpectPlaceholder')}
+            maxLength={300}
+          />
+        </Field>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => void add()} disabled={busy} className={buttonClass('primary')}>
+            {busy ? t('saving') : t('regAdd')}
+          </button>
+          {checks.length > 0 && (
+            <button type="button" onClick={() => void runAll()} disabled={busy} className={buttonClass('secondary')}>
+              {t('regRunAll')}
+            </button>
+          )}
         </div>
       </Card>
     </div>

@@ -29,21 +29,22 @@ function makeService(over: {
     withTenant: (_t: string, fn: (tx: unknown) => unknown) => Promise.resolve(fn(tx)),
   } as never;
 
-  let retrieveCalls = 0;
+  // El guard evalúa el set ANTES del cambio (retrieved) y DESPUÉS
+  // (retrievedAfterChange): el cambio se simula con el rename de staging.
+  let changed = false;
   const knowledge = {
     retrieve: vi.fn().mockImplementation(() => {
-      retrieveCalls++;
-      const source =
-        over.retrievedAfterChange && retrieveCalls > 0 && over.retrievedAfterChange
-          ? over.retrievedAfterChange
-          : over.retrieved ?? ['El curso dura SEIS semanas con clases en directo.'];
+      const source = changed && over.retrievedAfterChange ? over.retrievedAfterChange : over.retrieved ?? ['El curso dura SEIS semanas con clases en directo.'];
       return Promise.resolve(source.map((content) => ({ kind: 'knowledge', content, distance: 0.2 })));
     }),
     addTextSource: vi.fn().mockResolvedValue({ inserted: 2, sourceRef: 'text:faq' }),
     deleteSource: vi.fn().mockResolvedValue({ ok: true }),
   };
   const rag = {
-    renameSourceRef: vi.fn().mockResolvedValue({ renamed: 1 }),
+    renameSourceRef: vi.fn().mockImplementation(() => {
+      changed = true; // el primer rename marca el paso al estado «después»
+      return Promise.resolve({ renamed: 1 });
+    }),
     deleteBySourceRef: vi.fn().mockResolvedValue({ deleted: 1 }),
   };
   const svc = new RegressionService(prisma, knowledge as never, rag as never);
@@ -87,7 +88,8 @@ describe('RegressionService.guardedAddTextSource', () => {
 
   it('regresión detectada → rollback (nuevo fuera, anterior restaurado) y 409', async () => {
     const { svc, rag } = makeService({
-      retrieved: ['Contenido nuevo que ya no contiene lo esperado.'],
+      retrieved: ['El curso dura seis semanas.'],
+      retrievedAfterChange: ['Contenido nuevo que ya no contiene lo esperado.'],
     });
     await expect(svc.guardedAddTextSource('t1', input)).rejects.toMatchObject({ httpStatus: 409 });
     // staging: ref→#prev; rollback: borrar nuevo + #prev→ref
@@ -113,7 +115,8 @@ describe('RegressionService.guardedAddTextSource', () => {
 describe('RegressionService.guardedDeleteSource', () => {
   it('la baja que rompe el set queda bloqueada y la fuente restaurada', async () => {
     const { svc, rag } = makeService({
-      retrieved: ['Ya no queda contenido relevante.'],
+      retrieved: ['El curso dura seis semanas.'],
+      retrievedAfterChange: ['Ya no queda contenido relevante.'],
     });
     await expect(svc.guardedDeleteSource('t1', 'text:faq')).rejects.toMatchObject({ httpStatus: 409 });
     expect(rag.renameSourceRef.mock.calls[1]!.slice(2)).toEqual(['text:faq#prev', 'text:faq']);

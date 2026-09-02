@@ -106,6 +106,33 @@ export class RegressionService {
     return pass;
   }
 
+  /** Evalúa todo el set contra el estado ACTUAL, sin tocar lastStatus. */
+  private async evaluateAll(tenantId: string) {
+    const checks = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.regressionCheck.findMany({ where: { active: true } }),
+    );
+    const out: { id: string; question: string; expect: string; pass: boolean }[] = [];
+    for (const c of checks) {
+      out.push({ id: c.id, question: c.question, expect: c.expect, pass: await this.evaluate(tenantId, c.question, c.expect) });
+    }
+    return out;
+  }
+
+  /** PASS antes y FAIL después = regresión que bloquea. */
+  private diff(
+    before: { id: string; question: string; expect: string; pass: boolean }[],
+    after: { id: string; question: string; expect: string; pass: boolean }[],
+  ): { total: number; passed: number; regressions: { id: string; question: string; expect: string }[] } {
+    const beforeById = new Map(before.map((b) => [b.id, b.pass]));
+    return {
+      total: after.length,
+      passed: after.filter((a) => a.pass).length,
+      regressions: after
+        .filter((a) => !a.pass && beforeById.get(a.id) === true)
+        .map((a) => ({ id: a.id, question: a.question, expect: a.expect })),
+    };
+  }
+
   private async evaluate(tenantId: string, question: string, expect: string): Promise<boolean> {
     const blocks = await this.knowledge.retrieve(tenantId, question, { k: 4 }).catch(() => []);
     const haystack = normalize(blocks.map((b) => b.content).join('\n'));
@@ -160,11 +187,15 @@ export class RegressionService {
     }
     const ref = textSourceRef(opts.title);
     const prev = `${ref}#prev`;
+    // Foto ANTES del cambio: bloquea lo que pasaba y deja de pasar — sin
+    // depender de lastStatus (que se escribe async y puede llegar tarde).
+    const before = await this.evaluateAll(tenantId);
     await this.rag.deleteBySourceRef(tenantId, 'knowledge', prev); // staging huérfano
     await this.rag.renameSourceRef(tenantId, 'knowledge', ref, prev);
     try {
       const res = await this.knowledge.addTextSource(tenantId, opts, { syncEmbed: true });
-      const check = await this.run(tenantId, { commit: false });
+      const after = await this.evaluateAll(tenantId);
+      const check = this.diff(before, after);
       if (check.regressions.length) {
         await this.rag.deleteBySourceRef(tenantId, 'knowledge', ref);
         await this.rag.renameSourceRef(tenantId, 'knowledge', prev, ref);
@@ -196,8 +227,10 @@ export class RegressionService {
     }
     if (!sourceRef.startsWith('text:')) throw new NotFoundError('Fuente no encontrada');
     const prev = `${sourceRef}#prev`;
+    const before = await this.evaluateAll(tenantId);
     await this.rag.renameSourceRef(tenantId, 'knowledge', sourceRef, prev);
-    const check = await this.run(tenantId, { commit: false });
+    const after = await this.evaluateAll(tenantId);
+    const check = this.diff(before, after);
     if (check.regressions.length) {
       await this.rag.renameSourceRef(tenantId, 'knowledge', prev, sourceRef);
       throw new AppError(

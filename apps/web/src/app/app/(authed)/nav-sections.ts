@@ -36,7 +36,7 @@ export const NAV_SECTIONS: NavSection[] = [
     key: 'ia',
     label: 'IA',
     defaultHref: '/app/bots',
-    routes: ['/app/bots', '/app/agents', '/app/knowledge', '/app/playbooks'],
+    routes: ['/app/bots', '/app/agents', '/app/knowledge', '/app/playbooks', '/app/ai-report'],
     requires: ['agents', 'bots'],
   },
   {

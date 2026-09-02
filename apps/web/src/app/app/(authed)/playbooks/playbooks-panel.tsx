@@ -6,14 +6,15 @@ import { apiFetch } from '@/lib/api-client';
 import { Card, Badge, Field, Input, Select, Textarea, buttonClass } from '@/components/ui/primitives';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useFeedback } from '@/components/ui/feedback';
-import type { PlaybookRow, RunRow } from './types';
+import type { PlaybookRow, PlaybookStats, RunRow } from './types';
 
 interface Props {
   initialPlaybooks: PlaybookRow[];
   initialDrafts: RunRow[];
+  stats: PlaybookStats;
 }
 
-export function PlaybooksPanel({ initialPlaybooks, initialDrafts }: Props) {
+export function PlaybooksPanel({ initialPlaybooks, initialDrafts, stats }: Props) {
   const [drafts, setDrafts] = useState(initialDrafts);
   const [playbooks, setPlaybooks] = useState(initialPlaybooks);
 
@@ -27,7 +28,7 @@ export function PlaybooksPanel({ initialPlaybooks, initialDrafts }: Props) {
   return (
     <div className="space-y-8">
       <DraftsSection drafts={drafts} onChanged={() => void refreshDrafts()} />
-      <PlaybooksSection playbooks={playbooks} onChanged={() => void refreshPlaybooks()} />
+      <PlaybooksSection playbooks={playbooks} stats={stats} onChanged={() => void refreshPlaybooks()} />
     </div>
   );
 }
@@ -176,7 +177,15 @@ const EMPTY_FORM = {
   active: true,
 };
 
-function PlaybooksSection({ playbooks, onChanged }: { playbooks: PlaybookRow[]; onChanged: () => void }) {
+function PlaybooksSection({
+  playbooks,
+  stats,
+  onChanged,
+}: {
+  playbooks: PlaybookRow[];
+  stats: PlaybookStats;
+  onChanged: () => void;
+}) {
   const t = useTranslations('playbooks');
   const { toast, confirm } = useFeedback();
   const [form, setForm] = useState<typeof EMPTY_FORM | null>(playbooks.length === 0 ? EMPTY_FORM : null);
@@ -241,6 +250,18 @@ function PlaybooksSection({ playbooks, onChanged }: { playbooks: PlaybookRow[]; 
                   {pb.trigger.on === 'transition'
                     ? t('triggerTransition', { state: pb.trigger.toState ?? '' })
                     : t('triggerEvent', { event: pb.trigger.eventType ?? '' })}
+                  {stats[pb.id] && stats[pb.id]!.sent > 0 && (
+                    <>
+                      {' · '}
+                      {t('statsLine', {
+                        sent: stats[pb.id]!.sent,
+                        rate:
+                          stats[pb.id]!.replyRate == null
+                            ? '—'
+                            : `${Math.round(stats[pb.id]!.replyRate! * 100)}%`,
+                      })}
+                    </>
+                  )}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
