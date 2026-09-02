@@ -3,6 +3,7 @@ import { PlaybooksService } from './playbooks.service.js';
 import { PlaybooksController } from './playbooks.controller.js';
 import { ConsentsModule } from '../consents/consents.module.js';
 import { ConversationsModule } from '../conversations/conversations.module.js';
+import { LifecycleModule } from '../lifecycle/lifecycle.module.js';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 
 /**
@@ -11,7 +12,7 @@ import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
  * canal de la conversación existente.
  */
 @Module({
-  imports: [ConsentsModule, ConversationsModule],
+  imports: [ConsentsModule, ConversationsModule, LifecycleModule],
   controllers: [PlaybooksController],
   providers: [PlaybooksService, TenantAuthGuard],
   exports: [PlaybooksService],

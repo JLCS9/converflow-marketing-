@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { apiFetch, ApiError } from '@/lib/api-client';
 import { Card, Badge, Field, Input, Textarea, buttonClass } from '@/components/ui/primitives';
@@ -103,6 +103,64 @@ function SourcesTab({ initial }: { initial: SourceRow[] }) {
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(initial.length === 0);
+  const [url, setUrl] = useState('');
+  const [importing, setImporting] = useState<'file' | 'url' | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function sourceErrorToast(err: unknown) {
+    if (err instanceof ApiError && err.status === 409) {
+      const n = (err.detail as { error?: { details?: { regressions?: unknown[] } } })?.error?.details?.regressions?.length ?? 0;
+      toast.error(t('regressionBlocked', { n }));
+    } else if (err instanceof ApiError && err.status === 400) {
+      toast.error(err.message);
+    } else {
+      toast.error(t('sourceError'));
+    }
+  }
+
+  async function uploadFile(file: File) {
+    setImporting('file');
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      // fetch directo: apiFetch tipa el body como JSON y esto es multipart.
+      const raw = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/knowledge/sources/file`, {
+        method: 'POST',
+        credentials: 'include',
+        body: form,
+      });
+      if (!raw.ok) {
+        const detail = await raw.json().catch(() => null);
+        throw new ApiError(raw.status, detail?.error?.message ?? raw.statusText, detail);
+      }
+      const res = (await raw.json()) as { inserted: number };
+      toast.success(t('sourceAdded', { n: res.inserted }));
+      await refresh();
+    } catch (err) {
+      sourceErrorToast(err);
+    } finally {
+      setImporting(null);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  async function importUrl() {
+    if (url.trim().length < 8) return;
+    setImporting('url');
+    try {
+      const res = await apiFetch<{ inserted: number }>('/knowledge/sources/url', {
+        method: 'POST',
+        json: { url: url.trim() },
+      });
+      toast.success(t('sourceAdded', { n: res.inserted }));
+      setUrl('');
+      await refresh();
+    } catch (err) {
+      sourceErrorToast(err);
+    } finally {
+      setImporting(null);
+    }
+  }
 
   async function refresh() {
     setSources(await apiFetch<SourceRow[]>('/knowledge/sources'));
@@ -125,12 +183,7 @@ function SourcesTab({ initial }: { initial: SourceRow[] }) {
       setShowForm(false);
       await refresh();
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        const n = (err.detail as { error?: { details?: { regressions?: unknown[] } } })?.error?.details?.regressions?.length ?? 0;
-        toast.error(t('regressionBlocked', { n }));
-      } else {
-        toast.error(t('sourceError'));
-      }
+      sourceErrorToast(err);
     } finally {
       setSaving(false);
     }
@@ -150,18 +203,48 @@ function SourcesTab({ initial }: { initial: SourceRow[] }) {
       toast.success(t('sourceDeleted'));
       await refresh();
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        const n = (err.detail as { error?: { details?: { regressions?: unknown[] } } })?.error?.details?.regressions?.length ?? 0;
-        toast.error(t('regressionBlocked', { n }));
-      } else {
-        toast.error(t('sourceError'));
-      }
+      sourceErrorToast(err);
     }
   }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-ink-500">{t('sourcesHint')}</p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,.docx,.txt,.md"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void uploadFile(f);
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={importing != null}
+          className={buttonClass('secondary', 'text-xs')}
+        >
+          {importing === 'file' ? t('importingFile') : t('uploadFile')}
+        </button>
+        <Input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder={t('urlPlaceholder')}
+          className="w-64 flex-none"
+        />
+        <button
+          type="button"
+          onClick={() => void importUrl()}
+          disabled={importing != null || url.trim().length < 8}
+          className={buttonClass('secondary', 'text-xs')}
+        >
+          {importing === 'url' ? t('importingUrl') : t('importUrl')}
+        </button>
+      </div>
 
       {sources.length === 0 && !showForm ? (
         <EmptyState title={t('sourcesEmptyTitle')} description={t('sourcesEmptyBody')} />

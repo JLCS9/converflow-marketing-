@@ -6,15 +6,16 @@ import { apiFetch } from '@/lib/api-client';
 import { Card, Badge, Field, Input, Select, Textarea, buttonClass } from '@/components/ui/primitives';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useFeedback } from '@/components/ui/feedback';
-import type { PlaybookRow, PlaybookStats, RunRow } from './types';
+import type { PlaybookOptions, PlaybookRow, PlaybookStats, RunRow } from './types';
 
 interface Props {
   initialPlaybooks: PlaybookRow[];
   initialDrafts: RunRow[];
   stats: PlaybookStats;
+  options: PlaybookOptions;
 }
 
-export function PlaybooksPanel({ initialPlaybooks, initialDrafts, stats }: Props) {
+export function PlaybooksPanel({ initialPlaybooks, initialDrafts, stats, options }: Props) {
   const [drafts, setDrafts] = useState(initialDrafts);
   const [playbooks, setPlaybooks] = useState(initialPlaybooks);
 
@@ -28,7 +29,7 @@ export function PlaybooksPanel({ initialPlaybooks, initialDrafts, stats }: Props
   return (
     <div className="space-y-8">
       <DraftsSection drafts={drafts} onChanged={() => void refreshDrafts()} />
-      <PlaybooksSection playbooks={playbooks} stats={stats} onChanged={() => void refreshPlaybooks()} />
+      <PlaybooksSection playbooks={playbooks} stats={stats} options={options} onChanged={() => void refreshPlaybooks()} />
     </div>
   );
 }
@@ -45,6 +46,12 @@ function DraftsSection({ drafts, onChanged }: { drafts: RunRow[]; onChanged: () 
   const [busy, setBusy] = useState<string | null>(null);
 
   async function approve(run: RunRow, edited?: string) {
+    // E3 · Enviar es irreversible: confirmar SIEMPRE, mostrando a quién va.
+    const ok = await confirm({
+      title: t('approveConfirmTitle'),
+      description: t('approveConfirmBody', { who: run.contactName ?? t('unknownContact') }),
+    });
+    if (!ok) return;
     setBusy(run.id);
     try {
       const res = await apiFetch<{ ok: boolean; status?: string; reason?: string }>(
@@ -95,6 +102,18 @@ function DraftsSection({ drafts, onChanged }: { drafts: RunRow[]; onChanged: () 
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-medium text-ink-500">
                   {run.playbook?.name ?? t('playbook')} ·{' '}
+                  <strong className="text-ink-800">
+                    {t('draftFor', { who: run.contactName ?? t('unknownContact') })}
+                  </strong>
+                  {run.conversationId && (
+                    <>
+                      {' · '}
+                      <a href="/app/conversations" className="text-primary-700 hover:underline">
+                        {t('viewThread')}
+                      </a>
+                    </>
+                  )}
+                  {' · '}
                   {/* toLocaleString difiere entre servidor y navegador */}
                   <span suppressHydrationWarning>{new Date(run.createdAt).toLocaleString()}</span>
                 </span>
@@ -175,15 +194,21 @@ const EMPTY_FORM = {
   instructions: '',
   mode: 'DRAFT_APPROVE' as 'DRAFT_APPROVE' | 'AUTO',
   active: true,
+  maxPerContactDays: 7,
+  requireConsent: true,
+  quietStartHour: 21,
+  quietEndHour: 9,
 };
 
 function PlaybooksSection({
   playbooks,
   stats,
+  options,
   onChanged,
 }: {
   playbooks: PlaybookRow[];
   stats: PlaybookStats;
+  options: PlaybookOptions;
   onChanged: () => void;
 }) {
   const t = useTranslations('playbooks');
@@ -211,6 +236,12 @@ function PlaybooksSection({
               : { on: 'event', eventType: form.triggerValue.trim() },
           action: { kind: 'followup', instructions: form.instructions.trim() },
           mode: form.mode,
+          guardrails: {
+            maxPerContactDays: form.maxPerContactDays,
+            requireConsent: form.requireConsent,
+            quietStartHour: form.quietStartHour,
+            quietEndHour: form.quietEndHour,
+          },
         },
       });
       toast.success(t('saved'));
@@ -282,6 +313,10 @@ function PlaybooksSection({
                       instructions: pb.action.instructions,
                       mode: pb.mode,
                       active: pb.active,
+                      maxPerContactDays: pb.guardrails?.maxPerContactDays ?? 7,
+                      requireConsent: pb.guardrails?.requireConsent !== false,
+                      quietStartHour: pb.guardrails?.quietStartHour ?? 21,
+                      quietEndHour: pb.guardrails?.quietEndHour ?? 9,
                     })
                   }
                   className="text-xs font-medium text-ink-600 hover:underline"
@@ -325,13 +360,44 @@ function PlaybooksSection({
             </Field>
             <Field
               label={form.triggerOn === 'transition' ? t('stateLabel') : t('eventLabel')}
+              help={
+                form.triggerOn === 'transition' && options.states.length === 0
+                  ? t('noStatesHelp')
+                  : undefined
+              }
             >
-              <Input
-                value={form.triggerValue}
-                onChange={(e) => setForm({ ...form, triggerValue: e.target.value })}
-                placeholder={form.triggerOn === 'transition' ? 'dormido' : 'cart_abandoned'}
-                maxLength={60}
-              />
+              {form.triggerOn === 'transition' && options.states.length > 0 ? (
+                <Select
+                  value={form.triggerValue}
+                  onChange={(e) => setForm({ ...form, triggerValue: e.target.value })}
+                >
+                  <option value="">{t('pickOne')}</option>
+                  {options.states.map((st) => (
+                    <option key={st.key} value={st.key}>
+                      {st.label} ({st.key})
+                    </option>
+                  ))}
+                </Select>
+              ) : form.triggerOn === 'event' && options.events.length > 0 ? (
+                <Select
+                  value={form.triggerValue}
+                  onChange={(e) => setForm({ ...form, triggerValue: e.target.value })}
+                >
+                  <option value="">{t('pickOne')}</option>
+                  {options.events.map((ev) => (
+                    <option key={ev} value={ev}>
+                      {ev}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <Input
+                  value={form.triggerValue}
+                  onChange={(e) => setForm({ ...form, triggerValue: e.target.value })}
+                  placeholder={form.triggerOn === 'transition' ? 'dormido' : 'cart_abandoned'}
+                  maxLength={60}
+                />
+              )}
             </Field>
           </div>
           <Field label={t('instructionsLabel')} help={t('instructionsHelp')}>
@@ -342,6 +408,46 @@ function PlaybooksSection({
               placeholder={t('instructionsPlaceholder')}
             />
           </Field>
+          <div className="rounded-md border border-ink-100 bg-ink-100/30 p-3">
+            <p className="text-xs font-mono uppercase tracking-wider text-ink-500">{t('railsTitle')}</p>
+            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+              <Field label={t('railFrequency')} help={t('railFrequencyHelp')}>
+                <Input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={form.maxPerContactDays}
+                  onChange={(e) => setForm({ ...form, maxPerContactDays: Number(e.target.value) || 7 })}
+                />
+              </Field>
+              <Field label={t('railQuiet')} help={t('railQuietHelp')}>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number" min={0} max={23}
+                    value={form.quietStartHour}
+                    onChange={(e) => setForm({ ...form, quietStartHour: Number(e.target.value) || 0 })}
+                    className="w-20"
+                  />
+                  <span className="text-xs text-ink-500">→</span>
+                  <Input
+                    type="number" min={0} max={23}
+                    value={form.quietEndHour}
+                    onChange={(e) => setForm({ ...form, quietEndHour: Number(e.target.value) || 0 })}
+                    className="w-20"
+                  />
+                </div>
+              </Field>
+              <Field label={t('railConsent')} help={t('railConsentHelp')}>
+                <Select
+                  value={form.requireConsent ? '1' : '0'}
+                  onChange={(e) => setForm({ ...form, requireConsent: e.target.value === '1' })}
+                >
+                  <option value="1">{t('railConsentYes')}</option>
+                  <option value="0">{t('railConsentNo')}</option>
+                </Select>
+              </Field>
+            </div>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t('modeLabel')} help={t('modeHelp')}>
               <Select

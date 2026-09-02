@@ -66,7 +66,8 @@ function makeService(over: {
   const ai = { callWithTool, modelFor: () => 'claude-sonnet-4-6', recordUsage: vi.fn() };
   const consents = { hasConsent: vi.fn().mockResolvedValue(over.consent ?? true) };
   const conversations = { sendText: vi.fn().mockResolvedValue({ ok: true }) };
-  const svc = new PlaybooksService(prisma, ai as never, consents as never, conversations as never);
+  const lifecycle = { getActiveDefinition: vi.fn().mockResolvedValue(null) };
+  const svc = new PlaybooksService(prisma, ai as never, consents as never, conversations as never, lifecycle as never);
   return { svc, tx, runCreate, runUpdate, callWithTool, consents, conversations };
 }
 

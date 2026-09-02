@@ -1,11 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { BadRequestError } from '@converflow/shared';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 import { PermissionsGuard } from '../../common/guards/permissions.guard.js';
 import { RequirePerm } from '../../common/decorators/require-perm.decorator.js';
 import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/current-user.decorator.js';
 import { KnowledgeService } from './knowledge.service.js';
 import { RegressionService } from './regression.service.js';
+import { SourceExtractService } from './source-extract.service.js';
 
 const textSourceSchema = z.object({
   title: z.string().trim().min(2).max(120),
@@ -37,6 +40,7 @@ export class KnowledgeController {
   constructor(
     private readonly knowledge: KnowledgeService,
     private readonly regression: RegressionService,
+    private readonly extract: SourceExtractService,
   ) {}
 
   @Get('sources')
@@ -55,6 +59,28 @@ export class KnowledgeController {
     const input = textSourceSchema.parse(body);
     // F4 · Pasa por la puerta del set de regresión (no-op sin checks activos).
     return this.regression.guardedAddTextSource(user.tenantId, input);
+  }
+
+  /** E3 · Subida de fichero (PDF/DOCX/TXT/MD ≤10MB) como fuente. */
+  @Post('sources/file')
+  async addFile(@Req() req: FastifyRequest, @CurrentUser() user: AuthenticatedUser) {
+    const file: { filename: string; mimetype: string; toBuffer: () => Promise<Buffer> } | undefined =
+      await req.file();
+    if (!file) throw new BadRequestError('No se ha enviado fichero');
+    const extracted = await this.extract.fromFile({
+      buffer: await file.toBuffer(),
+      filename: file.filename,
+      mimeType: file.mimetype,
+    });
+    return this.regression.guardedAddTextSource(user.tenantId, extracted);
+  }
+
+  /** E3 · Importar una página web pública como fuente. */
+  @Post('sources/url')
+  async addUrl(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
+    const input = z.object({ url: z.string().trim().min(8).max(500) }).parse(body);
+    const extracted = await this.extract.fromUrl(input.url);
+    return this.regression.guardedAddTextSource(user.tenantId, extracted);
   }
 
   @Get('verified')

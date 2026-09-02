@@ -14,6 +14,11 @@ export interface PlaybookRow {
   createdAt: string;
 }
 
+export interface PlaybookOptions {
+  states: { key: string; label: string }[];
+  events: string[];
+}
+
 export interface RunRow {
   id: string;
   playbookId: string;
@@ -28,6 +33,8 @@ export interface RunRow {
   reviewedBy: string | null;
   sentAt: string | null;
   createdAt: string;
+  /** E3 · Nombre del contacto (lead → perfil) para no aprobar a ciegas. */
+  contactName?: string | null;
 }
 
 export type PlaybookStats = Record<
