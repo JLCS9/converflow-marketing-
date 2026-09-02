@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
 import { EmailModule } from '../email/email.module.js';
+import { ConversationEngineModule } from '../conversation-engine/conversation-engine.module.js';
+import { ProfilesModule } from '../profiles/profiles.module.js';
+import { RoutingModule } from '../routing/routing.module.js';
 import { KnowledgeModule } from '../knowledge/knowledge.module.js';
 import { MailConnectionsController } from './mail-connections.controller.js';
 import { MailInboxController } from './mail-inbox.controller.js';
@@ -13,6 +16,7 @@ import { MailAttachmentsService } from './mail-attachments.service.js';
 import { MailContactsService } from './mail-contacts.service.js';
 import { MailAiService } from './mail-ai.service.js';
 import { MailDraftAiService } from './mail-draft-ai.service.js';
+import { MailAutoReplyService } from './mail-auto-reply.service.js';
 import { S3Service } from '../../common/storage/s3.service.js';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 
@@ -25,7 +29,7 @@ import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 @Module({
   // EmailModule provides the system-mail path used to warn the owner when a
   // mailbox stops syncing (we cannot warn them through the broken mailbox).
-  imports: [EmailModule, KnowledgeModule],
+  imports: [EmailModule, KnowledgeModule, ConversationEngineModule, ProfilesModule, RoutingModule],
   controllers: [MailConnectionsController, MailInboxController],
   providers: [
     MailConnectionsService,
@@ -38,6 +42,7 @@ import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
     MailContactsService,
     MailAiService,
     MailDraftAiService,
+    MailAutoReplyService,
     S3Service,
     TenantAuthGuard,
   ],

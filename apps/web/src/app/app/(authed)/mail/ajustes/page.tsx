@@ -7,6 +7,8 @@ import { PageHeader } from '@/components/ui/page-header';
 import { TabBar } from '@/components/ui/tab-bar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { MailConnectionActions } from '../mail-connection-actions';
+import { MailboxAiMode, MailboxMembers } from './mailbox-autonomy';
+import { MailRoutingRules, type RuleRow } from './mail-routing-rules';
 
 const AJUSTES_TABS = [
   { href: '/app/mail/ajustes', labelKey: 'tabMailboxes' },
@@ -22,6 +24,8 @@ interface ConnRow {
   status: string;
   lastError: string | null;
   lastSyncedAt: string | null;
+  aiReplyMode?: 'OFF' | 'SUGGEST' | 'AUTO';
+  memberUserIds?: string[] | null;
 }
 
 export async function generateMetadata() {
@@ -39,7 +43,11 @@ const STATUS = {
 
 export default async function MailConnectionsSettingsPage() {
   const t = await getTranslations('mailboxes');
-  const conns = await serverApiFetch<ConnRow[]>('/mail/connections').catch(() => [] as ConnRow[]);
+  const [conns, team, rules] = await Promise.all([
+    serverApiFetch<ConnRow[]>('/mail/connections').catch(() => [] as ConnRow[]),
+    serverApiFetch<{ id: string; name: string }[]>('/mail/team').catch(() => []),
+    serverApiFetch<RuleRow[]>('/routing-rules?channel=EMAIL').catch(() => [] as RuleRow[]),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -72,6 +80,7 @@ export default async function MailConnectionsSettingsPage() {
               <tr>
                 <th className="px-4 py-3">{t('colMailbox')}</th>
                 <th className="px-4 py-3">{t('colVisibility')}</th>
+                <th className="px-4 py-3">{t('colAssistant')}</th>
                 <th className="px-4 py-3">{t('colStatus')}</th>
                 <th className="px-4 py-3 text-right">{t('colActions')}</th>
               </tr>
@@ -88,10 +97,21 @@ export default async function MailConnectionsSettingsPage() {
                       {c.displayName && <div className="text-xs text-ink-500">{c.displayName}</div>}
                     </td>
                     <td className="px-4 py-3 text-xs">
-                      <span className="inline-flex items-center gap-1 text-ink-600">
+                      <div className="inline-flex items-center gap-1 text-ink-600">
                         {c.visibility === 'PRIVATE' ? <Lock size={12} /> : <Users size={12} />}
                         {c.visibility === 'PRIVATE' ? t('private') : t('shared')}
-                      </span>
+                      </div>
+                      <div className="mt-0.5">
+                        <MailboxMembers
+                          connectionId={c.id}
+                          visibility={c.visibility}
+                          initialMembers={c.memberUserIds ?? null}
+                          team={team}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <MailboxAiMode connectionId={c.id} initialMode={c.aiReplyMode ?? 'OFF'} />
                     </td>
                     <td className="px-4 py-3">
                       <Badge color={st.color}>{st.labelKey ? t(st.labelKey) : c.status}</Badge>
@@ -111,6 +131,12 @@ export default async function MailConnectionsSettingsPage() {
           </table>
         </Card>
       )}
+
+      <MailRoutingRules
+        initialRules={rules}
+        mailboxes={conns.map((c) => ({ id: c.id, fromAddress: c.fromAddress }))}
+        team={team}
+      />
     </div>
   );
 }

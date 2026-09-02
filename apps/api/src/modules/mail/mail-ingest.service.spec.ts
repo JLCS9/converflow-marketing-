@@ -21,7 +21,15 @@ function makeService(tx: Record<string, unknown>) {
   } as never;
   const attachments = { storeInbound: vi.fn().mockResolvedValue(undefined) } as never;
   const contacts = { ensureLead: vi.fn().mockResolvedValue(null) } as never;
-  return new MailIngestService(prisma, attachments, contacts);
+  const routing = { match: vi.fn().mockResolvedValue(null) };
+  const shared = { assignSystem: vi.fn().mockResolvedValue({}) };
+  const autoReply = { maybeRespond: vi.fn().mockResolvedValue(undefined) };
+  const svc = new MailIngestService(
+    prisma, attachments, contacts, routing as never, shared as never, autoReply as never,
+  );
+  // los hooks quedan accesibles para los asserts de los tests
+  (svc as never as { __mocks: unknown }).__mocks = { routing, shared, autoReply };
+  return svc;
 }
 
 describe('normalizeSubject', () => {

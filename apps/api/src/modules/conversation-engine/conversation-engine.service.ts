@@ -107,6 +107,9 @@ export class ConversationEngineService {
       tools?: EngineTools | null;
       /** E3 · Probador: NO persiste extracción, ni lagunas, ni consentimiento. */
       dryRun?: boolean;
+      /** Atención autónoma · Bloque extra para el userPrompt (p. ej. la ficha
+       *  CRM del contacto en correo). JAMÁS al system: no rompe su caché. */
+      extraContext?: string;
     },
   ): Promise<EngineResult> {
     // 1. Piezas del contexto (lecturas cortas, cada una en su transacción).
@@ -151,7 +154,7 @@ export class ConversationEngineService {
       .map((m) => `${m.direction === 'IN' ? 'Cliente' : 'Tú'}: ${m.body}`)
       .join('\n');
 
-    const userPrompt = `${historyText ? `CONVERSACIÓN PREVIA:\n${historyText}\n\n` : ''}MENSAJE DEL CLIENTE:\n${opts.text}`;
+    const userPrompt = `${opts.extraContext ? `${opts.extraContext}\n\n` : ''}${historyText ? `CONVERSACIÓN PREVIA:\n${historyText}\n\n` : ''}MENSAJE DEL CLIENTE:\n${opts.text}`;
     const responderDescription =
       'Responde al cliente y estructura lo aprendido en este turno. reply = tu respuesta literal para el cliente.';
     const responderSchema = {

@@ -49,6 +49,9 @@ export interface ParsedEmail {
   text?: string;
   snippet?: string;
   date?: Date;
+  /** RFC 3834 / listas: Auto-Submitted != no, Precedence bulk|junk|list,
+   *  X-Autoreply o List-Id — la atención autónoma no responde a robots. */
+  autoSubmitted?: boolean;
   hasAttachments: boolean;
   attachments?: {
     filename?: string;

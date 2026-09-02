@@ -86,6 +86,90 @@ export class MailComposeService {
     );
     if (!thread) throw new NotFoundError('Hilo no encontrado');
     const conn = await this.connections.assertAccess(tenantId, thread.connectionId, actor);
+    return this.sendReplyCore(tenantId, thread, conn, safeHtml, input, {
+      sentByUserId: actor.userId,
+      completeTask: true,
+      statusAfter: 'OPEN',
+    });
+  }
+
+  /**
+   * Atención autónoma · Respuesta EN NOMBRE DEL ASISTENTE. Diferencias
+   * deliberadas con la vía humana: sentByAi (badge), dedupeKey (idempotencia
+   * dura), statusAfter PENDING («esperando al cliente») y JAMÁS completa la
+   * tarea del asignado.
+   */
+  async replyAsAssistant(
+    tenantId: string,
+    threadId: string,
+    input: { html: string; dedupeKey: string; markPending: boolean },
+  ) {
+    const safeHtml = sanitizeEmailHtml(input.html.trim());
+    if (!safeHtml || safeHtml === '<p></p>') throw new BadRequestError('El mensaje está vacío');
+    const thread = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.emailThread.findUnique({ where: { id: threadId } }),
+    );
+    if (!thread) throw new NotFoundError('Hilo no encontrado');
+    const conn = await this.connections.getRaw(tenantId, thread.connectionId);
+    return this.sendReplyCore(tenantId, thread, conn, safeHtml, {}, {
+      sentByAi: true,
+      dedupeKey: input.dedupeKey,
+      completeTask: false,
+      statusAfter: input.markPending ? 'PENDING' : 'OPEN',
+    });
+  }
+
+  /** Borrador de respuesta creado por el Asistente (modo Sugiere / degradación). */
+  async saveAssistantDraft(tenantId: string, threadId: string, input: { html: string }) {
+    const safeHtml = sanitizeEmailHtml(input.html.trim());
+    if (!safeHtml) throw new BadRequestError('Borrador vacío');
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const thread = await tx.emailThread.findUnique({
+        where: { id: threadId },
+        select: { id: true, connectionId: true },
+      });
+      if (!thread) throw new NotFoundError('Hilo no encontrado');
+      const draft = await tx.emailMessage.create({
+        data: {
+          tenantId,
+          threadId,
+          connectionId: thread.connectionId,
+          direction: 'OUT',
+          folder: 'DRAFTS',
+          isDraft: true,
+          sentByAi: true,
+          html: safeHtml,
+          text: htmlToText(safeHtml),
+          snippet: htmlToText(safeHtml).slice(0, 200),
+        },
+        select: { id: true },
+      });
+      return { draftId: draft.id };
+    });
+  }
+
+  /** Núcleo compartido de la respuesta (humana e IA): destinatarios, RFC
+   *  threading, envío SMTP y registro. */
+  private async sendReplyCore(
+    tenantId: string,
+    thread: { id: string; connectionId: string; subject: string | null; participants: unknown },
+    conn: Awaited<ReturnType<MailConnectionsService['assertAccess']>>,
+    safeHtml: string,
+    input: {
+      to?: string | string[];
+      cc?: string | string[];
+      bcc?: string | string[];
+      attachments?: StagedAttachment[];
+    },
+    mode: {
+      sentByUserId?: string;
+      sentByAi?: boolean;
+      dedupeKey?: string;
+      completeTask: boolean;
+      statusAfter: 'OPEN' | 'PENDING';
+    },
+  ) {
+    const threadId = thread.id;
 
     // Last message drives default recipient + RFC threading.
     const last = await this.prisma.withTenant(tenantId, (tx) =>
@@ -127,10 +211,14 @@ export class MailComposeService {
       references,
       attachments: input.attachments,
       bumpThread: true,
-      sentByUserId: actor.userId,
+      sentByUserId: mode.sentByUserId,
+      sentByAi: mode.sentByAi,
+      dedupeKey: mode.dedupeKey,
+      statusAfter: mode.statusAfter,
     });
-    // Responder = trabajo hecho: la tarea de asignación (si existe) se completa.
-    void this.shared.completeLinkedTask(tenantId, threadId);
+    // Responder = trabajo hecho SOLO en la vía humana: la IA jamás completa
+    // la tarea del asignado.
+    if (mode.completeTask) void this.shared.completeLinkedTask(tenantId, threadId);
     return result;
   }
 
@@ -528,6 +616,12 @@ export class MailComposeService {
       bumpThread: boolean;
       /** Team member who pressed send — shown as "<name> vía <mailbox>". */
       sentByUserId?: string;
+      /** Atención autónoma: el OUT lo escribió el Asistente. */
+      sentByAi?: boolean;
+      /** Idempotencia de la vía IA ('ai-reply:<inboundMessageId>'). */
+      dedupeKey?: string;
+      /** PENDING = esperando al cliente (solo vía IA con respuesta útil). */
+      statusAfter?: 'OPEN' | 'PENDING';
     },
   ) {
     return this.prisma.withTenant(tenantId, async (tx) => {
@@ -543,6 +637,8 @@ export class MailComposeService {
           direction: 'OUT',
           folder: 'SENT',
           sentByUserId: m.sentByUserId,
+          sentByAi: m.sentByAi ?? false,
+          dedupeKey: m.dedupeKey,
           toAddresses: m.to,
           ccAddresses: m.cc ?? [],
           bccAddresses: m.bcc ?? [],
@@ -571,7 +667,9 @@ export class MailComposeService {
         data: {
           lastMessageAt: now,
           snippet: htmlToText(m.html).slice(0, 200),
-          status: 'OPEN',
+          // Vía humana: OPEN (histórico). Vía IA con respuesta útil: PENDING
+          // («esperando al cliente») — el ciclo de ticket del plan.
+          status: m.statusAfter ?? 'OPEN',
           ...(m.bumpThread ? { unreadCount: 0 } : {}),
         },
       });

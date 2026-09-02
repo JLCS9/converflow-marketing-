@@ -551,3 +551,12 @@ CREATE POLICY tenant_isolation ON monthly_reports
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- routing_rules (enrutado multicanal · atención autónoma)
+ALTER TABLE routing_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE routing_rules FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON routing_rules;
+CREATE POLICY tenant_isolation ON routing_rules
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

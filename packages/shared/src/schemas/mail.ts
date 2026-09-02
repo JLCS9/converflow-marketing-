@@ -58,6 +58,10 @@ export const updateMailConnectionSchema = z.object({
   secret: z.string().min(1).max(2000).optional(), // only re-encrypted when present
   smtpSecure: z.boolean().optional(),
   imapSecure: z.boolean().optional(),
+  /** Atención autónoma: modo del asistente en este buzón. */
+  aiReplyMode: z.enum(['OFF', 'SUGGEST', 'AUTO']).optional(),
+  /** «Solo estas personas» (solo SHARED). null = todo el equipo. */
+  memberUserIds: z.array(z.string().min(1)).max(100).nullable().optional(),
 });
 
 export const mailTestSendSchema = z.object({ to: emailField });
