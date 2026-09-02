@@ -114,6 +114,7 @@ export class ScoringRunner {
     ].join('\n');
 
     const call = await this.ai.callWithTool<ScoreBatchOutput>({
+      tenantId: tenantId,
       system:
         'Eres un analista comercial senior B2B en España. Devuelves resultados estructurados y concisos en castellano.',
       userPrompt,

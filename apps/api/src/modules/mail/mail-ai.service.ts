@@ -144,6 +144,7 @@ export class MailAiService {
     // AI call OUTSIDE any transaction — withTenant opens an interactive
     // transaction with a 5s timeout and Claude takes longer than that.
     const call = await this.ai.callWithTool<ThreadSummary>({
+      tenantId: tenantId,
       model: env.ANTHROPIC_FAST_MODEL,
       system:
         'Eres un asistente que resume hilos de correo de un equipo comercial. ' +
@@ -219,6 +220,7 @@ export class MailAiService {
     if (hit) return { lang, text: hit.text, cached: true, sameLanguage: false };
 
     const call = await this.ai.complete({
+      tenantId: tenantId,
       model: env.ANTHROPIC_FAST_MODEL,
       system:
         `Traduces correos al ${SUPPORTED_LANGS[lang]}. Devuelve ÚNICAMENTE la traducción, ` +

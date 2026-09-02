@@ -175,6 +175,10 @@ model Tenant {
   lifecycleStates          LifecycleState[]
   consents                 Consent[]
   ingestSources            IngestSource[]
+  verifiedAnswers          VerifiedAnswer[]
+  tenantInstructions       TenantInstruction[]
+  knowledgeGaps            KnowledgeGap[]
+  catalogItems             CatalogItem[]
 
   @@map("tenants")
 }
@@ -326,15 +330,19 @@ enum BotReplyMode {
 }
 
 model Bot {
-  id          String    @id @default(cuid())
-  tenantId    String
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name        String
-  channel     Channel
-  phoneNumber String?
-  status      BotStatus @default(PENDING)
-  agentId     String?
-  agent       Agent?    @relation(fields: [agentId], references: [id])
+  id              String    @id @default(cuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name            String
+  channel         Channel
+  phoneNumber     String?
+  status          BotStatus @default(PENDING)
+  /// F2 · WhatsApp Meta Cloud API: phone_number_id del número. Con valor, el
+  /// transporte es Cloud API (webhook + Graph) y NO el bot-runner (Baileys).
+  /// Es el interruptor de la migración bot a bot.
+  waPhoneNumberId String?   @unique
+  agentId         String?
+  agent           Agent?    @relation(fields: [agentId], references: [id])
 
   // How the bot should reply to inbound messages. Moved from Agent so the
   // same conversational agent can be wired AUTO on a low-stakes channel
@@ -1724,4 +1732,112 @@ model IngestSource {
 
   @@index([tenantId])
   @@map("ingest_sources")
+}
+
+/// Respuesta verificada (F2): par pregunta→respuesta GENERALIZADO que nace
+/// de una corrección humana. Prioridad sobre el conocimiento base en la
+/// recuperación. REGLA DURA: sin datos personales en el texto — el contexto
+/// del caso va en meta (segmento, producto…).
+model VerifiedAnswer {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  question   String
+  answer     String
+  /// Metadatos de segmento/vigencia, filtrables en recuperación.
+  meta       Json?
+  /// Vigencia: NULL = sin caducidad. Caducada no se recupera.
+  validUntil DateTime?
+  /// Quién la verificó (auditoría del bucle de mejora).
+  verifiedBy String?
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, active])
+  @@map("verified_answers")
+}
+
+/// Reglas de la casa versionadas (F2): se inyectan al system prompt. El par
+/// businessInfo/faqs plano del Agent queda superseded por esto.
+model TenantInstruction {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// Orden de inyección en el prompt.
+  order   Int     @default(0)
+  content String
+  active  Boolean @default(true)
+  /// Origen: 'template:elearning' | 'manual' | 'learned'…
+  source  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, active, order])
+  @@map("tenant_instructions")
+}
+
+/// Laguna de conocimiento (F2): pregunta que el motor no supo responder,
+/// agrupada por similitud. Prioridad alta si hay un lead esperando contacto.
+model KnowledgeGap {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// Pregunta representativa del grupo.
+  question       String
+  /// Nº de veces que se ha preguntado algo similar.
+  count          Int                    @default(1)
+  status         KnowledgeGapStatus     @default(OPEN)
+  /// true si al menos una vez había un lead esperando respuesta.
+  hasWaitingLead Boolean                @default(false)
+  /// Embedding de la pregunta para agrupar por similitud (misma dim que RAG).
+  embedding      Unsupported("vector")?
+  /// Últimos ejemplos literales (sin identificar a la persona).
+  samples        Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, status])
+  @@map("knowledge_gaps")
+}
+
+enum KnowledgeGapStatus {
+  OPEN
+  COVERED
+  DISMISSED
+}
+
+/// Ítem de catálogo sincronizado (F2). La DESCRIPCIÓN se vectoriza al RAG;
+/// precio y stock viven AQUÍ y se consultan en vivo al responder — regla
+/// dura: jamás dentro de un embedding.
+model CatalogItem {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// Id en el sistema origen (curso de LearnDash, producto Woo, fila CSV…).
+  externalId  String
+  source      String
+  kind        String   @default("product")
+  name        String
+  description String?
+  url         String?
+  price       Decimal? @db.Decimal(12, 2)
+  currency    String   @default("EUR")
+  available   Boolean  @default(true)
+  meta        Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, source, externalId])
+  @@index([tenantId, kind])
+  @@map("catalog_items")
 }

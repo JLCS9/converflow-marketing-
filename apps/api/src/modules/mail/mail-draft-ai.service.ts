@@ -231,6 +231,7 @@ export class MailDraftAiService {
 
     this.assertWithinRateLimit(tenantId);
     const call = await this.ai.complete({
+      tenantId: tenantId,
       model: env.ANTHROPIC_DEFAULT_MODEL,
       system:
         'Reescribes correos de un equipo comercial. ' +
@@ -451,6 +452,7 @@ export class MailDraftAiService {
   ): Promise<{ variants: { label: string; body: string }[]; subject?: string }> {
     this.assertWithinRateLimit(tenantId);
     const call = await this.ai.callWithTool<{ variants: { label: string; body: string }[]; subject?: string }>({
+      tenantId: tenantId,
       // Sonnet, not Haiku: this is writing, where quality is the whole point.
       model: env.ANTHROPIC_DEFAULT_MODEL,
       system: o.system,

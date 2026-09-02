@@ -111,6 +111,7 @@ export class MeetingsService {
 
     // 3. Claude call OUTSIDE any transaction.
     const call = await this.ai.callWithTool<ProposeOutput>({
+      tenantId: tenantId,
       system: 'Eres un asistente comercial B2B en España. Respondes en castellano, conciso.',
       userPrompt,
       toolName: 'propose_meeting_slots',

@@ -200,6 +200,7 @@ export class AgentRuntimeService {
     };
 
     const call = await this.ai.runAgentLoop({
+      tenantId: tenantId,
       model: agent.model,
       system,
       userPrompt,

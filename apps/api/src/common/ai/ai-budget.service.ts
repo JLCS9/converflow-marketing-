@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import IORedis from 'ioredis';
 import { AppError } from '@converflow/shared';
+import { env } from '../../config/env.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 /** How long a tenant's month-to-date total is trusted before re-reading it. */
@@ -32,11 +34,41 @@ interface Entry {
  * costs nothing while re-reading on every call would not be free.
  */
 @Injectable()
-export class AiBudgetService {
+export class AiBudgetService implements OnModuleDestroy {
   private readonly logger = new Logger(AiBudgetService.name);
   private readonly cache = new Map<string, Entry>();
+  /**
+   * F2 · Contador vivo del mes en Redis (`ai:spend:<tenant>:<YYYY-MM>`): con
+   * varias réplicas de la API, la caché in-process de cada una hacía el cap
+   * aproximado. Redis es best-effort — si no está, se degrada al comportamiento
+   * anterior; `ai_usage` sigue siendo la fuente de verdad en cada refresco.
+   */
+  private redis: IORedis | null = null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {
+    if (env.NODE_ENV === 'test') {
+      // Los unit tests validan la lógica in-process; el contador Redis es
+      // best-effort y en test apuntaría al Redis real del desarrollador.
+      this.redis = null;
+      return;
+    }
+    try {
+      this.redis = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: 1, lazyConnect: true });
+      this.redis.on('error', () => {}); // best-effort: sin spam en logs
+    } catch {
+      this.redis = null;
+    }
+  }
+
+  async onModuleDestroy() {
+    await this.redis?.quit().catch(() => {});
+  }
+
+  private spendKey(tenantId: string): string {
+    const now = new Date();
+    const month = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    return `ai:spend:${tenantId}:${month}`;
+  }
 
   /** Start of the current calendar month, UTC. */
   private monthStart(): Date {
@@ -63,8 +95,24 @@ export class AiBudgetService {
       ),
     ]);
 
+    let tokens = used._sum.totalTokens ?? 0;
+    // El contador de Redis puede ir por delante del aggregate (escrituras de
+    // otras réplicas aún no consultadas): gana el mayor.
+    if (this.redis) {
+      try {
+        const key = this.spendKey(tenantId);
+        const live = Number(await this.redis.get(key));
+        if (Number.isFinite(live) && live > tokens) tokens = live;
+        else {
+          await this.redis.set(key, String(tokens), 'EX', 35 * 86_400);
+        }
+      } catch {
+        /* Redis caído → seguimos con el aggregate */
+      }
+    }
+
     const entry: Entry = {
-      tokens: used._sum.totalTokens ?? 0,
+      tokens,
       at: Date.now(),
       cap: tenant?.aiMonthlyTokenCap ?? null,
       autoInbound: tenant?.aiInboundAnalysis ?? true,
@@ -116,6 +164,13 @@ export class AiBudgetService {
   addSpend(tenantId: string, tokens: number): void {
     const hit = this.cache.get(tenantId);
     if (hit) hit.tokens += tokens;
+    if (this.redis) {
+      const key = this.spendKey(tenantId);
+      void this.redis
+        .incrby(key, tokens)
+        .then(() => this.redis?.expire(key, 35 * 86_400))
+        .catch(() => {});
+    }
   }
 
   /** Drop the cache for a tenant whose settings just changed. */

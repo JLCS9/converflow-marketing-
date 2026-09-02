@@ -9,7 +9,8 @@ export const INGEST_QUEUE = 'data-plane';
 
 export type IngestJob =
   | { kind: 'ingest-batch'; tenantId: string; batch: EventBatchInput }
-  | { kind: 'lifecycle-sweep'; tenantId: string };
+  | { kind: 'lifecycle-sweep'; tenantId: string }
+  | { kind: 'embed'; tenantId: string };
 
 /**
  * Cola del plano de datos (patrón de lead-scoring.queue: Queue en el
@@ -53,8 +54,34 @@ export class IngestQueue implements OnModuleDestroy {
 
   enqueueBatch(tenantId: string, batch: EventBatchInput) {
     return this.queue.add('ingest-batch', { kind: 'ingest-batch', tenantId, batch }, {
-      jobId: `ingest:${tenantId}:${randomUUID()}`,
+      jobId: `ingest-${tenantId}-${randomUUID()}`,
     });
+  }
+
+  /**
+   * Vectorización en diferido. jobId fijo por tenant + delay corto: varias
+   * altas seguidas de conocimiento colapsan en UNA pasada de embedPending.
+   */
+  enqueueEmbed(tenantId: string) {
+    return this.queue
+      .add(
+        'embed',
+        { kind: 'embed', tenantId },
+        {
+          jobId: `embed-${tenantId}`,
+          delay: 2000,
+          // Autolimpieza inmediata: un job completado que siga en Redis
+          // bloquea silenciosamente el siguiente add con el mismo jobId
+          // (la coalescencia solo debe aplicar mientras está pendiente).
+          removeOnComplete: true,
+          removeOnFail: true,
+        },
+      )
+      .catch((err: Error) => {
+        // jobId duplicado con job aún pendiente → ya hay pasada programada.
+        if (!/already exists/i.test(err.message)) throw err;
+        return null;
+      });
   }
 
   /** Barrido diario 04:15 — un job repetible por CADA tenant activo se
@@ -64,7 +91,7 @@ export class IngestQueue implements OnModuleDestroy {
       'lifecycle-sweep',
       { kind: 'lifecycle-sweep', tenantId },
       {
-        jobId: `sweep:${tenantId}`,
+        jobId: `sweep-${tenantId}`,
         repeat: { pattern: '15 4 * * *' },
       },
     );

@@ -33,3 +33,16 @@ CREATE INDEX IF NOT EXISTS profiles_custom_gin ON profiles USING gin (custom jso
 
 -- --- Propiedades de eventos --------------------------------------------------
 CREATE INDEX IF NOT EXISTS events_props_gin ON events USING gin (props jsonb_path_ops);
+
+-- --- knowledge_gaps: misma dimensión que la memoria (agrupación por similitud)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'knowledge_gaps' AND column_name = 'embedding'
+      AND (SELECT atttypmod FROM pg_attribute
+           WHERE attrelid = 'knowledge_gaps'::regclass AND attname = 'embedding') = -1
+  ) THEN
+    ALTER TABLE knowledge_gaps ALTER COLUMN embedding TYPE vector(1024);
+  END IF;
+END $$;
