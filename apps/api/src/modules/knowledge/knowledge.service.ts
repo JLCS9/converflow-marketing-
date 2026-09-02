@@ -20,6 +20,11 @@ export interface ContextBlock {
  * diferido, respuestas verificadas con PRIORIDAD en recuperación,
  * instrucciones versionadas y lagunas agrupadas por similitud.
  */
+/** sourceRef canónico de una fuente de texto (slug del título). */
+export function textSourceRef(title: string): string {
+  return `text:${title.toLowerCase().replace(/\s+/g, '-').slice(0, 60)}`;
+}
+
 @Injectable()
 export class KnowledgeService {
   private readonly logger = new Logger(KnowledgeService.name);
@@ -32,12 +37,16 @@ export class KnowledgeService {
 
   // ---- conocimiento base ---------------------------------------------------
 
-  /** Alta de una fuente de texto (FAQ, ficha, política…). Vectoriza en cola. */
+
+  /** Alta de una fuente de texto (FAQ, ficha, política…). Vectoriza en cola,
+   *  salvo `syncEmbed` (camino del set de regresión: hay que poder comprobar
+   *  la recuperación ANTES de dar el cambio por bueno). */
   async addTextSource(
     tenantId: string,
     opts: { title: string; text: string; meta?: Record<string, unknown> },
+    mode: { syncEmbed?: boolean } = {},
   ) {
-    const sourceRef = `text:${opts.title.toLowerCase().replace(/\s+/g, '-').slice(0, 60)}`;
+    const sourceRef = textSourceRef(opts.title);
     // Re-alta del mismo título = sustitución completa de sus fragmentos.
     await this.rag.deleteBySourceRef(tenantId, 'knowledge', sourceRef);
     const chunks = chunkText(opts.text).map((content) => ({
@@ -45,6 +54,10 @@ export class KnowledgeService {
       meta: opts.meta,
       sourceRef,
     }));
+    if (mode.syncEmbed) {
+      const res = await this.rag.addChunks(tenantId, 'knowledge', chunks);
+      return { ...res, sourceRef };
+    }
     const res = await this.rag.addChunksDeferred(tenantId, 'knowledge', chunks);
     await this.queue.enqueueEmbed(tenantId);
     return { ...res, sourceRef };

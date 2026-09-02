@@ -173,6 +173,44 @@ export class AiService {
     return this.client;
   }
 
+  // ---- Batch API (F4 · informes sin prisa a mitad de coste) -----------------
+
+  /** Envía un lote de generaciones de texto. Devuelve el id del batch. */
+  async batchCreate(
+    entries: { customId: string; model: string; system: string; userPrompt: string; maxTokens: number }[],
+  ): Promise<string> {
+    const client = this.getClient();
+    const batch = await client.messages.batches.create({
+      requests: entries.map((e) => ({
+        custom_id: e.customId,
+        params: {
+          model: e.model,
+          max_tokens: e.maxTokens,
+          system: e.system,
+          messages: [{ role: 'user' as const, content: e.userPrompt }],
+        },
+      })),
+    });
+    return batch.id;
+  }
+
+  /**
+   * Resultados de un batch. `null` mientras sigue en curso; al terminar,
+   * un mapa customId → texto (las entradas fallidas simplemente no están).
+   */
+  async batchResults(batchId: string): Promise<Map<string, string> | null> {
+    const client = this.getClient();
+    const batch = await client.messages.batches.retrieve(batchId);
+    if (batch.processing_status !== 'ended') return null;
+    const out = new Map<string, string>();
+    for await (const entry of await client.messages.batches.results(batchId)) {
+      if (entry.result.type !== 'succeeded') continue;
+      const block = entry.result.message.content.find((b) => b.type === 'text');
+      if (block && 'text' in block) out.set(entry.custom_id, block.text);
+    }
+    return out;
+  }
+
   /**
    * Call Claude with a single tool defined so the response is forced into a
    * known JSON shape. Returns the parsed tool input plus usage metadata.

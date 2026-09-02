@@ -181,6 +181,8 @@ model Tenant {
   catalogItems             CatalogItem[]
   playbooks                Playbook[]
   playbookRuns             PlaybookRun[]
+  regressionChecks         RegressionCheck[]
+  monthlyReports           MonthlyReport[]
 
   @@map("tenants")
 }
@@ -1942,4 +1944,58 @@ enum PlaybookRunStatus {
   REJECTED // el humano lo descartó
   SUPPRESSED // guardarraíl lo impidió (reason)
   FAILED
+}
+
+/// F4 · Pregunta canónica del set de regresión del tenant. Un cambio de
+/// conocimiento que haga que `expect` deje de recuperarse queda BLOQUEADO
+/// (se revierte) para ese tenant.
+model RegressionCheck {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// Pregunta canónica tal y como la haría un cliente.
+  question String
+  /// Fragmento que DEBE aparecer en el contexto recuperado (insensible a
+  /// mayúsculas/acentos). Determinista: sin juez LLM en v1.
+  expect   String
+  active   Boolean @default(true)
+
+  lastStatus RegressionStatus?
+  lastRunAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, active])
+  @@map("regression_checks")
+}
+
+enum RegressionStatus {
+  PASS
+  FAIL
+}
+
+/// F4 · Informe mensual del piloto: métricas deterministas (SQL) +
+/// narrativa generada vía Batch API (mitad de coste, sin prisa).
+model MonthlyReport {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// Mes en formato YYYY-MM.
+  month     String
+  /// Métricas calculadas: resolución sin humano, lagunas, consentimientos,
+  /// playbooks, transiciones de ciclo de vida, coste IA…
+  metrics   Json
+  /// Narrativa redactada por el modelo (null hasta que el batch termina).
+  narrative String?
+  /// Id del batch de Anthropic mientras está en curso.
+  batchId   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, month])
+  @@map("monthly_reports")
 }

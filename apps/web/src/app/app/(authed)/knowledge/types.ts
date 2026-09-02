@@ -31,3 +31,12 @@ export interface VerifiedRow {
   validUntil: string | null;
   createdAt: string;
 }
+
+export interface RegressionRow {
+  id: string;
+  question: string;
+  expect: string;
+  active: boolean;
+  lastStatus: 'PASS' | 'FAIL' | null;
+  lastRunAt: string | null;
+}

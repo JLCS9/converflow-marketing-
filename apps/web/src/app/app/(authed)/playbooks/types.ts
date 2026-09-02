@@ -29,3 +29,8 @@ export interface RunRow {
   sentAt: string | null;
   createdAt: string;
 }
+
+export type PlaybookStats = Record<
+  string,
+  { sent: number; replied: number; noReply: number; suppressed: number; rejected: number; replyRate: number | null }
+>;

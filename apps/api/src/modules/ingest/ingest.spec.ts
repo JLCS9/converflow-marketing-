@@ -26,14 +26,16 @@ function makeService(over: { duplicateOnSecond?: boolean } = {}) {
     resolveForEvent: vi.fn().mockResolvedValue({ id: 'prof1' }),
   };
   const lifecycle = { applyEvent: vi.fn().mockResolvedValue('alumno'), sweep: vi.fn() };
-  const queue = { registerProcessor: vi.fn(), scheduleSweep: vi.fn(), enqueueBatch: vi.fn(), enqueueEmbed: vi.fn() };
+  const queue = { registerProcessor: vi.fn(), scheduleSweep: vi.fn(), scheduleMonthlyReport: vi.fn(), scheduleReportPoll: vi.fn().mockResolvedValue(undefined), enqueueBatch: vi.fn(), enqueueEmbed: vi.fn() };
   const rag = { embedPending: vi.fn().mockResolvedValue({ embedded: 0 }) };
   const playbooks = {
     onEvent: vi.fn().mockResolvedValue(undefined),
     onTransition: vi.fn().mockResolvedValue(undefined),
   };
+  const reports = { generate: vi.fn(), pollPendingNarratives: vi.fn() };
   const svc = new IngestService(
     prisma, profiles as never, lifecycle as never, queue as never, rag as never, playbooks as never,
+    reports as never,
   );
   return { svc, eventCreate, profiles, lifecycle, queue, playbooks };
 }

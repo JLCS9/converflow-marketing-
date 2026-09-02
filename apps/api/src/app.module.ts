@@ -36,6 +36,7 @@ import { ConversationEngineModule } from './modules/conversation-engine/conversa
 import { WhatsappCloudModule } from './modules/channels/whatsapp-cloud/whatsapp-cloud.module.js';
 import { IngestModule } from './modules/ingest/ingest.module.js';
 import { PlaybooksModule } from './modules/playbooks/playbooks.module.js';
+import { AiReportsModule } from './modules/ai-reports/ai-reports.module.js';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module.js';
 import { LifecycleModule } from './modules/lifecycle/lifecycle.module.js';
 import { VerticalsModule } from './modules/verticals/verticals.module.js';
@@ -87,6 +88,7 @@ import { GuardsModule } from './common/guards/guards.module.js';
     WhatsappCloudModule,
     IngestModule,
     PlaybooksModule,
+    AiReportsModule,
     KnowledgeModule,
     LifecycleModule,
     VerticalsModule,

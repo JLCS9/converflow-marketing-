@@ -92,6 +92,7 @@ export const IA_TABS: TabItem[] = [
   { href: '/app/agents', label: 'Agentes IA', labelKey: 'uiBits.tabAgents' },
   { href: '/app/knowledge', label: 'Conocimiento', labelKey: 'uiBits.tabKnowledge' },
   { href: '/app/playbooks', label: 'Seguimientos', labelKey: 'uiBits.tabPlaybooks' },
+  { href: '/app/ai-report', label: 'Informe', labelKey: 'uiBits.tabAiReport' },
 ];
 
 export const SETTINGS_TABS: TabItem[] = [
