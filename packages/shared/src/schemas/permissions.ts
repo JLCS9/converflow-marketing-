@@ -48,6 +48,8 @@ export const PERMISSION_MODULES = [
   'campaigns',
   /** Configure mailbox connections (Mail module — Buzones/Correo). */
   'mail',
+  /** Data plane: send events into /events (API keys de integración). */
+  'events',
 ] as const;
 export type PermissionModule = (typeof PERMISSION_MODULES)[number];
 
@@ -64,6 +66,7 @@ const ADMIN_DEFAULTS: ReadonlyArray<PermissionModule> = [
   'users',
   'campaigns',
   'mail',
+  'events',
 ];
 
 const BUILDER_DEFAULTS: ReadonlyArray<PermissionModule> = [

@@ -96,6 +96,15 @@ services:
     networks: [converflow_ai_net]
     ports:
       - "127.0.0.1:${API_HOST_PORT:-8091}:4000"
+    # F0 motor IA: healthcheck real y techo de memoria — sin límites, un pico
+    # (p. ej. un job de embeddings) puede tumbar Postgres por OOM del host.
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 1g
 
   web:
     build:
@@ -117,6 +126,13 @@ services:
     networks: [converflow_ai_net]
     ports:
       - "127.0.0.1:${WEB_HOST_PORT:-8090}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000').then(r=>{if(r.status>=500)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 768m
 
   workers:
     build:
@@ -131,6 +147,7 @@ services:
       redis:    { condition: service_healthy }
       postgres: { condition: service_healthy }
     networks: [converflow_ai_net]
+    mem_limit: 512m
 
   bot-runner:
     build:
@@ -150,3 +167,10 @@ services:
     ports:
       - "127.0.0.1:${BOT_RUNNER_HOST_PORT:-8092}:4100"
     stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4100/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 512m

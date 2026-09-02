@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { traceLlmCall } from './langfuse-tracer.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { AppError } from '@converflow/shared';
 import { env } from '../../config/env.js';
@@ -473,6 +474,18 @@ export class AiService {
     // Que el tope muerda dentro del mismo minuto, sin esperar a que caduque la
     // caché del presupuesto.
     this.budget.addSpend(opts.tenantId, opts.callResult.totalTokens);
+    // Traza técnica (Langfuse) — no-op sin claves, jamás bloquea.
+    traceLlmCall({
+      tenantId: opts.tenantId,
+      feature: opts.feature,
+      model: opts.callResult.model,
+      input: opts.metadata,
+      inputTokens: opts.callResult.inputTokens,
+      outputTokens: opts.callResult.outputTokens,
+      costUsd: opts.callResult.costUsd ?? undefined,
+      durationMs: opts.callResult.durationMs,
+      error: opts.errorMessage,
+    });
     try {
       await this.prisma.withTenant(opts.tenantId, (tx) =>
         tx.aiUsage.create({

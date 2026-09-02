@@ -1823,6 +1823,8 @@ const fr: Messages = {
     moveTo: 'Déplacer vers {status}',
   },
   uiBits: {
+    permEvents: 'Événements (API de données)',
+    permEventsDesc: 'Envoyer des événements au plan de données via /events (intégrations et clés API).',
     fieldsSaved: 'Champs enregistrés',
     saveError: 'Impossible d’enregistrer',
     customFields: 'Champs personnalisés',

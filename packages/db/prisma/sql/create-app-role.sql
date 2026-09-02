@@ -26,7 +26,11 @@ END $$;
 
 ALTER ROLE converflow_app NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
 
-GRANT CONNECT ON DATABASE converflow_ai TO converflow_app;
+-- CONNECT sobre la base actual (portable: prod, dev y la BD efímera de tests).
+DO $$
+BEGIN
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO converflow_app', current_database());
+END $$;
 GRANT USAGE ON SCHEMA public TO converflow_app;
 
 -- CRUD on all current tables + sequences.

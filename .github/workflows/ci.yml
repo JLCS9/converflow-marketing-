@@ -16,10 +16,29 @@ env:
 
 jobs:
   check:
-    # Static checks only — no DB or Redis needed. We use `prisma db push` in
-    # production, not interactive migrations, so CI doesn't need a Postgres.
-    name: typecheck + build
+    # Typecheck + build + TESTS. El Postgres con pgvector existe para los
+    # tests de integración del motor de IA: el de aislamiento cross-tenant de
+    # la memoria vectorial es BLOQUEANTE (regla dura del proyecto).
+    name: typecheck + build + test
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: converflow_test
+        ports:
+          - 55433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d converflow_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL_SUPER: postgresql://postgres:testpass@localhost:55433/converflow_test
+      TEST_DATABASE_URL: postgresql://converflow_app:apppass@localhost:55433/converflow_test
 
     steps:
       - uses: actions/checkout@v4
@@ -49,3 +68,17 @@ jobs:
 
       - name: Build apps
         run: pnpm build
+
+      - name: Prepare test database (push + RLS + DDL + app role)
+        run: |
+          cd packages/db
+          export DATABASE_URL="$TEST_DATABASE_URL_SUPER"
+          export DATABASE_DIRECT_URL="$TEST_DATABASE_URL_SUPER"
+          pnpm exec prisma db push --skip-generate --accept-data-loss
+          pnpm exec prisma db execute --file ./prisma/sql/rls-policies.sql --schema ./prisma/schema.prisma
+          pnpm exec prisma db execute --file ./prisma/sql/ddl.sql --schema ./prisma/schema.prisma
+          pnpm exec prisma db execute --file ./prisma/sql/create-app-role.sql --schema ./prisma/schema.prisma
+          psql "$TEST_DATABASE_URL_SUPER" -c "ALTER ROLE converflow_app PASSWORD 'apppass' LOGIN;"
+
+      - name: Tests (unitarios + integración RLS/vectorial)
+        run: pnpm test

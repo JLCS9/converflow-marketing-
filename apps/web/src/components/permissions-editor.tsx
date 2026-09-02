@@ -20,6 +20,7 @@ export const PERMISSION_LABEL_KEYS: Record<PermissionModule, string> = {
   users: 'permUsers',
   campaigns: 'permCampaigns',
   mail: 'permMail',
+  events: 'permEvents',
 };
 
 export const PERMISSION_DESCRIPTION_KEYS: Record<PermissionModule, string> = {
@@ -34,6 +35,7 @@ export const PERMISSION_DESCRIPTION_KEYS: Record<PermissionModule, string> = {
   users: 'permUsersDesc',
   campaigns: 'permCampaignsDesc',
   mail: 'permMailDesc',
+  events: 'permEventsDesc',
 };
 
 /**

@@ -11,14 +11,17 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist", "prisma"],
+  "files": [
+    "dist",
+    "prisma"
+  ],
   "scripts": {
     "build": "tsc",
     "generate": "prisma generate",
     "migrate": "prisma migrate dev && pnpm apply:rls",
     "migrate:deploy": "prisma migrate deploy && pnpm apply:rls",
     "migrate:reset": "prisma migrate reset --force && pnpm apply:rls && pnpm seed",
-    "push": "prisma db push --accept-data-loss && pnpm apply:rls",
+    "push": "prisma db push --accept-data-loss && pnpm apply:rls && pnpm apply:ddl",
     "bootstrap": "pnpm push && pnpm seed",
     "seed": "tsx prisma/seed.ts",
     "studio": "prisma studio",
@@ -26,7 +29,8 @@
     "apply:rls": "prisma db execute --file ./prisma/sql/rls-policies.sql --schema ./prisma/schema.prisma",
     "migrate:agent-types": "prisma db execute --file ./prisma/sql/migrate-agent-types.sql --schema ./prisma/schema.prisma",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "apply:ddl": "prisma db execute --file ./prisma/sql/ddl.sql --schema ./prisma/schema.prisma"
   },
   "prisma": {
     "schema": "prisma/schema.prisma",

@@ -3,6 +3,11 @@
  * Consumers should import from `@converflow/db/types` (or directly `@converflow/db`).
  */
 export type {
+  Profile,
+  ProfileIdentity,
+  Event,
+  RagCollection,
+  RagChunk,
   Tenant,
   User,
   UserSession,
@@ -19,6 +24,7 @@ export type {
 } from '@prisma/client';
 
 export {
+  IdentityKind,
   TenantStatus,
   UserRole,
   UserStatus,

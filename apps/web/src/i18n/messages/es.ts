@@ -1821,6 +1821,8 @@ const es = {
     moveTo: 'Mover a {status}',
   },
   uiBits: {
+    permEvents: 'Eventos (API de datos)',
+    permEventsDesc: 'Enviar eventos al plano de datos vía /events (integraciones y API keys).',
     fieldsSaved: 'Campos guardados',
     saveError: 'No se pudo guardar',
     customFields: 'Campos personalizados',
