@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { AiService } from '../../common/ai/ai.service.js';
 import { ConsentsService } from '../consents/consents.service.js';
 import { ConversationsService } from '../conversations/conversations.service.js';
+import { LifecycleService } from '../lifecycle/lifecycle.service.js';
 
 export interface PlaybookTrigger {
   on: 'transition' | 'event';
@@ -47,7 +48,24 @@ export class PlaybooksService {
     private readonly ai: AiService,
     private readonly consents: ConsentsService,
     private readonly conversations: ConversationsService,
+    private readonly lifecycle: LifecycleService,
   ) {}
+
+  /** E3 · Opciones REALES para el formulario: estados del ciclo de vida del
+   *  tenant y tipos de evento vistos en su plano de datos. Se acabó el campo
+   *  de texto libre donde un typo creaba un playbook que jamás disparaba. */
+  async options(tenantId: string) {
+    const [def, eventTypes] = await Promise.all([
+      this.lifecycle.getActiveDefinition(tenantId),
+      this.prisma.withTenant(tenantId, (tx) =>
+        tx.event.groupBy({ by: ['type'], _count: { type: true }, orderBy: { _count: { type: 'desc' } }, take: 25 }),
+      ),
+    ]);
+    return {
+      states: def?.states ?? [],
+      events: eventTypes.map((e) => e.type),
+    };
+  }
 
   // ---- CRUD -------------------------------------------------------------------
 
@@ -392,16 +410,37 @@ export class PlaybooksService {
 
   // ---- revisión humana ------------------------------------------------------------
 
-  listRuns(tenantId: string, status?: string) {
+  async listRuns(tenantId: string, status?: string) {
     const valid = ['DRAFT', 'APPROVED', 'SENT', 'REJECTED', 'SUPPRESSED', 'FAILED'];
-    return this.prisma.withTenant(tenantId, (tx) =>
-      tx.playbookRun.findMany({
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const runs = await tx.playbookRun.findMany({
         where: status && valid.includes(status) ? { status: status as never } : undefined,
         orderBy: { createdAt: 'desc' },
         take: 100,
         include: { playbook: { select: { name: true } } },
-      }),
-    );
+      });
+      // E3 · Aprobar sin saber a QUIÉN va es enviar a ciegas: enriquecer con
+      // el nombre del contacto (lead → perfil como fallback).
+      const leadIds = [...new Set(runs.map((r) => r.leadId).filter((x): x is string => Boolean(x)))];
+      const profileIds = [...new Set(runs.map((r) => r.profileId).filter((x): x is string => Boolean(x)))];
+      const [leads, profiles] = await Promise.all([
+        leadIds.length
+          ? tx.lead.findMany({ where: { id: { in: leadIds } }, select: { id: true, name: true } })
+          : [],
+        profileIds.length
+          ? tx.profile.findMany({ where: { id: { in: profileIds } }, select: { id: true, name: true } })
+          : [],
+      ]);
+      const leadName = new Map(leads.map((l) => [l.id, l.name]));
+      const profileName = new Map(profiles.map((p) => [p.id, p.name]));
+      return runs.map((r) => ({
+        ...r,
+        contactName:
+          (r.leadId ? leadName.get(r.leadId) : null) ??
+          (r.profileId ? profileName.get(r.profileId) : null) ??
+          null,
+      }));
+    });
   }
 
   /** Aprobar un borrador (opcionalmente editado) y enviarlo. */

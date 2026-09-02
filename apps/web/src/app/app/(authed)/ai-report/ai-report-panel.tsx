@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import { apiFetch } from '@/lib/api-client';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -27,6 +27,25 @@ function pct(rate: number | null): string {
   return rate == null ? '—' : `${Math.round(rate * 100)}%`;
 }
 
+/** Narrativas antiguas llegaron con markdown: mostrarlas limpias. */
+function plainNarrative(text: string): string {
+  return text
+    .replace(/^#{1,4}\s*/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/^---\s*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** «2026-09» → «septiembre de 2026» en el idioma del usuario. */
+function monthLabel(month: string, locale: string): string {
+  const [y, m] = month.split('-').map(Number);
+  if (!y || !m) return month;
+  return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(
+    new Date(Date.UTC(y, m - 1, 1)),
+  );
+}
+
 /** Mes anterior al actual, en YYYY-MM (el que ya está cerrado). */
 function lastClosedMonth(): string {
   const d = new Date();
@@ -36,9 +55,27 @@ function lastClosedMonth(): string {
 
 export function AiReportPanel({ initialReports }: { initialReports: ReportRow[] }) {
   const t = useTranslations('aiReport');
+  const tAtt = useTranslations('attention');
+  const locale = useLocale();
   const { toast } = useFeedback();
   const [reports, setReports] = useState(initialReports);
   const [busy, setBusy] = useState(false);
+  const [attention, setAttention] = useState<{
+    openGaps: number;
+    gapsWithLead: number;
+    draftPlaybooks: number;
+    pendingSuggestions: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch<NonNullable<typeof attention>>('/reports/attention')
+      .then((a) => alive && setAttention(a))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function refresh() {
     setReports(await apiFetch<ReportRow[]>('/ai/reports/monthly'));
@@ -74,6 +111,38 @@ export function AiReportPanel({ initialReports }: { initialReports: ReportRow[] 
         </button>
       </div>
 
+      {attention && (attention.openGaps > 0 || attention.draftPlaybooks > 0 || attention.pendingSuggestions > 0) && (
+        <Card className="border-primary-200 bg-primary-50/40">
+          <h2 className="text-sm font-semibold text-ink-900">{t('todoTitle')}</h2>
+          <ul className="mt-2 space-y-1 text-sm">
+            {attention.openGaps > 0 && (
+              <li>
+                <a href="/app/knowledge" className="text-primary-700 hover:underline">
+                  {attention.gapsWithLead > 0
+                    ? tAtt('gapsWithLead', { n: attention.gapsWithLead })
+                    : tAtt('openGaps', { n: attention.openGaps })}{' '}
+                  →
+                </a>
+              </li>
+            )}
+            {attention.draftPlaybooks > 0 && (
+              <li>
+                <a href="/app/playbooks" className="text-primary-700 hover:underline">
+                  {tAtt('drafts', { n: attention.draftPlaybooks })} →
+                </a>
+              </li>
+            )}
+            {attention.pendingSuggestions > 0 && (
+              <li>
+                <a href="/app/conversations" className="text-primary-700 hover:underline">
+                  {tAtt('suggestions', { n: attention.pendingSuggestions })} →
+                </a>
+              </li>
+            )}
+          </ul>
+        </Card>
+      )}
+
       {reports.length === 0 ? (
         <EmptyState title={t('emptyTitle')} description={t('emptyBody')} />
       ) : (
@@ -85,7 +154,7 @@ export function AiReportPanel({ initialReports }: { initialReports: ReportRow[] 
           return (
             <Card key={r.id} className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-ink-900">{r.month}</h2>
+                <h2 className="text-sm font-semibold capitalize text-ink-900">{monthLabel(r.month, locale)}</h2>
                 {delta != null && (
                   <Badge color={delta >= 0 ? 'green' : 'red'}>
                     {t('resolutionDelta', { delta: `${delta >= 0 ? '+' : ''}${Math.round(delta * 100)}` })}
@@ -105,12 +174,17 @@ export function AiReportPanel({ initialReports }: { initialReports: ReportRow[] 
                   value={`${r.metrics.playbooks.replied}/${r.metrics.playbooks.sent}`}
                   hint={t('statFollowupsHint')}
                 />
-                <Stat label={t('statCost')} value={`${r.metrics.ai.costUsd.toFixed(2)} $`} />
+                <Stat
+                  label={t('statCost')}
+                  value={new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' }).format(
+                    r.metrics.ai.costUsd,
+                  )}
+                />
               </div>
 
               {r.narrative ? (
                 <p className="whitespace-pre-wrap rounded-md bg-ink-100/60 p-3 text-sm text-ink-800">
-                  {r.narrative}
+                  {plainNarrative(r.narrative)}
                 </p>
               ) : (
                 <p className="text-xs text-ink-400">{t('narrativePending')}</p>

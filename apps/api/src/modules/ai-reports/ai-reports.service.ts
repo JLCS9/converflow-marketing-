@@ -146,7 +146,8 @@ export class AiReportsService {
           system:
             'Redactas el informe mensual del asistente de IA de un negocio, para su dueño (no técnico). ' +
             'SOLO datos de las métricas: nada inventado. Tono claro y directo, en castellano. ' +
-            'Estructura: qué mejoró, qué empeoró, y 2-3 acciones concretas recomendadas. Máximo 200 palabras.',
+            'Estructura: qué mejoró, qué empeoró, y 2-3 acciones concretas recomendadas. Máximo 200 palabras. ' +
+            'TEXTO PLANO: sin markdown, sin títulos, sin asteriscos ni almohadillas.',
           userPrompt:
             `MÉTRICAS DE ${month}:\n${JSON.stringify(metrics, null, 2)}\n\n` +
             (previous

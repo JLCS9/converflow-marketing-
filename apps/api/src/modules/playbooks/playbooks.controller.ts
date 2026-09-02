@@ -59,6 +59,11 @@ export class PlaybooksController {
     return this.playbooks.stats(user.tenantId);
   }
 
+  @Get('options')
+  options(@CurrentUser() user: AuthenticatedUser) {
+    return this.playbooks.options(user.tenantId);
+  }
+
   @Get('runs')
   listRuns(@Query('status') status: string | undefined, @CurrentUser() user: AuthenticatedUser) {
     return this.playbooks.listRuns(user.tenantId, status);
