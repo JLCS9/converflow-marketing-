@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConversationEngineService } from '../conversation-engine/conversation-engine.service.js';
+import { ProfilesService } from '../profiles/profiles.service.js';
 import { z } from 'zod';
 import { type PrismaClient } from '@converflow/db';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
@@ -38,7 +40,9 @@ export class ConversationIngestService {
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
     private readonly agentRuntime: AgentRuntimeService,
-      private readonly budget: AiBudgetService,
+    private readonly budget: AiBudgetService,
+    private readonly engine: ConversationEngineService,
+    private readonly profiles: ProfilesService,
   ) {}
 
   /**
@@ -552,11 +556,87 @@ export class ConversationIngestService {
           return;
         }
         await this.budget.assertWithinBudget(tenantId);
+        // F2 · Motor con memoria: se activa solo en WEBCHAT y solo si el
+        // tenant tiene memoria configurada. El resto sigue el flujo previo
+        // sin cambio alguno.
+        const conv = await this.prisma.withTenant(tenantId, (tx) =>
+          tx.conversation.findUnique({
+            where: { id: conversationId },
+            select: { channel: true },
+          }),
+        );
+        if (conv?.channel === 'WEBCHAT' && (await this.engine.hasMemory(tenantId))) {
+          this.runEngine(tenantId, conversationId, messageId, body, lead).catch((err) => {
+            this.logger.warn({ err, messageId }, 'engine failed — falling back');
+            this.runInboundAi(tenantId, agentId, conversationId, messageId, body, lead, fallbackClassify);
+          });
+          return;
+        }
         this.runInboundAi(tenantId, agentId, conversationId, messageId, body, lead, fallbackClassify);
       })
       .catch((err) =>
         this.logger.warn({ err, tenantId, messageId }, 'skipping inbound AI: budget or config'),
       );
+  }
+
+  /** F2 · Camino del motor con memoria (hoy solo webchat). */
+  private async runEngine(
+    tenantId: string,
+    conversationId: string,
+    messageId: string,
+    body: string,
+    lead: Parameters<ConversationIngestService['dispatchInbound']>[5],
+  ) {
+    // Perfil del plano de datos: por email del lead si existe (el webchat lo
+    // pide en la identificación blanda de entrada).
+    let profileId: string | null = null;
+    if (lead?.email) {
+      const profile = await this.profiles.resolveForEvent(
+        tenantId,
+        { email: lead.email, phone: lead.phone ?? undefined },
+        { name: lead.name, source: 'webchat' },
+      );
+      profileId = profile?.id ?? null;
+    }
+
+    const history = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.message.findMany({
+        where: { conversationId, id: { not: messageId } },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+        select: { direction: true, body: true },
+      }),
+    );
+
+    const res = await this.engine.respond(tenantId, {
+      channel: 'WEBCHAT',
+      text: body,
+      history: history.reverse().map((m) => ({ direction: m.direction as 'IN' | 'OUT', body: m.body ?? '' })),
+      profileId,
+      leadWaiting: Boolean(lead),
+    });
+
+    // Entrega webchat: el OUT es lo que sondea el widget (sin transporte).
+    await this.prisma.withTenant(tenantId, async (tx) => {
+      await tx.message.create({
+        data: { tenantId, conversationId, direction: 'OUT', body: res.reply },
+      });
+      await tx.conversation.update({
+        where: { id: conversationId },
+        data: {
+          lastMessageAt: new Date(),
+          lastMessagePreview: res.reply.slice(0, 140),
+          lastOutboundAt: new Date(),
+          // Sin respuesta suficiente → la conversación queda PENDIENTE para
+          // el equipo (hay una persona esperando contacto humano).
+          ...(res.canAnswer ? { status: 'ANSWERED' as const } : { status: 'PENDING' as const }),
+        },
+      });
+    });
+    this.logger.log(
+      { conversationId, canAnswer: res.canAnswer, extracted: res.extractedKeys, gap: res.gapId },
+      'engine reply delivered',
+    );
   }
 
   private runInboundAi(

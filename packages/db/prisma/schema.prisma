@@ -330,15 +330,19 @@ enum BotReplyMode {
 }
 
 model Bot {
-  id          String    @id @default(cuid())
-  tenantId    String
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name        String
-  channel     Channel
-  phoneNumber String?
-  status      BotStatus @default(PENDING)
-  agentId     String?
-  agent       Agent?    @relation(fields: [agentId], references: [id])
+  id              String    @id @default(cuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name            String
+  channel         Channel
+  phoneNumber     String?
+  status          BotStatus @default(PENDING)
+  /// F2 · WhatsApp Meta Cloud API: phone_number_id del número. Con valor, el
+  /// transporte es Cloud API (webhook + Graph) y NO el bot-runner (Baileys).
+  /// Es el interruptor de la migración bot a bot.
+  waPhoneNumberId String?   @unique
+  agentId         String?
+  agent           Agent?    @relation(fields: [agentId], references: [id])
 
   // How the bot should reply to inbound messages. Moved from Agent so the
   // same conversational agent can be wired AUTO on a low-stakes channel

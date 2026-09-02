@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { AppError } from '@converflow/shared';
 import { env } from '../../config/env.js';
+import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { WhatsappCloudService } from '../channels/whatsapp-cloud/whatsapp-cloud.service.js';
 
 export interface BotRuntimeState {
   status: string;
@@ -15,6 +17,19 @@ export interface BotRuntimeState {
 export class BotRunnerService {
   private readonly base = env.BOT_RUNNER_URL;
 
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloud: WhatsappCloudService,
+  ) {}
+
+  /** F2 · Punto de corte del transporte: bot con waPhoneNumberId → Cloud API. */
+  private async cloudPhoneId(botId: string): Promise<string | null> {
+    const bot = await this.prisma.bypass((tx) =>
+      tx.bot.findUnique({ where: { id: botId }, select: { waPhoneNumberId: true } }),
+    );
+    return bot?.waPhoneNumberId ?? null;
+  }
+
   start(botId: string, tenantId: string): Promise<{ status: string }> {
     return this.call(`/bots/${botId}/start`, 'POST', { tenantId });
   }
@@ -27,7 +42,13 @@ export class BotRunnerService {
     return this.call(`/bots/${botId}/state`, 'GET');
   }
 
-  sendText(botId: string, jid: string, text: string): Promise<{ ok: boolean; id?: string }> {
+  async sendText(botId: string, jid: string, text: string): Promise<{ ok: boolean; id?: string }> {
+    const phoneId = await this.cloudPhoneId(botId);
+    if (phoneId) {
+      const to = `+${jid.split('@')[0]!.replace(/\D/g, '')}`;
+      const res = await this.cloud.sendText(phoneId, to, text);
+      return { ok: true, id: res.id };
+    }
     return this.call(`/bots/${botId}/send`, 'POST', { jid, text });
   }
 

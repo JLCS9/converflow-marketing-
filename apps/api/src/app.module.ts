@@ -32,6 +32,8 @@ import { CampaignsModule } from './modules/campaigns/campaigns.module.js';
 import { EmailTemplatesModule } from './modules/email-templates/email-templates.module.js';
 import { MailModule } from './modules/mail/mail.module.js';
 import { ConsentsModule } from './modules/consents/consents.module.js';
+import { ConversationEngineModule } from './modules/conversation-engine/conversation-engine.module.js';
+import { WhatsappCloudModule } from './modules/channels/whatsapp-cloud/whatsapp-cloud.module.js';
 import { IngestModule } from './modules/ingest/ingest.module.js';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module.js';
 import { LifecycleModule } from './modules/lifecycle/lifecycle.module.js';
@@ -80,6 +82,8 @@ import { GuardsModule } from './common/guards/guards.module.js';
     EmailTemplatesModule,
     MailModule,
     ConsentsModule,
+    ConversationEngineModule,
+    WhatsappCloudModule,
     IngestModule,
     KnowledgeModule,
     LifecycleModule,

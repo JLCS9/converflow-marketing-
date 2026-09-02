@@ -43,6 +43,12 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_OAUTH_REDIRECT_URI: z.string().url().optional(),
 
+  // WhatsApp Meta Cloud API (F2). Opcionales: sin token, el transporte Cloud
+  // no está disponible y los bots siguen en bot-runner.
+  WHATSAPP_CLOUD_TOKEN: z.string().optional(),
+  WHATSAPP_VERIFY_TOKEN: z.string().optional(),
+  WHATSAPP_APP_SECRET: z.string().optional(),
+
   BOT_RUNNER_PORT: z.coerce.number().int().positive().default(4100),
   BOT_RUNNER_INTERNAL_TOKEN: z.string().min(16).optional(),
   // Internal URL of the bot-runner service (Docker network). Used by the API to
