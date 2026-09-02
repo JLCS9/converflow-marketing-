@@ -324,12 +324,25 @@ export class AiService {
     maxIterations?: number;
     maxTokens?: number;
     tenantId?: string;
-  }): Promise<AiCallResult<string> & { actions: { name: string; input: unknown; result: string }[] }> {
+    /**
+     * E1 · Tool TERMINAL: cuando el modelo la llama, el bucle para y su input
+     * se devuelve tipado en `terminalInput` (sin ejecutarla vía executeTool).
+     * Permite «acciones CRM + respuesta estructurada» en una conversación:
+     * la mayoría de turnos llama la terminal directamente (1 sola pasada).
+     */
+    terminalTool?: string;
+  }): Promise<
+    AiCallResult<string> & {
+      actions: { name: string; input: unknown; result: string }[];
+      terminalInput?: unknown;
+    }
+  > {
     await this.guardBudget(opts.tenantId);
     const model = opts.model ?? env.ANTHROPIC_DEFAULT_MODEL;
     const start = Date.now();
     const messages: Anthropic.MessageParam[] = [{ role: 'user', content: opts.userPrompt }];
     const actions: { name: string; input: unknown; result: string }[] = [];
+    let terminalInput: unknown;
     let text = '';
     let inputTokens = 0;
     let outputTokens = 0;
@@ -357,6 +370,15 @@ export class AiService {
       );
       if (res.stop_reason !== 'tool_use' || toolUses.length === 0) break;
 
+      // La tool terminal cierra el turno: su input ES el resultado.
+      const terminal = opts.terminalTool
+        ? toolUses.find((tu) => tu.name === opts.terminalTool)
+        : undefined;
+      if (terminal) {
+        terminalInput = terminal.input;
+        break;
+      }
+
       messages.push({ role: 'assistant', content: res.content as never });
       const results: Anthropic.ToolResultBlockParam[] = [];
       for (const tu of toolUses) {
@@ -380,6 +402,7 @@ export class AiService {
     return {
       result: text,
       actions,
+      terminalInput,
       inputTokens,
       outputTokens,
       totalTokens,

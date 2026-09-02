@@ -983,6 +983,16 @@ const fr: Messages = {
     modeAutoDesc:
       'L’IA répond directement avec l’avertissement IA ajouté en tête au premier contact. Recommandé pour Web Chat. Essayez-le d’abord avec un canal de test.',
     modeSaved: 'Mode enregistré',
+    engineTitle: 'Cerveau de l\u2019assistant',
+    engineOnDesc: 'Ce bot répond avec l\u2019assistant à mémoire : il utilise vos Connaissances (sources, instructions et réponses vérifiées) et n\u2019invente jamais.',
+    engineOffDesc: 'Ce bot utilise le système classique (instructions de l\u2019agent). Activez-le pour répondre avec vos Connaissances.',
+    engineOnBadge: 'Avec mémoire',
+    engineOffBadge: 'Classique',
+    engineSwitchOn: 'Activer l\u2019assistant à mémoire',
+    engineSwitchOff: 'Revenir au classique',
+    engineSaved: 'Cerveau du bot mis à jour',
+    engineNoMemoryTitle: 'Activer sans connaissances chargées ?',
+    engineNoMemoryBody: 'Aucune source de Connaissances pour l\u2019instant : l\u2019assistant dira qu\u2019il n\u2019a pas l\u2019information et proposera un contact humain. Chargez d\u2019abord des sources dans IA → Connaissances.',
     saveFailed: 'Enregistrement impossible',
     replyModeBody:
       'Décidez comment l’IA répond sur ce canal. C’est une propriété du bot — le même agent peut être en Suggérer sur WhatsApp et en Auto sur Web Chat.',

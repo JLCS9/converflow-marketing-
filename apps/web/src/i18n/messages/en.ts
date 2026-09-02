@@ -980,6 +980,16 @@ const en: Messages = {
     modeAutoDesc:
       'The AI answers directly with the AI disclosure prepended on first contact. Recommended for Web Chat. Try it first with a test channel.',
     modeSaved: 'Mode saved',
+    engineTitle: 'Assistant brain',
+    engineOnDesc: 'This bot replies with the memory-backed assistant: it uses your Knowledge (sources, instructions and verified answers) and never makes things up.',
+    engineOffDesc: 'This bot uses the classic system (agent instructions). Switch it on to answer with your Knowledge.',
+    engineOnBadge: 'With memory',
+    engineOffBadge: 'Classic',
+    engineSwitchOn: 'Enable memory-backed assistant',
+    engineSwitchOff: 'Back to classic',
+    engineSaved: 'Bot brain updated',
+    engineNoMemoryTitle: 'Enable without knowledge loaded?',
+    engineNoMemoryBody: 'There are no Knowledge sources yet: the assistant will say it has no information and offer human contact. You can load sources first in AI → Knowledge.',
     saveFailed: 'Could not save',
     replyModeBody:
       'Decide how the AI replies on this channel. It is a property of the bot — the same agent can run Suggest on WhatsApp and Auto on Web Chat.',

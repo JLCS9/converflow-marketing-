@@ -9,6 +9,7 @@ import { BotAgentSelect } from './bot-agent-select';
 import { BotEmailConnect } from './bot-email-connect';
 import { WebchatInstall } from './webchat-install';
 import { BotReplyMode } from './bot-reply-mode';
+import { BotEngineToggle } from './bot-engine-toggle';
 
 interface BotDetail {
   id: string;
@@ -24,6 +25,7 @@ interface BotDetail {
   lastDisconnectAt: string | null;
   lastDisconnectReason: string | null;
   createdAt: string;
+  aiEngine?: 'LEGACY' | 'ENGINE';
 }
 
 export async function generateMetadata() {
@@ -50,6 +52,9 @@ export default async function BotDetailPage({
   const agents = await serverApiFetch<{ id: string; name: string; status: string }[]>(
     '/agents',
   ).catch(() => []);
+  const knowledgeSources = await serverApiFetch<{ sourceRef: string }[]>('/knowledge/sources').catch(
+    () => [],
+  );
 
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.converflow.ai';
@@ -106,6 +111,12 @@ export default async function BotDetailPage({
       </Card>
 
       <BotReplyMode botId={bot.id} initialMode={bot.replyMode ?? 'SUGGEST'} />
+
+      <BotEngineToggle
+        botId={bot.id}
+        initialEngine={bot.aiEngine ?? 'LEGACY'}
+        hasMemory={knowledgeSources.length > 0}
+      />
 
       <Card>
         <h2 className="text-sm font-mono uppercase tracking-wider text-ink-500">{t('detailsTitle')}</h2>
