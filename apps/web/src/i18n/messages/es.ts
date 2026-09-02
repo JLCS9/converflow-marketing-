@@ -989,6 +989,16 @@ const es = {
     modeAutoDesc:
       'La IA contesta directamente con el aviso de IA pre-pendido en el primer contacto. Recomendado para Web Chat. Pruébalo primero con un canal de test.',
     modeSaved: 'Modo guardado',
+    engineTitle: 'Cerebro del asistente',
+    engineOnDesc: 'Este bot responde con el asistente con memoria: usa tu Conocimiento (fuentes, instrucciones y respuestas verificadas) y jamás inventa.',
+    engineOffDesc: 'Este bot usa el sistema clásico (instrucciones del agente). Actívalo para que responda con tu Conocimiento.',
+    engineOnBadge: 'Con memoria',
+    engineOffBadge: 'Clásico',
+    engineSwitchOn: 'Activar asistente con memoria',
+    engineSwitchOff: 'Volver al clásico',
+    engineSaved: 'Cerebro del bot actualizado',
+    engineNoMemoryTitle: '¿Activar sin conocimiento cargado?',
+    engineNoMemoryBody: 'Aún no hay fuentes en Conocimiento: el asistente dirá que no tiene información y ofrecerá contacto humano. Puedes cargar fuentes antes en IA → Conocimiento.',
     saveFailed: 'No se pudo guardar',
     replyModeBody:
       'Decide cómo responde la IA en este canal. Es una propiedad del bot — el mismo agente puede ir Sugerir en WhatsApp y Auto en Web Chat.',

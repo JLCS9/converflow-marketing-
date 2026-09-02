@@ -237,7 +237,8 @@ export class ReportsService {
         if (row.feature === 'lead_scoring' || row.feature === 'lead_scoring_batch') {
           ai.leadsScored += 1;
         }
-        if (row.feature !== 'agent_reply' || row.status !== 'OK') continue;
+        // E1 · Ambos pipelines cuentan: el legado y el motor unificado.
+        if (!['agent_reply', 'conversation_engine'].includes(row.feature) || row.status !== 'OK') continue;
         const meta = row.metadata as { mode?: string; delivered?: boolean } | null;
         if (meta?.mode === 'OFF') continue;
         if (meta?.delivered) ai.attended += 1;

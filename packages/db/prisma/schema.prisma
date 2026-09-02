@@ -333,6 +333,11 @@ enum BotReplyMode {
   AUTO
 }
 
+enum AiEngine {
+  LEGACY // agent-runtime (prompt directo del agente); muere en E2
+  ENGINE // motor conversacional con memoria del tenant (RAG)
+}
+
 model Bot {
   id              String    @id @default(cuid())
   tenantId        String
@@ -352,6 +357,10 @@ model Bot {
   // same conversational agent can be wired AUTO on a low-stakes channel
   // (web chat) and SUGGEST on a high-stakes one (WhatsApp).
   replyMode BotReplyMode @default(SUGGEST)
+
+  /// E1 · Qué pipeline de IA atiende este bot. Sustituye al conmutador
+  /// invisible por tenant (hasMemory): rollout explícito, bot a bot.
+  aiEngine AiEngine @default(LEGACY)
 
   // Rate limits (overridable per bot, otherwise tenant default)
   maxMessagesPerMinute Int       @default(60)
@@ -411,7 +420,12 @@ model Agent {
   tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name         String
   description  String?
+  /// DEPRECATED (E1): para CONVERSATIONAL el motor ya no lo inyecta; para
+  /// OPPORTUNITIES las reglas viven en funnelRules. Se elimina tras E2.
   systemPrompt String
+  /// E1 · Reglas del funnel para el scoring por lote (antes iban en
+  /// systemPrompt). Solo agentes OPPORTUNITIES.
+  funnelRules  String?
   model        String      @default("claude-sonnet-4-6")
   config       Json
   status       AgentStatus @default(DRAFT)
@@ -1049,8 +1063,13 @@ model Message {
   /// Usuario que envió este OUT desde el panel (null = bot o sistema). F3.
   sentByUserId String?
 
+  /// E1 · Idempotencia de entrega de IA: `ai:<inboundMessageId>`. El unique
+  /// hace imposible la doble respuesta (fallback/reintentos).
+  dedupeKey String?
+
   createdAt DateTime @default(now())
 
+  @@unique([tenantId, dedupeKey])
   @@index([conversationId, createdAt])
   @@index([tenantId, waMessageId])
   @@map("messages")

@@ -58,8 +58,8 @@ function makeService(toolOutput: Record<string, unknown>, over: { defs?: unknown
 const base = { channel: 'WEBCHAT', text: '¿Cuánto dura el curso?', history: [], profileId: 'p1' };
 
 describe('ConversationEngineService.respond', () => {
-  it('responde con FUENTES en el system y registra el uso', async () => {
-    const { svc, callWithTool, ai } = makeService({ reply: 'Seis semanas.', can_answer: true });
+  it('responde con FUENTES en el system y devuelve el uso para el llamador', async () => {
+    const { svc, callWithTool } = makeService({ reply: 'Seis semanas.', can_answer: true });
     const res = await svc.respond('t1', base);
     expect(res.reply).toBe('Seis semanas.');
     expect(res.canAnswer).toBe(true);
@@ -67,9 +67,10 @@ describe('ConversationEngineService.respond', () => {
     expect(args.system).toContain('[VERIFICADA]');
     expect(args.system).toContain('Nunca prometas plazas.');
     expect(args.tenantId).toBe('t1');
-    expect(ai.recordUsage).toHaveBeenCalledWith(
-      expect.objectContaining({ feature: 'conversation_engine' }),
-    );
+    // E1 · El registro de uso lo hace el LLAMADOR (que conoce modo/entrega);
+    // el motor devuelve el uso del turno.
+    expect(res.usage).toMatchObject({ totalTokens: 150, model: 'claude-sonnet-4-6' });
+    expect(res.sources).toBe(2);
   });
 
   it('extracción válida se persiste en el perfil; claves inventadas no', async () => {

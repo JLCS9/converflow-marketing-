@@ -2,8 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConversationEngineService } from '../conversation-engine/conversation-engine.service.js';
 import { ProfilesService } from '../profiles/profiles.service.js';
 import { IngestQueue } from '../ingest/ingest.queue.js';
+import { ConversationDeliveryService } from './conversation-delivery.service.js';
+import { CrmActionsService, enabledToolDefs } from './crm-actions.service.js';
 import { z } from 'zod';
 import { type PrismaClient } from '@converflow/db';
+import type { AgentConfig } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { AiService } from '../../common/ai/ai.service.js';
 import { AiBudgetService } from '../../common/ai/ai-budget.service.js';
@@ -45,6 +48,8 @@ export class ConversationIngestService {
     private readonly engine: ConversationEngineService,
     private readonly profiles: ProfilesService,
     private readonly ingestQueue: IngestQueue,
+    private readonly delivery: ConversationDeliveryService,
+    private readonly crmActions: CrmActionsService,
   ) {}
 
   /**
@@ -578,19 +583,55 @@ export class ConversationIngestService {
           return;
         }
         await this.budget.assertWithinBudget(tenantId);
-        // F2 · Motor con memoria: se activa solo en WEBCHAT y solo si el
-        // tenant tiene memoria configurada. El resto sigue el flujo previo
-        // sin cambio alguno.
+        // E1 · Gate EXPLÍCITO por bot (Bot.aiEngine) — muere el conmutador
+        // invisible por tenant (hasMemory). Una sola lectura trae canal,
+        // asignación y config del bot.
         const conv = await this.prisma.withTenant(tenantId, (tx) =>
           tx.conversation.findUnique({
             where: { id: conversationId },
-            select: { channel: true },
+            select: {
+              channel: true,
+              assignedUserId: true,
+              bot: { select: { id: true, aiEngine: true, replyMode: true, agentId: true } },
+            },
           }),
         );
-        if (conv?.channel === 'WEBCHAT' && (await this.engine.hasMemory(tenantId))) {
-          this.runEngine(tenantId, conversationId, messageId, body, lead).catch((err) => {
-            this.logger.warn({ err, messageId }, 'engine failed — falling back');
-            this.runInboundAi(tenantId, agentId, conversationId, messageId, body, lead, fallbackClassify);
+        const bot = conv?.bot;
+        if (bot?.aiEngine === 'ENGINE') {
+          // E1 · replyMode manda SIEMPRE, y se decide ANTES de gastar:
+          // OFF → solo clasificación (etiquetar no es responder).
+          if (bot.replyMode === 'OFF') {
+            fallbackClassify();
+            return;
+          }
+          // E1 · Guard «humano tiene el hilo»: asignada o con OUT humano
+          // reciente → AUTO degrada a SUGGEST (la IA no pisa a una persona).
+          let mode: 'SUGGEST' | 'AUTO' = bot.replyMode === 'AUTO' ? 'AUTO' : 'SUGGEST';
+          if (mode === 'AUTO') {
+            const humanOut = conv!.assignedUserId
+              ? { id: 'assigned' }
+              : await this.prisma.withTenant(tenantId, (tx) =>
+                  tx.message.findFirst({
+                    where: {
+                      conversationId,
+                      direction: 'OUT',
+                      sentByUserId: { not: null },
+                      createdAt: { gte: new Date(Date.now() - 24 * 3_600_000) },
+                    },
+                    select: { id: true },
+                  }),
+                );
+            if (humanOut) mode = 'SUGGEST';
+          }
+          this.runEngine(tenantId, conversationId, messageId, body, lead, {
+            channel: conv!.channel,
+            agentId: bot.agentId,
+            mode,
+          }).catch((err) => {
+            // Fase 1 del fallback: falló ANTES de generar → solo clasificar.
+            // JAMÁS el bucle legado (duplicaría coste y es código a retirar).
+            this.logger.warn({ err, messageId }, 'engine failed — classify only');
+            fallbackClassify();
           });
           return;
         }
@@ -601,37 +642,65 @@ export class ConversationIngestService {
       );
   }
 
-  /** F2 · Camino del motor con memoria (hoy solo webchat). */
+  /** E1 · Camino del motor unificado: multicanal, con identidad del
+   *  asistente, tools CRM y entrega por el servicio compartido. */
   private async runEngine(
     tenantId: string,
     conversationId: string,
     messageId: string,
     body: string,
     lead: Parameters<ConversationIngestService['dispatchInbound']>[5],
+    opts: { channel: string; agentId: string | null; mode: 'SUGGEST' | 'AUTO' },
   ) {
-    // Perfil del plano de datos: por email del lead si existe (el webchat lo
-    // pide en la identificación blanda de entrada).
+    // Perfil multicanal: en WhatsApp el contacto suele tener SOLO teléfono —
+    // resolveForEvent ya soporta PHONE/WA_ID (sin esto no habría extracción
+    // ni consentimiento fuera del webchat).
+    const identitySeed =
+      lead?.email || lead?.phone
+        ? { email: lead?.email ?? undefined, phone: lead?.phone ?? undefined }
+        : null;
     let profileId: string | null = null;
-    if (lead?.email) {
-      const profile = await this.profiles.resolveForEvent(
-        tenantId,
-        { email: lead.email, phone: lead.phone ?? undefined },
-        { name: lead.name, source: 'webchat' },
-      );
+    if (identitySeed && lead) {
+      const profile = await this.profiles.resolveForEvent(tenantId, identitySeed, {
+        name: lead.name,
+        source: opts.channel.toLowerCase(),
+      });
       profileId = profile?.id ?? null;
-      // F3 · Glue CRM↔plano de datos: el lead queda unido a su perfil (los
-      // playbooks navegan perfil→lead→conversación para elegir canal).
+      // F3 · Glue CRM↔plano de datos: el lead queda unido a su perfil.
       if (profileId) {
         await this.prisma
           .withTenant(tenantId, (tx) =>
-            tx.lead.updateMany({
-              where: { id: lead.id, profileId: null },
-              data: { profileId },
-            }),
+            tx.lead.updateMany({ where: { id: lead.id, profileId: null }, data: { profileId } }),
           )
           .catch((err) => this.logger.warn({ err }, 'lead↔profile no enlazado'));
       }
     }
+
+    // Identidad + herramientas del asistente (Agent del bot).
+    const agent = opts.agentId
+      ? await this.prisma.withTenant(tenantId, (tx) =>
+          tx.agent.findUnique({ where: { id: opts.agentId! }, select: { config: true } }),
+        )
+      : null;
+    const config = (agent?.config ?? {}) as AgentConfig;
+    const toolDefs = enabledToolDefs(config);
+    const tools = toolDefs.length
+      ? {
+          defs: toolDefs,
+          execute: (name: string, input: unknown) =>
+            this.crmActions.execute(
+              {
+                tenantId,
+                leadId: lead?.id ?? null,
+                conversationId,
+                support: config.support,
+                userText: body,
+              },
+              name,
+              input,
+            ),
+        }
+      : null;
 
     const history = await this.prisma.withTenant(tenantId, (tx) =>
       tx.message.findMany({
@@ -643,30 +712,43 @@ export class ConversationIngestService {
     );
 
     const res = await this.engine.respond(tenantId, {
-      channel: 'WEBCHAT',
+      channel: opts.channel,
       text: body,
       history: history.reverse().map((m) => ({ direction: m.direction as 'IN' | 'OUT', body: m.body ?? '' })),
       profileId,
       leadWaiting: Boolean(lead),
       conversationId,
+      identity: { tone: config.tone ?? null, language: config.language ?? null },
+      tools,
     });
 
-    // Entrega webchat: el OUT es lo que sondea el widget (sin transporte).
-    await this.prisma.withTenant(tenantId, async (tx) => {
-      await tx.message.create({
-        data: { tenantId, conversationId, direction: 'OUT', body: res.reply },
+    // Entrega según modo. Fase 2 del fallback: si la entrega falla con el
+    // texto YA generado, degrada a sugerencia — JAMÁS se re-genera.
+    let delivered = false;
+    if (opts.mode === 'AUTO') {
+      const out = await this.delivery.deliver({
+        tenantId,
+        conversationId,
+        text: res.reply,
+        dedupeKey: `ai:${messageId}`,
+        disclosure: config.aiDisclosure ?? null,
       });
-      await tx.conversation.update({
+      delivered = out.delivered;
+      if (!out.delivered) {
+        await this.delivery.suggest({ tenantId, inboundMessageId: messageId, reply: res.reply });
+      }
+    } else {
+      await this.delivery.suggest({ tenantId, inboundMessageId: messageId, reply: res.reply });
+    }
+
+    // Estado final + contexto de handoff (sin coste extra).
+    await this.prisma.withTenant(tenantId, (tx) =>
+      tx.conversation.update({
         where: { id: conversationId },
         data: {
-          lastMessageAt: new Date(),
-          lastMessagePreview: res.reply.slice(0, 140),
-          lastOutboundAt: new Date(),
-          // Sin respuesta suficiente → la conversación queda PENDIENTE para
-          // el equipo (hay una persona esperando contacto humano).
-          ...(res.canAnswer ? { status: 'ANSWERED' as const } : { status: 'PENDING' as const }),
-          // F3 · Contexto de handoff SIN coste extra: lo que el motor ya sabe
-          // de este escalado, para que quien lo coja no lea todo el hilo.
+          // Sin respuesta suficiente → PENDIENTE para el equipo, aunque se
+          // haya entregado el «te contactamos» (hay una persona esperando).
+          ...(delivered && res.canAnswer ? {} : { status: 'PENDING' as const }),
           ...(!res.canAnswer || res.consentGranted
             ? {
                 handoffContext: {
@@ -679,11 +761,38 @@ export class ConversationIngestService {
               }
             : {}),
         },
-      });
+      }),
+    );
+    // E1 · Registro de uso con el MISMO shape de metadata que el legado
+    // (mode/delivered/actions) → el dashboard aiWeek cuenta ambos caminos.
+    void this.ai.recordUsage({
+      tenantId,
+      feature: 'conversation_engine',
+      callResult: { ...res.usage, result: res.reply } as never,
+      resourceType: 'conversation',
+      resourceId: conversationId,
+      metadata: {
+        channel: opts.channel,
+        mode: opts.mode,
+        delivered,
+        canAnswer: res.canAnswer,
+        extracted: res.extractedKeys,
+        gap: Boolean(res.gapId),
+        sources: res.sources,
+        actions: res.actions.map((a) => ({ name: a.name })),
+      },
     });
     this.logger.log(
-      { conversationId, canAnswer: res.canAnswer, extracted: res.extractedKeys, gap: res.gapId },
-      'engine reply delivered',
+      {
+        conversationId,
+        mode: opts.mode,
+        delivered,
+        canAnswer: res.canAnswer,
+        extracted: res.extractedKeys,
+        gap: res.gapId,
+        actions: res.actions.map((a) => a.name),
+      },
+      'engine turn completed',
     );
   }
 

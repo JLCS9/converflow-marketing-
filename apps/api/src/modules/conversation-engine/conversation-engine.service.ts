@@ -10,7 +10,7 @@ import {
   sanitizeExtraction,
   type ExtractableFieldDef,
 } from '../knowledge/extraction.js';
-import { buildEngineSystem } from './context.js';
+import { buildEngineSystem, type EngineIdentity } from './context.js';
 
 interface EngineToolOutput {
   reply: string;
@@ -19,12 +19,31 @@ interface EngineToolOutput {
   extracted?: Record<string, unknown>;
 }
 
+export interface EngineTools {
+  defs: { name: string; description: string; input_schema: Record<string, unknown> }[];
+  execute: (name: string, input: unknown) => Promise<string>;
+}
+
 export interface EngineResult {
   reply: string;
   canAnswer: boolean;
   gapId?: string;
   extractedKeys: string[];
   consentGranted: boolean;
+  /** E1 · Acciones CRM ejecutadas en el turno (nombre + resultado). */
+  actions: { name: string; result: string }[];
+  /** Nº de fuentes recuperadas (para el probador y las métricas). */
+  sources: number;
+  /** E1 · Uso del turno. El REGISTRO lo hace el llamador cuando conoce el
+   *  modo y si se entregó (mismo patrón que el legado → dashboard aiWeek). */
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    costUsd: number;
+    durationMs: number;
+    model: string;
+  };
 }
 
 /** ¿Tiene el tenant memoria configurada? (caché corta, por proceso). */
@@ -79,6 +98,11 @@ export class ConversationEngineService {
       profileId?: string | null;
       leadWaiting?: boolean;
       conversationId?: string;
+      /** E1 · Identidad del asistente (tono/idioma del Agent del bot). */
+      identity?: EngineIdentity | null;
+      /** E1 · Herramientas CRM inyectadas por llamada (el motor no depende
+       *  de bots/email/CRM; el probador pasará un executor dry-run). */
+      tools?: EngineTools | null;
     },
   ): Promise<EngineResult> {
     // 1. Piezas del contexto (lecturas cortas, cada una en su transacción).
@@ -104,6 +128,7 @@ export class ConversationEngineService {
         : null,
     ]);
 
+    const hasTools = Boolean(opts.tools?.defs.length);
     const system = buildEngineSystem({
       tenantName: tenant?.name ?? 'la empresa',
       instructions: instructions.map((i) => i.content),
@@ -111,6 +136,8 @@ export class ConversationEngineService {
       profile: profile as never,
       channel: opts.channel,
       extractableCount: extractableDefs.length,
+      identity: opts.identity,
+      hasTools,
     });
 
     // 2. Una sola llamada: respuesta + extracción + laguna + consentimiento.
@@ -120,15 +147,10 @@ export class ConversationEngineService {
       .map((m) => `${m.direction === 'IN' ? 'Cliente' : 'Tú'}: ${m.body}`)
       .join('\n');
 
-    const call = await this.ai.callWithTool<EngineToolOutput>({
-      tenantId,
-      model: this.ai.modelFor('converse'),
-      system,
-      userPrompt: `${historyText ? `CONVERSACIÓN PREVIA:\n${historyText}\n\n` : ''}MENSAJE DEL CLIENTE:\n${opts.text}`,
-      toolName: 'responder',
-      toolDescription:
-        'Responde al cliente y estructura lo aprendido en este turno. reply = tu respuesta literal para el cliente.',
-      toolInputSchema: {
+    const userPrompt = `${historyText ? `CONVERSACIÓN PREVIA:\n${historyText}\n\n` : ''}MENSAJE DEL CLIENTE:\n${opts.text}`;
+    const responderDescription =
+      'Responde al cliente y estructura lo aprendido en este turno. reply = tu respuesta literal para el cliente.';
+    const responderSchema = {
         type: 'object',
         properties: {
           reply: { type: 'string', description: 'Respuesta literal para el cliente, en su idioma.' },
@@ -148,16 +170,72 @@ export class ConversationEngineService {
           extracted: extractionSchema,
         },
         required: ['reply', 'can_answer'],
-      },
-      maxTokens: 700,
-    });
+      } as Record<string, unknown>;
 
-    const out = call.result;
+    let out: EngineToolOutput;
+    let call: {
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      costUsd: number;
+      durationMs: number;
+      model: string;
+    };
+    let actions: { name: string; result: string }[] = [];
+
+    if (hasTools) {
+      // E1 · Bucle con tool terminal: la mayoría de turnos llama `responder`
+      // directamente (una sola pasada); solo los turnos con acción CRM pagan
+      // una segunda, y esa pasada ve el resultado real de la herramienta.
+      const loop = await this.ai.runAgentLoop({
+        tenantId,
+        model: this.ai.modelFor('converse'),
+        system,
+        userPrompt,
+        tools: [
+          ...opts.tools!.defs,
+          { name: 'responder', description: responderDescription, input_schema: responderSchema },
+        ],
+        executeTool: (name, input) => opts.tools!.execute(name, input),
+        terminalTool: 'responder',
+        maxIterations: 3,
+        maxTokens: 700,
+      });
+      actions = loop.actions.map((a) => ({ name: a.name, result: a.result }));
+      out =
+        (loop.terminalInput as EngineToolOutput | undefined) ??
+        // El modelo cerró con texto libre (raro): úsalo como respuesta.
+        ({ reply: loop.result, can_answer: true } as EngineToolOutput);
+      call = loop;
+    } else {
+      const single = await this.ai.callWithTool<EngineToolOutput>({
+        tenantId,
+        model: this.ai.modelFor('converse'),
+        system,
+        userPrompt,
+        toolName: 'responder',
+        toolDescription: responderDescription,
+        toolInputSchema: responderSchema,
+        maxTokens: 700,
+      });
+      out = single.result;
+      call = single;
+    }
     const result: EngineResult = {
       reply: out.reply?.trim() || 'Ahora mismo no puedo responderte — el equipo te contactará en breve.',
       canAnswer: out.can_answer !== false,
       extractedKeys: [],
       consentGranted: false,
+      actions,
+      sources: blocks.length,
+      usage: {
+        inputTokens: call.inputTokens,
+        outputTokens: call.outputTokens,
+        totalTokens: call.totalTokens,
+        costUsd: call.costUsd,
+        durationMs: call.durationMs,
+        model: call.model,
+      },
     };
 
     // 3. Extracción → perfil (validada contra definiciones; nunca inventa claves).
@@ -221,20 +299,6 @@ export class ConversationEngineService {
         this.logger.warn(`consentimiento no registrado: ${(err as Error).message}`);
       }
     }
-
-    void this.ai.recordUsage({
-      tenantId,
-      feature: 'conversation_engine',
-      callResult: call,
-      resourceType: 'conversation',
-      metadata: {
-        channel: opts.channel,
-        canAnswer: result.canAnswer,
-        extracted: result.extractedKeys,
-        gap: Boolean(result.gapId),
-        sources: blocks.length,
-      },
-    });
 
     return result;
   }

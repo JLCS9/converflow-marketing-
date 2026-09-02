@@ -21,6 +21,11 @@ const CHANNEL_RULES: Record<string, string> = {
     'Canal: email. Respuesta completa y estructurada, con saludo y despedida breves.',
 };
 
+export interface EngineIdentity {
+  tone?: string | null;
+  language?: string | null;
+}
+
 export function buildEngineSystem(opts: {
   tenantName: string;
   instructions: string[];
@@ -28,12 +33,27 @@ export function buildEngineSystem(opts: {
   profile: EngineProfileView | null;
   channel: string;
   extractableCount: number;
+  /** E1 · Identidad del asistente (del Agent del bot): tono e idioma. */
+  identity?: EngineIdentity | null;
+  /** E1 · true cuando hay herramientas CRM disponibles en este turno. */
+  hasTools?: boolean;
 }): string {
   const parts: string[] = [];
 
   parts.push(
     `Eres el asistente comercial de ${opts.tenantName}. Atiendes a personas interesadas con amabilidad y precisión.`,
   );
+
+  if (opts.identity?.tone || opts.identity?.language) {
+    parts.push(
+      [
+        opts.identity.tone ? `Tono: ${opts.identity.tone}.` : '',
+        opts.identity.language ? `Responde siempre en ${opts.identity.language}, salvo que el cliente escriba en otro idioma.` : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    );
+  }
 
   if (opts.instructions.length) {
     parts.push(`REGLAS DE LA CASA (obligatorias):\n${opts.instructions.map((i) => `- ${i}`).join('\n')}`);
@@ -46,6 +66,9 @@ export function buildEngineSystem(opts: {
       '- Las fuentes marcadas [VERIFICADA] son respuestas aprobadas por el equipo: tienen prioridad literal sobre el resto.',
       '- Si FUENTES no cubre la pregunta, dilo con naturalidad, marca can_answer=false y ofrece que el equipo le contacte por el canal que prefiera (email o teléfono).',
       '- Nunca prometas precios, plazas o disponibilidad que no estén en FUENTES.',
+      opts.hasTools
+        ? '- Tienes herramientas CRM: úsalas cuando la conversación lo justifique (interés claro de compra, petición de cita, incidencia) y DESPUÉS cierra SIEMPRE el turno llamando a la herramienta `responder`.'
+        : '',
       opts.extractableCount > 0
         ? `- Extrae en 'extracted' SOLO los datos que la persona diga explícitamente (hay ${opts.extractableCount} campos posibles). No preguntes en cadena: como mucho un dato por turno y solo si fluye natural.`
         : '',

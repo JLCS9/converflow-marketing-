@@ -82,15 +82,17 @@ export class ScoringRunner {
       const agent = await this.prisma.withTenant(tenantId, (tx) =>
         tx.agent.findUnique({
           where: { id: opts.agentId! },
-          select: { name: true, description: true, systemPrompt: true, type: true },
+          select: { name: true, description: true, systemPrompt: true, funnelRules: true, type: true },
         }),
       );
       if (agent) {
         funnelRules = [
           agent.name ? `Agente: ${agent.name}.` : null,
           agent.description ? `Descripción: ${agent.description}.` : null,
-          agent.systemPrompt
-            ? `Reglas del funnel:\n${agent.systemPrompt}`
+          // E1 · Las reglas del funnel viven en funnelRules; systemPrompt
+          // queda como fallback una release (se retira en E2).
+          agent.funnelRules || agent.systemPrompt
+            ? `Reglas del funnel:\n${agent.funnelRules ?? agent.systemPrompt}`
             : null,
         ]
           .filter(Boolean)
