@@ -18,6 +18,19 @@ const envSchema = z.object({
   ANTHROPIC_DEFAULT_MODEL: z.string().default('claude-sonnet-4-6'),
   ANTHROPIC_FAST_MODEL: z.string().default('claude-haiku-4-5-20251001'),
 
+  // Motor de IA (F0) — proveedor de embeddings intercambiable. 'stub' es
+  // determinista y sin red (tests/desarrollo); la elección real se cierra con
+  // el benchmark de F0. Cambiar de modelo = re-vectorizar colección.
+  EMBEDDINGS_PROVIDER: z.enum(['stub', 'voyage', 'openai']).default('stub'),
+  EMBEDDINGS_API_KEY: z.string().optional(),
+  EMBEDDINGS_MODEL: z.string().optional(),
+  EMBEDDINGS_DIM: z.coerce.number().int().positive().optional(),
+
+  // Observabilidad IA (Langfuse Cloud UE). Opcional: sin claves no traza.
+  LANGFUSE_PUBLIC_KEY: z.string().optional(),
+  LANGFUSE_SECRET_KEY: z.string().optional(),
+  LANGFUSE_BASE_URL: z.string().url().optional(),
+
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().email().default('noreply@converflow.ai'),
 

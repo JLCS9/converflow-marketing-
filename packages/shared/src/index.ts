@@ -13,5 +13,6 @@ export * from './schemas/api-keys';
 export * from './schemas/campaign';
 export * from './schemas/email-template';
 export * from './schemas/mail';
+export * from './schemas/events';
 export * from './utils';
 export * as constants from './constants';

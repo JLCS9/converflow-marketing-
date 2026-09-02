@@ -1,0 +1,206 @@
+{
+  "corpus": [
+    {
+      "id": "r1",
+      "text": "El horario de visitas es de 10:00 a 20:00 todos los días. No es necesario avisar, salvo grupos de más de cuatro personas."
+    },
+    {
+      "id": "r2",
+      "text": "El proceso de admisión comienza con una visita al centro y una valoración geriátrica integral gratuita; la incorporación puede ser en menos de una semana."
+    },
+    {
+      "id": "r3",
+      "text": "Todas las habitaciones son exteriores, disponibles en modalidad individual o doble, con baño adaptado, cama articulada y sistema de llamada asistencial."
+    },
+    {
+      "id": "r4",
+      "text": "El centro cuenta con médico propio de lunes a viernes y enfermería presencial 24 horas, además de coordinación con el centro de salud del barrio."
+    },
+    {
+      "id": "r5",
+      "text": "El servicio de fisioterapia ofrece sesiones individuales tres días por semana y gimnasia grupal diaria de mantenimiento."
+    },
+    {
+      "id": "r6",
+      "text": "La cocina es propia y elabora menús supervisados por nutricionista, con adaptaciones para diabetes, disfagia, hipertensión y todas las texturas."
+    },
+    {
+      "id": "r7",
+      "text": "Los residentes pueden salir libremente comunicándolo en recepción; para residentes con deterioro cognitivo las salidas se realizan con acompañamiento."
+    },
+    {
+      "id": "r8",
+      "text": "El primer mes funciona como periodo de adaptación: seguimiento diario del equipo psicosocial y reunión con la familia a los 15 días."
+    },
+    {
+      "id": "r9",
+      "text": "Disponemos de una unidad especializada en demencias y alzhéimer, con espacios de deambulación segura, terapia de reminiscencia y personal formado específicamente."
+    },
+    {
+      "id": "r10",
+      "text": "Tramitamos y orientamos sobre la Ley de Dependencia, la prestación vinculada al servicio y las deducciones fiscales aplicables a la plaza."
+    },
+    {
+      "id": "r11",
+      "text": "Se admiten visitas de mascotas en las zonas ajardinadas; la tenencia permanente se valora caso a caso según la autonomía del residente."
+    },
+    {
+      "id": "r12",
+      "text": "El servicio de lavandería está incluido: recogida y entrega dos veces por semana, con marcado de prendas al ingreso."
+    },
+    {
+      "id": "r13",
+      "text": "Las actividades incluyen musicoterapia, taller de memoria, huerto terapéutico, misa semanal opcional y excursiones mensuales adaptadas."
+    },
+    {
+      "id": "r14",
+      "text": "Las familias reciben información continua a través de la aplicación del centro: parte diario, citas médicas y fotografías de actividades."
+    },
+    {
+      "id": "r15",
+      "text": "La estancia temporal o de respiro familiar está disponible por semanas, con un mínimo de 15 días, sujeta a disponibilidad de plazas."
+    },
+    {
+      "id": "r16",
+      "text": "En caso de urgencia médica se activa el protocolo de derivación hospitalaria y se avisa inmediatamente a la persona de contacto designada."
+    },
+    {
+      "id": "r17",
+      "text": "El precio de la plaza depende del tipo de habitación y del nivel de atención requerido tras la valoración; la tarifa incluye manutención completa, atención sanitaria y actividades."
+    },
+    {
+      "id": "r18",
+      "text": "Cada residente tiene un plan de atención individualizado que se revisa cada seis meses con el equipo interdisciplinar y la familia."
+    },
+    {
+      "id": "r19",
+      "text": "El centro dispone de servicio de peluquería y podología con cita previa, con coste adicional a la tarifa base."
+    },
+    {
+      "id": "r20",
+      "text": "Para el ingreso se requiere DNI, tarjeta sanitaria, informe médico reciente y la medicación pautada de la primera semana."
+    }
+  ],
+  "questions": [
+    {
+      "text": "¿Cuál es el horario de visitas?",
+      "expected": "r1"
+    },
+    {
+      "text": "¿Puedo visitar a mi madre sin avisar antes?",
+      "expected": "r1"
+    },
+    {
+      "text": "¿Cómo es el proceso para ingresar a un familiar?",
+      "expected": "r2"
+    },
+    {
+      "text": "¿Cuánto tarda la admisión?",
+      "expected": "r2"
+    },
+    {
+      "text": "¿Las habitaciones son individuales o compartidas?",
+      "expected": "r3"
+    },
+    {
+      "text": "¿Las habitaciones tienen baño propio?",
+      "expected": "r3"
+    },
+    {
+      "text": "¿Hay médico en el centro?",
+      "expected": "r4"
+    },
+    {
+      "text": "¿Tenéis enfermería por la noche?",
+      "expected": "r4"
+    },
+    {
+      "text": "¿Ofrecen fisioterapia? ¿Con qué frecuencia?",
+      "expected": "r5"
+    },
+    {
+      "text": "Mi padre tiene disfagia, ¿pueden adaptar la comida?",
+      "expected": "r6"
+    },
+    {
+      "text": "¿Quién elabora los menús?",
+      "expected": "r6"
+    },
+    {
+      "text": "¿Los residentes pueden salir a pasear solos?",
+      "expected": "r7"
+    },
+    {
+      "text": "¿Cómo funciona el periodo de adaptación?",
+      "expected": "r8"
+    },
+    {
+      "text": "¿Tienen unidad para personas con alzhéimer?",
+      "expected": "r9"
+    },
+    {
+      "text": "¿El personal está formado en demencias?",
+      "expected": "r9"
+    },
+    {
+      "text": "¿Ayudáis con los papeles de la Ley de Dependencia?",
+      "expected": "r10"
+    },
+    {
+      "text": "¿Se puede pedir la prestación vinculada al servicio?",
+      "expected": "r10"
+    },
+    {
+      "text": "¿Puedo llevar al perro cuando visite a mi abuela?",
+      "expected": "r11"
+    },
+    {
+      "text": "¿La lavandería está incluida en el precio?",
+      "expected": "r12"
+    },
+    {
+      "text": "¿Qué actividades hacen los residentes?",
+      "expected": "r13"
+    },
+    {
+      "text": "¿Cómo me entero del día a día de mi familiar?",
+      "expected": "r14"
+    },
+    {
+      "text": "¿Tenéis estancias temporales de respiro?",
+      "expected": "r15"
+    },
+    {
+      "text": "¿Cuál es la estancia mínima temporal?",
+      "expected": "r15"
+    },
+    {
+      "text": "¿Qué pasa si hay una urgencia médica?",
+      "expected": "r16"
+    },
+    {
+      "text": "¿Qué incluye la tarifa mensual?",
+      "expected": "r17"
+    },
+    {
+      "text": "¿De qué depende el precio de la plaza?",
+      "expected": "r17"
+    },
+    {
+      "text": "¿Cada cuánto se revisa el plan de atención?",
+      "expected": "r18"
+    },
+    {
+      "text": "¿Hay peluquería en la residencia?",
+      "expected": "r19"
+    },
+    {
+      "text": "¿Qué documentación necesito para el ingreso?",
+      "expected": "r20"
+    },
+    {
+      "text": "What documents are required for admission?",
+      "expected": "r20"
+    }
+  ]
+}

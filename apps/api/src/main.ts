@@ -7,6 +7,7 @@ import {
 import helmet from '@fastify/helmet';
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
+import rateLimit from '@fastify/rate-limit';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
@@ -29,6 +30,17 @@ async function bootstrap() {
   await app.register(cookie as never, {
     secret: env.AUTH_SECRET,
   });
+  // Rate limit global (F0 del motor de IA): estaba instalado y sin registrar,
+  // con /webchat/* expuesto sin límite. 300 req/min por IP cubre el uso normal
+  // (el inbox sondea cada 12-15s) y corta el abuso barato; los webhooks de
+  // integraciones van autenticados por API key y comparten este techo.
+  await app.register(rateLimit as never, {
+    max: 300,
+    timeWindow: '1 minute',
+    // El proxy Nginx pone X-Forwarded-For y main.ts ya arranca con trustProxy.
+    allowList: [],
+  });
+
   await app.register(multipart as never, {
     limits: {
       fileSize: 50 * 1024 * 1024, // 50 MB per file

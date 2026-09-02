@@ -393,3 +393,53 @@ CREATE POLICY tenant_isolation ON email_thread_reads
   FOR ALL
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- ============================================================================
+-- Motor de IA — F0 · plano de datos y memoria por tenant
+-- ============================================================================
+
+-- profiles (perfil unificado del contacto)
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON profiles;
+CREATE POLICY tenant_isolation ON profiles
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- profile_identities (email/teléfono/wa_id → perfil)
+ALTER TABLE profile_identities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profile_identities FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON profile_identities;
+CREATE POLICY tenant_isolation ON profile_identities
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- events (evento normalizado del plano de datos)
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE events FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON events;
+CREATE POLICY tenant_isolation ON events
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- rag_collections (colecciones de memoria por tenant)
+ALTER TABLE rag_collections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rag_collections FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON rag_collections;
+CREATE POLICY tenant_isolation ON rag_collections
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
+-- rag_chunks (fragmentos vectorizados — el aislamiento aquí es el riesgo
+-- reputacional máximo del producto; ver el test de integración cross-tenant)
+ALTER TABLE rag_chunks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rag_chunks FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON rag_chunks;
+CREATE POLICY tenant_isolation ON rag_chunks
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());

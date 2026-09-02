@@ -1,0 +1,206 @@
+{
+  "corpus": [
+    {
+      "id": "c1",
+      "text": "Los cursos de liderazgo tienen una duración de seis semanas, con dedicación estimada de 4 horas semanales. Cada semana se desbloquea un módulo nuevo."
+    },
+    {
+      "id": "c2",
+      "text": "Al completar el curso se emite un certificado digital verificable con código único, descargable desde el área personal del alumno."
+    },
+    {
+      "id": "c3",
+      "text": "No se exigen requisitos académicos previos para los programas de nivel inicial; los programas avanzados requieren haber completado el nivel anterior o acreditar experiencia equivalente."
+    },
+    {
+      "id": "c4",
+      "text": "Las clases se imparten en nuestra plataforma online, accesible desde navegador y aplicación móvil, disponible 24 horas. Las sesiones en directo quedan grabadas."
+    },
+    {
+      "id": "c5",
+      "text": "Cada alumno dispone de tutorías individuales con su mentor: dos sesiones de 30 minutos al mes, reservables desde el calendario de la plataforma."
+    },
+    {
+      "id": "c6",
+      "text": "Existen becas del 25% al 50% para desempleados, estudiantes y antiguos alumnos. La solicitud se presenta antes de formalizar la matrícula."
+    },
+    {
+      "id": "c7",
+      "text": "La matrícula puede cancelarse con reembolso completo durante los 14 días naturales posteriores a la compra, siempre que no se haya completado más del 20% del curso."
+    },
+    {
+      "id": "c8",
+      "text": "La metodología combina vídeo-lecciones cortas, casos prácticos reales y un proyecto final que se presenta ante el mentor."
+    },
+    {
+      "id": "c9",
+      "text": "El pago puede fraccionarse en 3 o 6 mensualidades sin intereses. También aceptamos financiación a través de la empresa del alumno."
+    },
+    {
+      "id": "c10",
+      "text": "Los cursos bonificables por FUNDAE incluyen la gestión documental completa; la empresa debe comunicarlo al menos 7 días antes del inicio."
+    },
+    {
+      "id": "c11",
+      "text": "El acceso al contenido permanece abierto durante 12 meses desde la fecha de matrícula, incluidas las actualizaciones del temario."
+    },
+    {
+      "id": "c12",
+      "text": "Para el diploma de aprovechamiento es necesario superar el 80% de las evaluaciones y entregar el proyecto final dentro del plazo."
+    },
+    {
+      "id": "c13",
+      "text": "Las empresas pueden formar equipos completos: hay descuentos por volumen a partir de 5 alumnos y un panel de seguimiento para RRHH."
+    },
+    {
+      "id": "c14",
+      "text": "Nuestro programa insignia de gestión de equipos incluye una semana de simulaciones en directo con actores profesionales."
+    },
+    {
+      "id": "c15",
+      "text": "Si un alumno no puede seguir el ritmo, puede pausar la matrícula una vez por curso hasta 3 meses y retomarla en la siguiente convocatoria."
+    },
+    {
+      "id": "c16",
+      "text": "Las convocatorias arrancan el primer lunes de cada mes; la matrícula se cierra 5 días antes del inicio."
+    },
+    {
+      "id": "c17",
+      "text": "El equipo de soporte técnico responde en menos de 24 horas laborables por chat y correo; los problemas de acceso urgentes tienen línea prioritaria."
+    },
+    {
+      "id": "c18",
+      "text": "Ofrecemos convalidación de módulos para titulados universitarios en áreas afines, previa revisión del expediente por el equipo académico."
+    },
+    {
+      "id": "c19",
+      "text": "Our leadership program is also available in English, with native mentors and live sessions adapted to European and American time zones."
+    },
+    {
+      "id": "c20",
+      "text": "La evaluación es continua: cuestionarios al final de cada módulo, participación en foros y el proyecto final ponderan la nota."
+    }
+  ],
+  "questions": [
+    {
+      "text": "¿Cuánto dura el curso de liderazgo?",
+      "expected": "c1"
+    },
+    {
+      "text": "¿Cuántas horas a la semana tengo que dedicarle?",
+      "expected": "c1"
+    },
+    {
+      "text": "¿Dan certificado al terminar?",
+      "expected": "c2"
+    },
+    {
+      "text": "¿El certificado se puede verificar online?",
+      "expected": "c2"
+    },
+    {
+      "text": "¿Necesito titulación previa para apuntarme?",
+      "expected": "c3"
+    },
+    {
+      "text": "¿Qué requisitos piden para el nivel avanzado?",
+      "expected": "c3"
+    },
+    {
+      "text": "¿Las clases son en directo o grabadas?",
+      "expected": "c4"
+    },
+    {
+      "text": "¿Puedo estudiar desde el móvil?",
+      "expected": "c4"
+    },
+    {
+      "text": "¿Hay tutorías personalizadas?",
+      "expected": "c5"
+    },
+    {
+      "text": "¿Cómo reservo una sesión con mi mentor?",
+      "expected": "c5"
+    },
+    {
+      "text": "¿Tenéis becas o descuentos para desempleados?",
+      "expected": "c6"
+    },
+    {
+      "text": "¿Cuándo hay que pedir la beca?",
+      "expected": "c6"
+    },
+    {
+      "text": "¿Puedo cancelar y que me devuelvan el dinero?",
+      "expected": "c7"
+    },
+    {
+      "text": "¿Cuál es la política de reembolso?",
+      "expected": "c7"
+    },
+    {
+      "text": "¿Cómo es la metodología del curso?",
+      "expected": "c8"
+    },
+    {
+      "text": "¿Se puede pagar a plazos?",
+      "expected": "c9"
+    },
+    {
+      "text": "¿Es bonificable por FUNDAE?",
+      "expected": "c10"
+    },
+    {
+      "text": "¿Cuánto tiempo tengo acceso al contenido?",
+      "expected": "c11"
+    },
+    {
+      "text": "¿Qué necesito para obtener el diploma?",
+      "expected": "c12"
+    },
+    {
+      "text": "¿Hacéis descuentos para empresas con varios empleados?",
+      "expected": "c13"
+    },
+    {
+      "text": "¿Qué incluye el programa de gestión de equipos?",
+      "expected": "c14"
+    },
+    {
+      "text": "¿Puedo pausar el curso si me surge un imprevisto?",
+      "expected": "c15"
+    },
+    {
+      "text": "¿Cuándo empieza la próxima convocatoria?",
+      "expected": "c16"
+    },
+    {
+      "text": "¿Hasta cuándo puedo matricularme?",
+      "expected": "c16"
+    },
+    {
+      "text": "¿Cuánto tarda soporte en responder?",
+      "expected": "c17"
+    },
+    {
+      "text": "¿Convalidáis asignaturas si ya tengo carrera?",
+      "expected": "c18"
+    },
+    {
+      "text": "Is the program available in English?",
+      "expected": "c19"
+    },
+    {
+      "text": "¿Cómo se calcula la nota final?",
+      "expected": "c20"
+    },
+    {
+      "text": "Le programme de leadership existe-t-il en anglais ?",
+      "expected": "c19"
+    },
+    {
+      "text": "¿Se graban las sesiones si no puedo asistir en directo?",
+      "expected": "c4"
+    }
+  ]
+}

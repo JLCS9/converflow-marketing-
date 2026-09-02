@@ -17,6 +17,8 @@ export default tseslint.config(
       '**/*.config.ts',
       // Local-only scripts, deliberately outside every tsconfig.
       '**/*.local.ts',
+      // Scripts operativos standalone (benchmarks, migraciones one-shot).
+      '**/scripts/*.mjs',
       // Generado por Next en cada build y marcado como "do not edit": su
       // contenido cambia con la versión de Next, así que lintarlo solo produce
       // fallos que no se pueden arreglar.

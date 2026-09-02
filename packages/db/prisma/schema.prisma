@@ -26,20 +26,20 @@ datasource db {
 // ============================================
 
 model PlatformAdmin {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  passwordHash String
-  totpSecret   String?
-  totpEnabled  Boolean  @default(false)
-  status       AdminStatus @default(ACTIVE)
-  lastLoginAt  DateTime?
-  mustChangePassword Boolean @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String      @id @default(cuid())
+  email              String      @unique
+  name               String
+  passwordHash       String
+  totpSecret         String?
+  totpEnabled        Boolean     @default(false)
+  status             AdminStatus @default(ACTIVE)
+  lastLoginAt        DateTime?
+  mustChangePassword Boolean     @default(false)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
-  sessions     PlatformAdminSession[]
-  actions      AdminActionLog[]
+  sessions PlatformAdminSession[]
+  actions  AdminActionLog[]
 
   @@map("platform_admins")
 }
@@ -50,14 +50,14 @@ enum AdminStatus {
 }
 
 model PlatformAdminSession {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   adminId   String
   admin     PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  token     String   @unique
+  token     String        @unique
   ip        String?
   userAgent String?
   expiresAt DateTime
-  createdAt DateTime @default(now())
+  createdAt DateTime      @default(now())
 
   @@index([adminId])
   @@index([expiresAt])
@@ -65,7 +65,7 @@ model PlatformAdminSession {
 }
 
 model AdminActionLog {
-  id         String   @id @default(cuid())
+  id         String        @id @default(cuid())
   adminId    String
   admin      PlatformAdmin @relation(fields: [adminId], references: [id])
   action     String
@@ -73,7 +73,7 @@ model AdminActionLog {
   targetId   String?
   metadata   Json?
   ip         String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime      @default(now())
 
   @@index([adminId, createdAt])
   @@index([targetType, targetId])
@@ -98,16 +98,16 @@ model AppVersion {
 // ============================================
 
 model Tenant {
-  id                       String   @id @default(cuid())
-  slug                     String   @unique
-  name                     String
-  status                   TenantStatus @default(TRIAL)
+  id     String       @id @default(cuid())
+  slug   String       @unique
+  name   String
+  status TenantStatus @default(TRIAL)
 
   // Limits controlled by super admin
-  maxUsers                 Int      @default(20)
-  maxBots                  Int      @default(1)
-  maxConversationsPerMonth Int      @default(5000)
-  maxStorageGb             Int      @default(5)
+  maxUsers                 Int @default(20)
+  maxBots                  Int @default(1)
+  maxConversationsPerMonth Int @default(5000)
+  maxStorageGb             Int @default(5)
 
   /// --- Controles de automatización e IA (el tenant manda, no nosotros) ---
   /// Análisis automático de cada mensaje entrante (clasificación + sugerencia).
@@ -127,45 +127,50 @@ model Tenant {
   // Metadata
   contactEmail String
   contactPhone String?
-  timezone     String   @default("Europe/Madrid")
-  locale       String   @default("es-ES")
+  timezone     String  @default("Europe/Madrid")
+  locale       String  @default("es-ES")
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   suspendedAt DateTime?
 
-  users         User[]
-  invitations   TenantInvitation[]
-  apiKeys       ApiKey[]
-  bots          Bot[]
-  agents        Agent[]
-  accessLogs    AccessLog[]
-  clients       Client[]
-  leads         Lead[]
-  opportunities Opportunity[]
-  tasks         Task[]
-  documents     Document[]
-  notes         Note[]
-  alerts        Alert[]
-  aiUsage       AiUsage[]
-  calendarConnections CalendarConnection[]
-  conversations Conversation[]
-  messages      Message[]
-  emailConnections EmailConnection[]
-  customFieldDefinitions CustomFieldDefinition[]
-  pipelines              Pipeline[]
-  leadScoreBatches       LeadScoreBatch[]
-  campaigns              Campaign[]
-  campaignRecipients     CampaignRecipient[]
-  suppressions           Suppression[]
-  emailTemplates         EmailTemplate[]
-  mailConnections        MailConnection[]
-  emailThreads           EmailThread[]
-  emailMessages          EmailMessage[]
-  emailAttachments       EmailAttachment[]
-  emailThreadNotes       EmailThreadNote[]
+  users                    User[]
+  invitations              TenantInvitation[]
+  apiKeys                  ApiKey[]
+  bots                     Bot[]
+  agents                   Agent[]
+  accessLogs               AccessLog[]
+  clients                  Client[]
+  leads                    Lead[]
+  opportunities            Opportunity[]
+  tasks                    Task[]
+  documents                Document[]
+  notes                    Note[]
+  alerts                   Alert[]
+  aiUsage                  AiUsage[]
+  calendarConnections      CalendarConnection[]
+  conversations            Conversation[]
+  messages                 Message[]
+  emailConnections         EmailConnection[]
+  customFieldDefinitions   CustomFieldDefinition[]
+  pipelines                Pipeline[]
+  leadScoreBatches         LeadScoreBatch[]
+  campaigns                Campaign[]
+  campaignRecipients       CampaignRecipient[]
+  suppressions             Suppression[]
+  emailTemplates           EmailTemplate[]
+  mailConnections          MailConnection[]
+  emailThreads             EmailThread[]
+  emailMessages            EmailMessage[]
+  emailAttachments         EmailAttachment[]
+  emailThreadNotes         EmailThreadNote[]
   emailMessageTranslations EmailMessageTranslation[]
   emailThreadReads         EmailThreadRead[]
+  profiles                 Profile[]
+  profileIdentities        ProfileIdentity[]
+  events                   Event[]
+  ragCollections           RagCollection[]
+  ragChunks                RagChunk[]
 
   @@map("tenants")
 }
@@ -204,10 +209,10 @@ model User {
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
-  sessions UserSession[]
+  sessions           UserSession[]
   calendarConnection CalendarConnection?
-  assignedTasks Task[]
-  sentEmails    EmailMessage[] @relation("EmailMessageSender")
+  assignedTasks      Task[]
+  sentEmails         EmailMessage[]      @relation("EmailMessageSender")
 
   @@index([tenantId])
   @@map("users")
@@ -266,20 +271,20 @@ model TenantInvitation {
 /// `keyHash` (sha256 of the full secret). The plaintext is shown to the
 /// admin once at creation and never stored.
 model ApiKey {
-  id          String    @id @default(cuid())
-  tenantId    String
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name        String
-  prefix      String    @unique
-  keyHash     String
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name       String
+  prefix     String    @unique
+  keyHash    String
   /// Array of PermissionModule strings (same enum used for users).
-  scopes      Json
-  createdBy   String
-  expiresAt   DateTime?
-  revokedAt   DateTime?
-  revokedBy   String?
-  lastUsedAt  DateTime?
-  createdAt   DateTime  @default(now())
+  scopes     Json
+  createdBy  String
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  revokedBy  String?
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
 
   @@index([tenantId])
   @@index([prefix])
@@ -330,11 +335,11 @@ model Bot {
   // How the bot should reply to inbound messages. Moved from Agent so the
   // same conversational agent can be wired AUTO on a low-stakes channel
   // (web chat) and SUGGEST on a high-stakes one (WhatsApp).
-  replyMode   BotReplyMode @default(SUGGEST)
+  replyMode BotReplyMode @default(SUGGEST)
 
   // Rate limits (overridable per bot, otherwise tenant default)
-  maxMessagesPerMinute Int @default(60)
-  maxMessagesPerHour   Int @default(1500)
+  maxMessagesPerMinute Int       @default(60)
+  maxMessagesPerHour   Int       @default(1500)
   warmupUntil          DateTime?
 
   lastConnectedAt      DateTime?
@@ -344,10 +349,10 @@ model Bot {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  session BotSession?
-  conversations Conversation[]
+  session         BotSession?
+  conversations   Conversation[]
   emailConnection EmailConnection?
-  campaigns Campaign[]
+  campaigns       Campaign[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -373,11 +378,11 @@ enum BotStatus {
 }
 
 model BotSession {
-  botId              String @id
+  botId              String   @id
   tenantId           String
-  bot                Bot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  bot                Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
   authStateEncrypted Bytes
-  encryptionVersion  Int    @default(1)
+  encryptionVersion  Int      @default(1)
   updatedAt          DateTime @updatedAt
 
   @@index([tenantId])
@@ -404,8 +409,8 @@ model Agent {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  bots          Bot[]
-  scoreBatches  LeadScoreBatch[]
+  bots         Bot[]
+  scoreBatches LeadScoreBatch[]
 
   @@unique([tenantId, name])
   @@index([tenantId, type])
@@ -434,24 +439,24 @@ enum AgentType {
 /// updates `completed`/`failed` as the worker progresses; the frontend polls
 /// for ETA + summary.
 model LeadScoreBatch {
-  id            String              @id @default(cuid())
+  id            String               @id @default(cuid())
   tenantId      String
-  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant        Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   agentId       String?
-  agent         Agent?              @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  agent         Agent?               @relation(fields: [agentId], references: [id], onDelete: SetNull)
   status        LeadScoreBatchStatus @default(QUEUED)
   total         Int
-  completed     Int                 @default(0)
-  failed        Int                 @default(0)
-  statusUpdated Int                 @default(0)
-  oppsCreated   Int                 @default(0)
-  options       Json                // { updateStatus, createOpportunities }
-  errors        Json                @default("[]")
+  completed     Int                  @default(0)
+  failed        Int                  @default(0)
+  statusUpdated Int                  @default(0)
+  oppsCreated   Int                  @default(0)
+  options       Json // { updateStatus, createOpportunities }
+  errors        Json                 @default("[]")
   startedAt     DateTime?
   finishedAt    DateTime?
   cancelledAt   DateTime?
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 
   @@index([tenantId, status])
   @@map("lead_score_batches")
@@ -470,19 +475,19 @@ enum LeadScoreBatchStatus {
 // ============================================
 
 model Client {
-  id        String       @id @default(cuid())
-  tenantId  String
-  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name      String
-  lastName  String?
-  email     String?
-  phone     String?
-  source    String?
-  status    ClientStatus @default(ACTIVE)
-  ownerId   String?
+  id           String       @id @default(cuid())
+  tenantId     String
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  lastName     String?
+  email        String?
+  phone        String?
+  source       String?
+  status       ClientStatus @default(ACTIVE)
+  ownerId      String?
   customFields Json?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   leads         Lead[]
   opportunities Opportunity[]
@@ -502,21 +507,21 @@ enum ClientStatus {
 }
 
 model Lead {
-  id          String     @id @default(cuid())
-  tenantId    String
-  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  clientId    String?
-  client      Client?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  id       String  @id @default(cuid())
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
-  name        String
-  lastName    String?
-  email       String?
-  phone       String?
-  company     String?
-  source      String?
-  status      LeadStatus @default(LEAD)
-  score       Int?
-  ownerId     String?
+  name         String
+  lastName     String?
+  email        String?
+  phone        String?
+  company      String?
+  source       String?
+  status       LeadStatus @default(LEAD)
+  score        Int?
+  ownerId      String?
   customFields Json?
 
   // AI-generated context (Sprint 3 lead scoring)
@@ -553,41 +558,41 @@ enum LeadStatus {
   LEAD
   CLIENT
   LOST
-  NEW         @map("NEW")
-  CONTACTED   @map("CONTACTED")
-  QUALIFIED   @map("QUALIFIED")
-  CONVERTED   @map("CONVERTED")
+  NEW       @map("NEW")
+  CONTACTED @map("CONTACTED")
+  QUALIFIED @map("QUALIFIED")
+  CONVERTED @map("CONVERTED")
 }
 
 model Opportunity {
-  id                String        @id @default(cuid())
-  tenantId          String
-  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  leadId            String?
-  lead              Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  clientId          String?
-  client            Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  id       String  @id @default(cuid())
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leadId   String?
+  lead     Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   name              String
-  amount            Decimal?      @db.Decimal(12, 2)
-  currency          String        @default("EUR")
-  status            OppStatus     @default(OPEN)
-  probability       Int           @default(50)
+  amount            Decimal?  @db.Decimal(12, 2)
+  currency          String    @default("EUR")
+  status            OppStatus @default(OPEN)
+  probability       Int       @default(50)
   expectedCloseDate DateTime?
   closedAt          DateTime?
 
-  ownerId           String?
-  proposalUrl       String?
-  customFields      Json?
+  ownerId      String?
+  proposalUrl  String?
+  customFields Json?
 
   pipelineId String?
   pipeline   Pipeline?      @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
   stageId    String?
   stage      PipelineStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
 
-  tasks     Task[]
-  documents Document[]
-  notes     Note[]
+  tasks        Task[]
+  documents    Document[]
+  notes        Note[]
   stageHistory OpportunityStageHistory[]
 
   createdAt DateTime @default(now())
@@ -607,20 +612,20 @@ model Opportunity {
 // ============================================
 
 model CustomFieldDefinition {
-  id         String              @id @default(cuid())
+  id         String            @id @default(cuid())
   tenantId   String
-  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   entityType CustomFieldEntity
-  key        String              // stable slug used as Json property name
+  key        String // stable slug used as Json property name
   label      String
   type       CustomFieldType
-  required   Boolean             @default(false)
-  options    Json?               // SELECT/MULTISELECT options: [{value,label}]
+  required   Boolean           @default(false)
+  options    Json? // SELECT/MULTISELECT options: [{value,label}]
   helpText   String?
-  order      Int                 @default(0)
+  order      Int               @default(0)
   archivedAt DateTime?
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
 
   @@unique([tenantId, entityType, key])
   @@index([tenantId, entityType])
@@ -648,15 +653,15 @@ enum CustomFieldType {
 }
 
 model Pipeline {
-  id         String          @id @default(cuid())
+  id         String         @id @default(cuid())
   tenantId   String
-  tenant     Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant     Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name       String
-  entityType PipelineEntity  @default(OPPORTUNITY)
-  isDefault  Boolean         @default(false)
+  entityType PipelineEntity @default(OPPORTUNITY)
+  isDefault  Boolean        @default(false)
   archivedAt DateTime?
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
 
   stages        PipelineStage[]
   opportunities Opportunity[]
@@ -675,7 +680,7 @@ model PipelineStage {
   tenantId   String
   pipelineId String
   pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
-  key        String   // stable slug, scoped to pipeline
+  key        String // stable slug, scoped to pipeline
   label      String
   color      String   @default("#3B82F6")
   order      Int      @default(0)
@@ -693,13 +698,13 @@ model PipelineStage {
 }
 
 model OpportunityStageHistory {
-  id            String   @id @default(cuid())
+  id            String        @id @default(cuid())
   tenantId      String
   opportunityId String
-  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   stageId       String
   stage         PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  movedAt       DateTime @default(now())
+  movedAt       DateTime      @default(now())
   movedBy       String?
 
   @@index([opportunityId, movedAt])
@@ -716,9 +721,9 @@ enum OppStatus {
 }
 
 model Task {
-  id            String       @id @default(cuid())
-  tenantId      String
-  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   clientId      String?
   client        Client?      @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -738,12 +743,12 @@ model Task {
   completedAt DateTime?
 
   // For tasks auto-generated by the AI agent / workflow engine
-  source      String     @default("manual")
+  source    String  @default("manual")
   /// Id del recurso que originó la tarea (p. ej. el hilo de correo en las
   /// tareas de asignación de bandeja). Junto a `source` forma la clave de
   /// idempotencia: reasignar ACTUALIZA la tarea existente, no crea otra.
   /// String suelto a propósito: no acopla Task al módulo que la creó.
-  sourceRef   String?
+  sourceRef String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -812,15 +817,15 @@ model Note {
   opportunityId String?
   opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
 
-  body      String
-  authorId  String
+  body     String
+  authorId String
 
   // AI classification (Sprint 3.2 — Journeys de venta)
-  aiCategory          NoteCategory?
-  aiSentiment         NoteSentiment?
-  aiConfidence        Float?
-  aiSuggestedReply    String?
-  aiAnalyzedAt        DateTime?
+  aiCategory       NoteCategory?
+  aiSentiment      NoteSentiment?
+  aiConfidence     Float?
+  aiSuggestedReply String?
+  aiAnalyzedAt     DateTime?
 
   createdAt DateTime @default(now())
 
@@ -847,14 +852,14 @@ enum NoteSentiment {
 }
 
 model Alert {
-  id           String       @id @default(cuid())
-  tenantId     String
-  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  type         AlertType
-  severity     AlertSeverity @default(INFO)
-  title        String
-  description  String?
+  type        AlertType
+  severity    AlertSeverity @default(INFO)
+  title       String
+  description String?
 
   resourceType String
   resourceId   String
@@ -889,10 +894,10 @@ enum AlertSeverity {
 // ============================================
 
 model AiUsage {
-  id           String   @id @default(cuid())
+  id           String        @id @default(cuid())
   tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  feature      String   // 'lead_scoring', 'classify_message', 'chat_assistant', etc.
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  feature      String // 'lead_scoring', 'classify_message', 'chat_assistant', etc.
   model        String
   inputTokens  Int
   outputTokens Int
@@ -901,10 +906,10 @@ model AiUsage {
   durationMs   Int?
   status       AiUsageStatus @default(OK)
   errorMessage String?
-  resourceType String?  // 'lead', 'opportunity', 'note', etc.
+  resourceType String? // 'lead', 'opportunity', 'note', etc.
   resourceId   String?
   metadata     Json?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime      @default(now())
 
   @@index([tenantId, createdAt])
   @@index([tenantId, feature])
@@ -935,7 +940,7 @@ model CalendarConnection {
   accessTokenEnc       String? // encrypted, short-lived
   accessTokenExpiresAt DateTime?
   scope                String?
-  calendarId           String @default("primary")
+  calendarId           String    @default("primary")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -960,7 +965,7 @@ model Conversation {
   lead     Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
   agentId  String? // optional override: agent for this conversation (e.g. set by a campaign)
 
-  channel      Channel            @default(WHATSAPP)
+  channel      Channel @default(WHATSAPP)
   contactJid   String // stable contact id per channel (WA lid/pn, email address, webchat session)
   contactName  String?
   contactPhone String? // resolved real phone (+prefix) when available
@@ -1071,7 +1076,7 @@ model Campaign {
   bot     Bot?    @relation(fields: [botId], references: [id], onDelete: SetNull)
 
   subject String? // EMAIL only
-  body    String  // template with {nombre} {empresa} {email} placeholders
+  body    String // template with {nombre} {empresa} {email} placeholders
   agentId String? // optional: agent that handles REPLIES from this campaign's recipients
 
   status      CampaignStatus @default(DRAFT)
@@ -1114,7 +1119,7 @@ model CampaignRecipient {
   messageId String?
   sentAt    DateTime?
   openedAt  DateTime? // first open (EMAIL tracking pixel)
-  openCount Int       @default(0)
+  openCount Int                     @default(0)
 
   createdAt DateTime @default(now())
 
@@ -1164,7 +1169,7 @@ model EmailTemplate {
   tenant          Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name            String
   subject         String?
-  bodyHtml        String  // compiled, responsive HTML (sent)
+  bodyHtml        String // compiled, responsive HTML (sent)
   mjml            String? // MJML source from the visual builder (re-edit)
   createdByUserId String?
 
@@ -1188,9 +1193,9 @@ model MailConnection {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   driver      MailDriver @default(SMTP_IMAP)
-  fromAddress String     // the email address this mailbox sends/receives as
+  fromAddress String // the email address this mailbox sends/receives as
   displayName String?
-  signature   String?    // HTML signature (used from Fase 2)
+  signature   String? // HTML signature (used from Fase 2)
 
   // smtp_imap fields (OAuth drivers reuse secretEnc for the refresh token)
   imapHost  String?
@@ -1208,10 +1213,10 @@ model MailConnection {
   imapSecure Boolean?
   /// @deprecated Legacy single flag, kept only as the last-resort fallback for
   /// rows created before the split (and for non-standard ports). Do not write it.
-  secure    Boolean @default(true)
+  secure     Boolean  @default(true)
 
   visibility  MailVisibility @default(SHARED)
-  ownerUserId String?        // required when visibility = PRIVATE
+  ownerUserId String? // required when visibility = PRIVATE
 
   status       MailConnStatus @default(PENDING)
   lastError    String?
@@ -1267,21 +1272,21 @@ enum MailConnStatus {
 // to normalized subject + participants within the same connection.
 // ============================================
 model EmailThread {
-  id           String          @id @default(cuid())
+  id           String         @id @default(cuid())
   tenantId     String
-  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   connectionId String
-  connection   MailConnection  @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  connection   MailConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
-  subject       String?
-  participants  Json?           // string[] of addresses seen in the thread
-  folder        MailFolder      @default(INBOX) // thread bucket: INBOX|ARCHIVE|SPAM|TRASH
-  status        MailThreadStatus @default(OPEN) // for shared mailboxes
+  subject        String?
+  participants   Json? // string[] of addresses seen in the thread
+  folder         MailFolder       @default(INBOX) // thread bucket: INBOX|ARCHIVE|SPAM|TRASH
+  status         MailThreadStatus @default(OPEN) // for shared mailboxes
   assigneeUserId String?
-  labels        Json?           // string[] custom labels
-  unreadCount   Int             @default(0)
-  lastMessageAt DateTime?
-  snippet       String?
+  labels         Json? // string[] custom labels
+  unreadCount    Int              @default(0)
+  lastMessageAt  DateTime?
+  snippet        String?
 
   /// Cached AI summary. Recomputed only when the thread has grown since it was
   /// made (aiSummaryMsgCount != current non-draft count). NOT optional: the
@@ -1340,7 +1345,7 @@ model EmailThreadNote {
   threadId     String
   thread       EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   authorUserId String
-  authorName   String      // denormalized for display
+  authorName   String // denormalized for display
   body         String
 
   createdAt DateTime @default(now())
@@ -1350,24 +1355,24 @@ model EmailThreadNote {
 }
 
 model EmailMessage {
-  id           String         @id @default(cuid())
+  id           String      @id @default(cuid())
   tenantId     String
-  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   threadId     String
-  thread       EmailThread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  thread       EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   connectionId String
 
-  rfcMessageId String?        // RFC Message-ID (dedupe key per connection)
+  rfcMessageId String? // RFC Message-ID (dedupe key per connection)
   /// Cabecera Reply-To del original: si existe, responder debe ir AQUÍ y no al
   /// From (RFC 5322 §3.6.2). Nullable y aditiva; el histórico queda a NULL y
   /// para él se usa From, que es el comportamiento previo.
   replyTo      String?
   inReplyTo    String?
-  references   String?        // space-separated RFC references
+  references   String? // space-separated RFC references
 
-  direction    MailDirection
-  isDraft      Boolean        @default(false)
-  folder       MailFolder     @default(INBOX)
+  direction MailDirection
+  isDraft   Boolean       @default(false)
+  folder    MailFolder    @default(INBOX)
 
   fromAddress  String?
   fromName     String?
@@ -1375,8 +1380,8 @@ model EmailMessage {
   /// mailbox can only ever say "Tú" — you cannot tell whether María or Juan
   /// replied. NULL for inbound mail and for anything sent before this existed.
   sentByUserId String?
-  sentBy       User?          @relation("EmailMessageSender", fields: [sentByUserId], references: [id], onDelete: SetNull)
-  toAddresses  Json?          // string[]
+  sentBy       User?     @relation("EmailMessageSender", fields: [sentByUserId], references: [id], onDelete: SetNull)
+  toAddresses  Json? // string[]
   ccAddresses  Json?
   bccAddresses Json?
   subject      String?
@@ -1419,7 +1424,7 @@ model EmailMessageTranslation {
   lang      String // ISO-639-1 target
   text      String
   model     String? // which model produced it, for cost/quality audits
-  createdAt DateTime @default(now())
+  createdAt DateTime     @default(now())
 
   @@unique([messageId, lang])
   @@index([tenantId, createdAt])
@@ -1427,17 +1432,17 @@ model EmailMessageTranslation {
 }
 
 model EmailAttachment {
-  id         String       @id @default(cuid())
-  tenantId   String
-  tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  messageId  String
-  message    EmailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  id        String       @id @default(cuid())
+  tenantId  String
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messageId String
+  message   EmailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   filename   String
   mimeType   String
   sizeBytes  Int
-  storageKey String       // R2 object key
-  inline     Boolean      @default(false)
+  storageKey String // R2 object key
+  inline     Boolean @default(false)
   contentId  String?
 
   createdAt DateTime @default(now())
@@ -1464,4 +1469,146 @@ enum MailThreadStatus {
 enum MailDirection {
   IN
   OUT
+}
+
+// ============================================================================
+// Motor de IA — F0 · Plano de datos y memoria por tenant
+//
+// Reglas duras (cambiarlas exige discusión explícita):
+//  - Toda tabla nueva nace con política RLS `tenant_isolation` (el test
+//    estático rls-coverage.spec.ts lo exige).
+//  - RagChunk.content JAMÁS contiene datos personales: el contexto del caso
+//    va en `meta` (filtrable); el texto se generaliza. Así el borrado RGPD de
+//    un perfil nunca tiene que tocar la memoria vectorial.
+//  - Precio y stock no se vectorizan: viven en el catálogo y se consultan en
+//    vivo al responder.
+// ============================================================================
+
+/// Perfil unificado del contacto. El CRM actual (Lead) apunta aquí vía
+/// Lead.profileId cuando el plano de datos resuelve la identidad (F1).
+model Profile {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name     String?
+  lastName String?
+  company  String?
+  locale   String?
+  /// Campos del vertical (validados contra CustomFieldDefinition, F1).
+  custom   Json?
+
+  identities ProfileIdentity[]
+  events     Event[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, updatedAt])
+  @@map("profiles")
+}
+
+/// email/teléfono/wa_id → perfil. Matching determinista: email manda,
+/// teléfono es secundario. `value` va normalizado (email en minúsculas,
+/// teléfono E.164) — la normalización vive en el módulo identity.
+model ProfileIdentity {
+  id        String  @id @default(cuid())
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  kind   IdentityKind
+  value  String
+  /// Adaptador que la aportó ('brevo', 'learndash', 'crm', 'mail', 'api').
+  source String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, kind, value])
+  @@index([profileId])
+  @@map("profile_identities")
+}
+
+enum IdentityKind {
+  EMAIL
+  PHONE
+  WA_ID
+  EXTERNAL
+}
+
+/// Evento normalizado del plano de datos. `type` es un enum abierto
+/// ('purchase', 'enrollment', 'email_open'…): el consumidor tolera tipos
+/// desconocidos, igual que el timeline del lead (lead-timeline.ts).
+/// Sin particionar a propósito: volumen de piloto; particionar es una
+/// decisión futura con datos en la mano.
+model Event {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  profileId String?
+  profile   Profile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+
+  type       String
+  source     String
+  occurredAt DateTime
+  props      Json?
+  /// Id en el sistema origen, para dedupe de webhooks reentregados.
+  externalId String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, source, externalId])
+  @@index([tenantId, profileId, occurredAt])
+  @@index([tenantId, type, occurredAt])
+  @@map("events")
+}
+
+/// Colección RAG por tenant ('knowledge' | 'verified' | 'catalog').
+/// El modelo de embeddings y su dimensión se fijan POR COLECCIÓN: migrar de
+/// modelo = crear colección nueva y re-vectorizar, nunca migrar schema.
+model RagCollection {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  key            String
+  name           String
+  embeddingModel String
+  dim            Int
+
+  chunks RagChunk[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, key])
+  @@map("rag_collections")
+}
+
+/// Fragmento vectorizado. La columna es `vector` sin dimensión fija hasta que
+/// el benchmark de F0 cierre modelo/dimensión; entonces apply:ddl la tipa y
+/// crea el índice HNSW (ver packages/db/prisma/sql/ddl.sql). Las consultas
+/// van SIEMPRE por $queryRaw dentro de withTenant — fuera de esa transacción
+/// el RLS no filtra.
+model RagChunk {
+  id           String        @id @default(cuid())
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  collectionId String
+  collection   RagCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  /// REGLA DURA: sin datos personales. El contexto va en `meta`.
+  content   String
+  embedding Unsupported("vector")?
+  /// Metadatos filtrables: segmento, producto, fuente, vigencia.
+  meta      Json?
+  /// Referencia al origen (catalog_item, documento…) para re-vectorización.
+  sourceRef String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, collectionId])
+  @@map("rag_chunks")
 }
