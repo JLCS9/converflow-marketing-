@@ -123,7 +123,14 @@ export class AiService {
         503,
       );
     }
-    this.client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+    this.client = new Anthropic({
+      apiKey: env.ANTHROPIC_API_KEY,
+      // Las claves «identity-linked» de la consola nueva exigen declarar el
+      // workspace en cada petición; las claves de workspace clásicas no.
+      defaultHeaders: env.ANTHROPIC_WORKSPACE_ID
+        ? { 'anthropic-workspace-id': env.ANTHROPIC_WORKSPACE_ID }
+        : undefined,
+    });
     return this.client;
   }
 

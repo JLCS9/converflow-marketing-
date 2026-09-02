@@ -17,6 +17,8 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_DEFAULT_MODEL: z.string().default('claude-sonnet-4-6'),
   ANTHROPIC_FAST_MODEL: z.string().default('claude-haiku-4-5-20251001'),
+  // Solo necesario si la API key es de tipo «identity-linked» (consola nueva).
+  ANTHROPIC_WORKSPACE_ID: z.string().optional(),
 
   // Motor de IA (F0) — proveedor de embeddings intercambiable. 'stub' es
   // determinista y sin red (tests/desarrollo); la elección real se cierra con

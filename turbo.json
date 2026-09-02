@@ -36,7 +36,8 @@
     "EMBEDDINGS_DIM",
     "LANGFUSE_PUBLIC_KEY",
     "LANGFUSE_SECRET_KEY",
-    "LANGFUSE_BASE_URL"
+    "LANGFUSE_BASE_URL",
+    "ANTHROPIC_WORKSPACE_ID"
   ],
   "tasks": {
     "build": {
