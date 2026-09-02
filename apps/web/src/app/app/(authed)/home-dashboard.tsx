@@ -44,7 +44,7 @@ export interface Series {
   days: string[];
   series: { leadsCreated: number[]; conversions: number[]; wonCount: number[]; wonValue: number[]; inboundMessages: number[] };
   deltas: { leadsCreated: Delta; conversions: Delta; wonValue: Delta; inboundMessages: Delta };
-  aiWeek: { attended: number; suggestions: number; leadsScored: number; meetings: number; escalations: number; handled: number; autoResolvedPct: number | null };
+  aiWeek: { attended: number; suggestions: number; leadsScored: number; meetings: number; escalations: number; mailAutoReplies?: number; handled: number; autoResolvedPct: number | null };
 }
 export interface AlertItem { id: string; type: string; severity: 'INFO' | 'WARNING' | 'CRITICAL'; title: string; description: string | null; resourceType: string; resourceId: string }
 export interface ConvRow { id: string; contactName: string | null; contactPhone: string | null; contactJid: string; lastMessagePreview: string | null; assignedUserId: string | null }
@@ -68,6 +68,7 @@ export interface DashboardData {
   docs: DocPreview[];
   mailUnread: number;
   pendingMail: PendingMailRow[];
+  attention?: { openGaps: number; gapsWithLead: number; draftPlaybooks: number; pendingSuggestions: number } | null;
 }
 
 // ---- widget registry ----
@@ -410,8 +411,14 @@ export function HomeDashboard({
         );
       }
       case 'ai-week': {
+        // Atención autónoma · «Pulso del Asistente»: actividad de 7 días +
+        // lo que espera a una persona (CTAs), en un solo widget.
         const ai = series.aiWeek;
-        if (ai.handled === 0 && ai.leadsScored === 0 && ai.meetings === 0) {
+        const att = data.attention;
+        const hasActivity = ai.handled > 0 || ai.leadsScored > 0 || ai.meetings > 0;
+        const hasAttention =
+          !!att && (att.openGaps > 0 || att.draftPlaybooks > 0 || att.pendingSuggestions > 0);
+        if (!hasActivity && !hasAttention) {
           return (
             <Card className="h-full">
               <CardTitle><Sparkles size={15} strokeWidth={1.75} className="text-primary-600" /> {t('wAiWeek')}</CardTitle>
@@ -421,24 +428,54 @@ export function HomeDashboard({
         }
         const cards = [
           { Icon: MessageCircle, label: t('aiAttended'), value: ai.attended, hint: ai.autoResolvedPct !== null ? `${Math.round(ai.autoResolvedPct * 100)}% ${t('aiNoIntervention')}` : `${ai.suggestions} ${t('aiSuggestions')}` },
-          { Icon: Star, label: t('aiScored'), value: ai.leadsScored, hint: t('aiScoringHint') },
+          { Icon: Star, label: t('aiMailReplies'), value: ai.mailAutoReplies ?? 0, hint: t('aiMailRepliesHint') },
           { Icon: CalendarCheck, label: t('aiMeetings'), value: ai.meetings, hint: t('aiScheduled') },
           { Icon: UserCog, label: t('aiEscalated'), value: ai.escalations, hint: t('aiToHuman') },
         ];
+        const ctas = att
+          ? [
+              att.openGaps > 0
+                ? { href: '/app/knowledge', label: t('aiCtaGaps', { n: att.openGaps }), urgent: att.gapsWithLead > 0 }
+                : null,
+              att.draftPlaybooks > 0
+                ? { href: '/app/playbooks', label: t('aiCtaDrafts', { n: att.draftPlaybooks }), urgent: false }
+                : null,
+              att.pendingSuggestions > 0
+                ? { href: '/app/conversations', label: t('aiCtaSuggestions', { n: att.pendingSuggestions }), urgent: false }
+                : null,
+            ].filter((x): x is NonNullable<typeof x> => x != null)
+          : [];
         return (
           <Card className="h-full">
             <CardTitle right={<span className="font-mono text-xs text-ink-500">{t('ai7days')}</span>}>
               <Sparkles size={15} strokeWidth={1.75} className="text-primary-600" /> {t('wAiWeek')}
             </CardTitle>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {cards.map((t) => (
-                <div key={t.label} className="rounded-lg border border-ink-100 p-3">
-                  <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-ink-500"><t.Icon size={13} strokeWidth={1.75} /> {t.label}</div>
-                  <div className="mt-1 text-2xl font-semibold tracking-tight">{t.value}</div>
-                  <div className="text-xs text-ink-500">{t.hint}</div>
+              {cards.map((c) => (
+                <div key={c.label} className="rounded-lg border border-ink-100 p-3">
+                  <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-ink-500"><c.Icon size={13} strokeWidth={1.75} /> {c.label}</div>
+                  <div className="mt-1 text-2xl font-semibold tracking-tight">{c.value}</div>
+                  <div className="text-xs text-ink-500">{c.hint}</div>
                 </div>
               ))}
             </div>
+            {ctas.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {ctas.map((cta) => (
+                  <Link
+                    key={cta.href + cta.label}
+                    href={cta.href}
+                    className={
+                      cta.urgent
+                        ? 'rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800 hover:bg-red-200'
+                        : 'rounded-full bg-ink-100 px-3 py-1 text-xs font-medium text-ink-700 hover:bg-ink-200'
+                    }
+                  >
+                    {cta.label} →
+                  </Link>
+                ))}
+              </div>
+            )}
           </Card>
         );
       }

@@ -282,7 +282,7 @@ export class MailInboxController {
 
   // ---- shared mailbox: assignment / status / notes / lock ----
   @Get('team')
-  team(@CurrentUser() user: AuthenticatedUser) {
+  team(@CurrentUser() user: AuthenticatedUser, @Query('connectionId') connectionId?: string) {
     return this.shared.listTeam(user.tenantId);
   }
 

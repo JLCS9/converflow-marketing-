@@ -256,17 +256,19 @@ export class ReportsService {
       };
 
       // AI activity over the last 7 days.
-      const ai = { attended: 0, suggestions: 0, leadsScored: 0, meetings: 0, escalations: 0 };
+      const ai = { attended: 0, suggestions: 0, leadsScored: 0, meetings: 0, escalations: 0, mailAutoReplies: 0 };
       for (const row of aiRows) {
         if (row.feature === 'lead_scoring' || row.feature === 'lead_scoring_batch') {
           ai.leadsScored += 1;
         }
         // E1 · Ambos pipelines cuentan: el legado y el motor unificado.
         if (!['agent_reply', 'conversation_engine'].includes(row.feature) || row.status !== 'OK') continue;
-        const meta = row.metadata as { mode?: string; delivered?: boolean } | null;
+        const meta = row.metadata as { mode?: string; delivered?: boolean; channel?: string } | null;
         if (meta?.mode === 'OFF') continue;
         if (meta?.delivered) ai.attended += 1;
         else ai.suggestions += 1;
+        // Atención autónoma · correos respondidos solos por el Asistente.
+        if (meta?.channel === 'EMAIL' && meta?.delivered) ai.mailAutoReplies += 1;
         for (const a of actionsOf(row.metadata)) {
           if (a.name === 'schedule_meeting') ai.meetings += 1;
           else if (a.name === 'escalate_to_human') ai.escalations += 1;

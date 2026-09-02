@@ -38,7 +38,23 @@ const SAFE_SELECT = {
   lastSyncedAt: true,
   createdAt: true,
   updatedAt: true,
+  aiReplyMode: true,
 } as const;
+
+
+/** ¿Puede el actor ver esta bandeja? PRIVATE → solo el dueño. SHARED con
+ *  «Solo estas personas» (memberUserIds) → miembros, dueño del buzón o
+ *  roles OWNER/ADMIN. SHARED sin lista → todo el equipo (histórico). */
+export function canAccessConnection(
+  conn: { visibility: string; ownerUserId: string | null; memberUserIds?: unknown },
+  actor: { userId: string; role: string },
+): boolean {
+  if (conn.visibility === 'PRIVATE') return conn.ownerUserId === actor.userId;
+  const members = Array.isArray(conn.memberUserIds) ? (conn.memberUserIds as string[]) : null;
+  if (!members || members.length === 0) return true;
+  if (actor.role === 'OWNER' || actor.role === 'ADMIN') return true;
+  return conn.ownerUserId === actor.userId || members.includes(actor.userId);
+}
 
 @Injectable()
 export class MailConnectionsService {
@@ -47,16 +63,19 @@ export class MailConnectionsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Connections the actor may see: all SHARED + their own PRIVATE. */
-  list(tenantId: string, actor: Actor) {
-    return this.prisma.withTenant(tenantId, (tx) =>
+  async list(tenantId: string, actor: Actor) {
+    const rows = await this.prisma.withTenant(tenantId, (tx) =>
       tx.mailConnection.findMany({
         where: {
           OR: [{ visibility: 'SHARED' }, { visibility: 'PRIVATE', ownerUserId: actor.userId }],
         },
         orderBy: { createdAt: 'desc' },
-        select: SAFE_SELECT,
+        select: { ...SAFE_SELECT, memberUserIds: true },
       }),
     );
+    // «Solo estas personas»: filtrar en memoria (lista corta por tenant).
+    // memberUserIds viaja en la respuesta (solo ids): ajustes lo edita.
+    return rows.filter((c) => canAccessConnection(c as never, actor));
   }
 
   async get(tenantId: string, id: string, actor: Actor) {
@@ -116,6 +135,8 @@ export class MailConnectionsService {
           imapSecure: data.imapSecure,
           // Only re-encrypt the secret when a new one is provided.
           secretEnc: data.secret ? encryptSecret(data.secret) : undefined,
+          aiReplyMode: data.aiReplyMode,
+          memberUserIds: data.memberUserIds === undefined ? undefined : (data.memberUserIds as never),
         },
       }),
     );
@@ -184,6 +205,16 @@ export class MailConnectionsService {
     return this.fetchAccessible(tenantId, id, actor);
   }
 
+  /** Acceso de SISTEMA (asistente/enrutado): sin actor. La visibilidad no
+   *  aplica — es el propio tenant respondiendo en su buzón. */
+  async getRaw(tenantId: string, connectionId: string) {
+    const conn = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.mailConnection.findUnique({ where: { id: connectionId } }),
+    );
+    if (!conn) throw new NotFoundError('Conexión de correo no encontrada');
+    return conn;
+  }
+
   // ---- internals ----------------------------------------------------------
 
   /** Load a connection enforcing visibility: PRIVATE is owner-only. */
@@ -191,8 +222,8 @@ export class MailConnectionsService {
     const conn = await this.prisma.withTenant(tenantId, (tx) =>
       tx.mailConnection.findUnique({ where: { id } }),
     );
-    // 404 (not 403) for private boxes the actor doesn't own — don't reveal existence.
-    if (!conn || (conn.visibility === 'PRIVATE' && conn.ownerUserId !== actor.userId)) {
+    // 404 (not 403) para bandejas que el actor no puede ver — no revelar existencia.
+    if (!conn || !canAccessConnection(conn, actor)) {
       throw new NotFoundError('Conexión de correo no encontrada');
     }
     return conn;

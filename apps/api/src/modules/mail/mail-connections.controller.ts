@@ -20,6 +20,9 @@ export class MailConnectionsController {
     return { userId: user.userId, role: user.role };
   }
 
+  /** Listado de bandejas ACCESIBLES: basta 'conversations' (los agentes
+   *  asignados deben poder abrir la bandeja). El CRUD sigue bajo 'mail'. */
+  @RequirePerm('conversations')
   @Get()
   list(@CurrentUser() user: AuthenticatedUser) {
     return this.connections.list(user.tenantId, this.actor(user));

@@ -26,7 +26,7 @@ const EMPTY_SERIES: Series = {
     wonValue: { current: 0, previous: 0, pct: null },
     inboundMessages: { current: 0, previous: 0, pct: null },
   },
-  aiWeek: { attended: 0, suggestions: 0, leadsScored: 0, meetings: 0, escalations: 0, handled: 0, autoResolvedPct: null },
+  aiWeek: { attended: 0, suggestions: 0, leadsScored: 0, meetings: 0, escalations: 0, mailAutoReplies: 0, handled: 0, autoResolvedPct: null },
 };
 
 export default async function TodayHome() {
@@ -99,7 +99,7 @@ export default async function TodayHome() {
         </div>
       )}
       <HomeDashboard
-        data={{ overview, series, alerts, convs, tasks, docs, mailUnread: mail.unread, pendingMail }}
+        data={{ overview, series, alerts, convs, tasks, docs, mailUnread: mail.unread, pendingMail, attention }}
         steps={steps}
         initialWidgets={dash.widgets}
       />

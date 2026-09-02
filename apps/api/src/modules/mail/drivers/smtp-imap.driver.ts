@@ -197,8 +197,19 @@ export class SmtpImapDriver implements MailDriver {
     const sender = p.from?.value?.[0];
     const refs = Array.isArray(p.references) ? p.references.join(' ') : (p.references ?? undefined);
     const replyTo = p.replyTo?.value?.[0]?.address ?? undefined;
+    // RFC 3834 + señales de lista/robot: la atención autónoma no debe
+    // responder a auto-replies (OOO, bounces, notificaciones).
+    const autoSubmittedHdr = String(p.headers.get('auto-submitted') ?? '').toLowerCase();
+    const precedence = String(p.headers.get('precedence') ?? '').toLowerCase();
+    const autoSubmitted =
+      (autoSubmittedHdr !== '' && autoSubmittedHdr !== 'no') ||
+      ['bulk', 'auto_reply', 'junk', 'list'].includes(precedence) ||
+      p.headers.has('x-autoreply') ||
+      p.headers.has('x-autorespond') ||
+      p.headers.has('list-id');
     return {
       replyTo,
+      autoSubmitted,
       rfcMessageId: p.messageId ?? undefined,
       inReplyTo: p.inReplyTo ?? undefined,
       references: refs,

@@ -183,6 +183,7 @@ model Tenant {
   playbookRuns             PlaybookRun[]
   regressionChecks         RegressionCheck[]
   monthlyReports           MonthlyReport[]
+  routingRules             RoutingRule[]
 
   @@map("tenants")
 }
@@ -1273,8 +1274,17 @@ model MailConnection {
   /// rows created before the split (and for non-standard ports). Do not write it.
   secure     Boolean  @default(true)
 
-  visibility  MailVisibility @default(SHARED)
-  ownerUserId String? // required when visibility = PRIVATE
+  visibility    MailVisibility @default(SHARED)
+  ownerUserId   String? // required when visibility = PRIVATE
+  /// Atención autónoma · «Solo estas personas»: string[] de userIds con
+  /// acceso (solo aplica a SHARED). null = todo el equipo (comportamiento
+  /// histórico intacto).
+  memberUserIds Json?
+
+  /// Atención autónoma · modo del asistente en ESTE buzón. Mismo enum y
+  /// misma semántica que los bots (Apagada/Sugiere/Responde sola).
+  /// default OFF: activar es decisión explícita del tenant.
+  aiReplyMode BotReplyMode @default(OFF)
 
   status       MailConnStatus @default(PENDING)
   lastError    String?
@@ -1430,7 +1440,13 @@ model EmailMessage {
 
   direction MailDirection
   isDraft   Boolean       @default(false)
-  folder    MailFolder    @default(INBOX)
+
+  /// Atención autónoma: este OUT lo escribió el Asistente (sentByUserId
+  /// queda NULL — sin esto la UI lo pintaría como un compañero).
+  sentByAi  Boolean    @default(false)
+  /// Idempotencia de la auto-respuesta: 'ai-reply:<inboundMessageId>'.
+  dedupeKey String?
+  folder    MailFolder @default(INBOX)
 
   fromAddress  String?
   fromName     String?
@@ -1461,6 +1477,7 @@ model EmailMessage {
   translations EmailMessageTranslation[]
 
   @@unique([connectionId, rfcMessageId])
+  @@unique([tenantId, dedupeKey])
   @@index([threadId, createdAt])
   @@index([tenantId, connectionId, folder])
   @@index([sentByUserId])
@@ -2016,4 +2033,40 @@ model MonthlyReport {
 
   @@unique([tenantId, month])
   @@map("monthly_reports")
+}
+
+/// Atención autónoma · Regla de enrutado GENÉRICA (todos los canales,
+/// presentes y futuros): canal + endpoint (buzón o bot) + criterios →
+/// asignar a una persona CON ACCESO a ese endpoint. Mail se cablea en este
+/// sprint; el resto de canales solo necesitan llamar a match() y aplicar
+/// la asignación con su adaptador.
+model RoutingRule {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  channel    Channel
+  /// MailConnection.id para EMAIL de bandeja; Bot.id para canales de bot.
+  /// null = todos los endpoints del canal. Sin FK dura: endpoints heterogéneos.
+  endpointId String?
+
+  name    String
+  /// Menor = primero. La PRIMERA regla que casa gana.
+  order   Int     @default(0)
+  enabled Boolean @default(true)
+
+  /// string[] — OR case-insensitive sobre asunto+cuerpo.
+  keywords   Json?
+  /// Dominio exacto del remitente sin @ (solo canales de email).
+  fromDomain String?
+
+  /// Validado en alta/edición: usuario ACTIVE + permiso conversations +
+  /// acceso al endpoint.
+  assignUserId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, channel, endpointId, order])
+  @@map("routing_rules")
 }

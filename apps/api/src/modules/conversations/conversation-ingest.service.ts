@@ -4,6 +4,7 @@ import { ProfilesService } from '../profiles/profiles.service.js';
 import { IngestQueue } from '../ingest/ingest.queue.js';
 import { ConversationDeliveryService } from './conversation-delivery.service.js';
 import { CrmActionsService, enabledToolDefs } from './crm-actions.service.js';
+import { RoutingService } from '../routing/routing.service.js';
 import { z } from 'zod';
 import { type PrismaClient } from '@converflow/db';
 import { isAutomatedSender, type AgentConfig } from '@converflow/shared';
@@ -44,6 +45,7 @@ export class ConversationIngestService {
     private readonly ingestQueue: IngestQueue,
     private readonly delivery: ConversationDeliveryService,
     private readonly crmActions: CrmActionsService,
+    private readonly routing: RoutingService,
   ) {}
 
   /**
@@ -591,6 +593,34 @@ export class ConversationIngestService {
           }),
         );
         const bot = conv?.bot;
+
+        // Atención autónoma · Enrutado a personas: conversación sin asignar
+        // → reglas del canal (misma tabla que el correo — multicanal).
+        let assignedUserId = conv?.assignedUserId ?? null;
+        if (conv && bot && !assignedUserId) {
+          const matched = await this.routing
+            .match(tenantId, {
+              channel: conv.channel,
+              endpointId: bot.id,
+              text: body,
+            })
+            .catch(() => null);
+          if (matched) {
+            await this.prisma
+              .withTenant(tenantId, (tx) =>
+                tx.conversation.update({
+                  where: { id: conversationId },
+                  data: { assignedUserId: matched },
+                }),
+              )
+              .then(() => {
+                assignedUserId = matched;
+                this.logger.log({ conversationId, matched }, 'conversación enrutada por regla');
+              })
+              .catch((err) => this.logger.warn({ err }, 'enrutado no aplicado'));
+          }
+        }
+
         if (bot?.aiEngine === 'ENGINE') {
           // E1 · replyMode manda SIEMPRE, y se decide ANTES de gastar:
           // OFF → solo clasificación (etiquetar no es responder).
@@ -598,23 +628,23 @@ export class ConversationIngestService {
             fallbackClassify();
             return;
           }
-          // E1 · Guard «humano tiene el hilo»: asignada o con OUT humano
-          // reciente → AUTO degrada a SUGGEST (la IA no pisa a una persona).
+          // Guard «humano tiene el hilo» UNIFICADO multicanal: con enrutado
+          // automático TODA conversación puede tener asignado, así que estar
+          // asignada ya no degrada por sí sola — degrada solo si una PERSONA
+          // ha respondido en las últimas 24 h (está trabajando el hilo).
           let mode: 'SUGGEST' | 'AUTO' = bot.replyMode === 'AUTO' ? 'AUTO' : 'SUGGEST';
           if (mode === 'AUTO') {
-            const humanOut = conv!.assignedUserId
-              ? { id: 'assigned' }
-              : await this.prisma.withTenant(tenantId, (tx) =>
-                  tx.message.findFirst({
-                    where: {
-                      conversationId,
-                      direction: 'OUT',
-                      sentByUserId: { not: null },
-                      createdAt: { gte: new Date(Date.now() - 24 * 3_600_000) },
-                    },
-                    select: { id: true },
-                  }),
-                );
+            const humanOut = await this.prisma.withTenant(tenantId, (tx) =>
+              tx.message.findFirst({
+                where: {
+                  conversationId,
+                  direction: 'OUT',
+                  sentByUserId: { not: null },
+                  createdAt: { gte: new Date(Date.now() - 24 * 3_600_000) },
+                },
+                select: { id: true },
+              }),
+            );
             if (humanOut) mode = 'SUGGEST';
           }
           this.runEngine(tenantId, conversationId, messageId, body, lead, {

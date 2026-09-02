@@ -55,6 +55,8 @@ export interface Msg {
   attachments: AttachmentRow[];
   /** Team member who sent it (OUT only). Null for inbound and for legacy rows. */
   sentByUserId: string | null;
+  /** Atención autónoma: lo escribió el Asistente. */
+  sentByAi?: boolean;
   /** ISO-639-1 guessed at ingest. Null = unknown (older rows, or too short). */
   detectedLang: string | null;
   sentBy: { id: string; name: string } | null;
@@ -104,10 +106,13 @@ export interface ThreadPage {
 }
 
 /** Who, from our side, a message came from — drives the visual treatment. */
-export type Authorship = 'contact' | 'me' | 'teammate';
+export type Authorship = 'contact' | 'me' | 'teammate' | 'assistant';
 
 export function authorshipOf(m: Msg, currentUserId: string): Authorship {
   if (m.direction === 'IN') return 'contact';
+  // El Asistente manda antes que cualquier heurística: sin esto se pintaría
+  // como un compañero anónimo.
+  if (m.sentByAi) return 'assistant';
   // A legacy OUT message with no sender recorded is shown as the team's, not
   // claimed as yours — better vague than wrong.
   if (m.sentByUserId && m.sentByUserId === currentUserId) return 'me';

@@ -12,13 +12,14 @@ import { ConversationEngineModule } from '../conversation-engine/conversation-en
 import { ProfilesModule } from '../profiles/profiles.module.js';
 import { IngestQueueModule } from '../ingest/ingest-queue.module.js';
 import { KnowledgeModule } from '../knowledge/knowledge.module.js';
+import { RoutingModule } from '../routing/routing.module.js';
 import { DocumentsModule } from '../documents/documents.module.js';
 import { AgentsModule } from '../agents/agents.module.js';
 import { EmailModule } from '../email/email.module.js';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
 
 @Module({
-  imports: [BotsModule, DocumentsModule, AgentsModule, EmailModule, ConversationEngineModule, ProfilesModule, IngestQueueModule, KnowledgeModule],
+  imports: [BotsModule, DocumentsModule, AgentsModule, EmailModule, ConversationEngineModule, ProfilesModule, IngestQueueModule, KnowledgeModule, RoutingModule],
   controllers: [ConversationsController, WhatsappCloudController],
   providers: [ConversationsService, ConversationIngestService, ConversationAiService, ConversationDeliveryService, CrmActionsService, BotEmailPollerService, TenantAuthGuard],
   exports: [ConversationIngestService, ConversationsService, ConversationDeliveryService],

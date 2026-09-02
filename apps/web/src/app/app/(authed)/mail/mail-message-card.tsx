@@ -157,12 +157,14 @@ const CARD_STYLE: Record<Authorship, string> = {
   contact: 'border-ink-200 bg-white',
   me: 'border-primary-200 bg-primary-50/60',
   teammate: 'border-violet-200 bg-violet-50/50',
+  assistant: 'border-emerald-200 bg-emerald-50/50',
 };
 
 const SENDER_STYLE: Record<Authorship, string> = {
   contact: 'text-ink-900',
   me: 'text-primary-900',
   teammate: 'text-violet-900',
+  assistant: 'text-emerald-900',
 };
 
 export function MessageCard({
@@ -197,9 +199,11 @@ export function MessageCard({
   const senderName =
     who === 'contact'
       ? msg.fromName || msg.fromAddress || ti('contact')
-      : person
-        ? shortName(person)
-        : t('yourTeam');
+      : who === 'assistant'
+        ? t('assistantSender')
+        : person
+          ? shortName(person)
+          : t('yourTeam');
   const senderAddress = who === 'contact' ? msg.fromAddress : mailboxAddress;
 
   return (
@@ -215,6 +219,7 @@ export function MessageCard({
         >
           <div className="flex items-baseline justify-between gap-2">
             <span className={`truncate text-sm font-semibold ${SENDER_STYLE[who]}`}>
+              {who === 'assistant' && <span aria-hidden>✨ </span>}
               {senderName}
               {who !== 'contact' && (
                 <span className="ml-1 font-normal text-ink-400">

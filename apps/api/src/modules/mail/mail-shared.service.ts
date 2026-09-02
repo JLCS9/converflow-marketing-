@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { NotFoundError, BadRequestError } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { canAccessConnection } from './mail-connections.service.js';
 import { MailConnectionsService } from './mail-connections.service.js';
 import { env } from '../../config/env.js';
 
@@ -45,14 +46,26 @@ export class MailSharedService {
   }
 
   /** Active team members (for the assignee picker + name resolution). */
-  listTeam(tenantId: string) {
-    return this.prisma.withTenant(tenantId, (tx) =>
+  async listTeam(tenantId: string, connectionId?: string) {
+    const users = await this.prisma.withTenant(tenantId, (tx) =>
       tx.user.findMany({
         where: { status: 'ACTIVE' },
-        select: { id: true, name: true },
+        select: { id: true, name: true, role: true },
         orderBy: { name: 'asc' },
       }),
     );
+    if (!connectionId) return users.map(({ role: _r, ...u }) => u);
+    // Filtrar por acceso REAL a esa bandeja (privada / «Solo estas personas»).
+    const conn = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.mailConnection.findUnique({
+        where: { id: connectionId },
+        select: { visibility: true, ownerUserId: true, memberUserIds: true },
+      }),
+    );
+    if (!conn) return [];
+    return users
+      .filter((u) => canAccessConnection(conn, { userId: u.id, role: u.role }))
+      .map(({ role: _r, ...u }) => u);
   }
 
   /**
@@ -73,6 +86,15 @@ export class MailSharedService {
       );
       if (!u) throw new BadRequestError('Usuario inválido');
     }
+    return this.assignSystem(tenantId, threadId, assigneeUserId);
+  }
+
+  /**
+   * Núcleo de la asignación SIN actor — lo usa el enrutado automático
+   * (atención autónoma). Conserva intactos la tarea idempotente y el
+   * no-leído del asignado.
+   */
+  async assignSystem(tenantId: string, threadId: string, assigneeUserId: string | null) {
     return this.prisma.withTenant(tenantId, async (tx) => {
       const thread = await tx.emailThread.update({
         where: { id: threadId },

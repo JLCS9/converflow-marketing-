@@ -12,6 +12,7 @@ function makeService(over: {
   humanOut?: { id: string } | null;
   respondFails?: boolean;
   deliverResult?: { delivered: boolean; reason?: string };
+  routeTo?: string | null;
 } = {}) {
   const tx = {
     conversation: {
@@ -71,6 +72,7 @@ function makeService(over: {
   };
   const profiles = { resolveForEvent: vi.fn().mockResolvedValue({ id: 'p1' }) };
   const crmActions = { execute: vi.fn().mockResolvedValue('ok') };
+  const routing = { match: vi.fn().mockResolvedValue(over.routeTo ?? null) };
 
   const svc = new ConversationIngestService(
     prisma,
@@ -82,12 +84,13 @@ function makeService(over: {
     { enqueueBatch: vi.fn() } as never,
     delivery as never,
     crmActions as never,
+    routing as never,
   );
   // classifyMessage es pesado de mockear entero: lo espiamos directamente.
   const classifySpy = vi
     .spyOn(svc as never as { classifyMessage: () => Promise<void> }, 'classifyMessage')
     .mockResolvedValue(undefined);
-  return { svc, engine, delivery, agentRuntime, profiles, classifySpy, tx };
+  return { svc, engine, delivery, agentRuntime, profiles, classifySpy, tx, routing };
 }
 
 const lead = {
@@ -126,11 +129,10 @@ describe('dispatchInbound (E1)', () => {
     expect(delivery.deliver.mock.calls[0]![0]).toMatchObject({ dedupeKey: 'ai:m1' });
   });
 
-  it('guard humano: conversación asignada → AUTO degrada a sugerencia', async () => {
-    const { svc, delivery } = makeService({ assignedUserId: 'u1' });
+  it('guard unificado: asignada SIN respuesta humana reciente ya NO degrada (el enrutado asigna todo)', async () => {
+    const { svc, delivery } = makeService({ assignedUserId: 'u1', humanOut: null });
     await dispatch(svc);
-    expect(delivery.deliver).not.toHaveBeenCalled();
-    expect(delivery.suggest).toHaveBeenCalledOnce();
+    expect(delivery.deliver).toHaveBeenCalledOnce();
   });
 
   it('guard humano: OUT humano reciente → también degrada', async () => {
@@ -161,6 +163,16 @@ describe('dispatchInbound (E1)', () => {
     const { svc, profiles } = makeService();
     await dispatch(svc);
     expect(profiles.resolveForEvent.mock.calls[0]![1]).toMatchObject({ phone: '+34600111222' });
+  });
+
+  it('enrutado multicanal: conversación nueva sin asignar → regla escribe assignedUserId', async () => {
+    const { svc, tx, routing } = makeService({ routeTo: 'u-maria' });
+    await dispatch(svc);
+    expect(routing.match).toHaveBeenCalledWith('t1', expect.objectContaining({ channel: 'WHATSAPP', endpointId: 'b1' }));
+    const update = (tx.conversation.update as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0]?.data?.assignedUserId === 'u-maria',
+    );
+    expect(update).toBeTruthy();
   });
 
   it('bot LEGACY → el camino antiguo intacto', async () => {

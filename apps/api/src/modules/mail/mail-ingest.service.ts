@@ -1,28 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { sanitizeEmailHtml } from '../../common/utils/email-html.js';
 import type { ParsedEmail } from './drivers/index.js';
 import { MailAttachmentsService } from './mail-attachments.service.js';
 import { MailContactsService } from './mail-contacts.service.js';
+import { MailSharedService } from './mail-shared.service.js';
+import { MailAutoReplyService } from './mail-auto-reply.service.js';
+import { RoutingService } from '../routing/routing.service.js';
 import { guessLanguage } from './mail-ai.service.js';
 
-/** Reply/forward prefixes we recognise. Keep both helpers below in sync. */
-const REPLY_PREFIX_RE = /^((re|rv|fwd|fw)\s*:\s*)+/i;
-
-export function normalizeSubject(subject?: string): string {
-  return (subject ?? '').replace(REPLY_PREFIX_RE, '').trim();
-}
-
-/**
- * Does the raw subject carry a Re:/RV:/Fwd: prefix?
- *
- * Only such a message may be threaded by subject. A bare subject is a NEW
- * conversation, even if it repeats one we have seen — see the guard in
- * `resolveThreadBySubject`.
- */
-export function looksLikeReply(subject?: string): boolean {
-  return REPLY_PREFIX_RE.test(subject ?? '');
-}
+import { normalizeSubject, looksLikeReply } from './mail-subject.js';
+// Reexport para compatibilidad (specs y consumidores existentes).
+export { normalizeSubject, looksLikeReply };
 
 /** Lowercased address set of everyone a message involved (from + to + cc). */
 function addressesOf(m: {
@@ -53,10 +42,15 @@ function refIds(email: ParsedEmail): string[] {
  */
 @Injectable()
 export class MailIngestService {
+  private readonly logger = new Logger(MailIngestService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly attachments: MailAttachmentsService,
     private readonly contacts: MailContactsService,
+    private readonly routing: RoutingService,
+    private readonly shared: MailSharedService,
+    private readonly autoReply: MailAutoReplyService,
   ) {}
 
   async ingest(tenantId: string, connectionId: string, email: ParsedEmail) {
@@ -98,7 +92,9 @@ export class MailIngestService {
         participant.push((a as string).trim());
       }
 
+      let threadCreated = false;
       if (!threadId) {
+        threadCreated = true;
         const thread = await tx.emailThread.create({
           data: {
             tenantId,
@@ -169,10 +165,13 @@ export class MailIngestService {
           unreadCount: { increment: 1 },
           folder: 'INBOX',
           participants: merged,
+          // Ticket: un entrante SIEMPRE (re)abre el hilo — también los CLOSED
+          // (el cliente respondió a un ticket resuelto) y los PENDING.
+          status: 'OPEN',
         },
       });
 
-      return { created: true, threadId, messageId: message.id };
+      return { created: true, threadId, messageId: message.id, threadCreated };
     });
 
     // Store attachments outside the DB call (S3 uploads), only for new messages.
@@ -200,6 +199,35 @@ export class MailIngestService {
       } catch {
         /* best-effort; never block ingestion */
       }
+    }
+
+    // Atención autónoma · hooks post-transacción. El ORDEN importa: primero
+    // el enrutado (la auto-respuesta lee la asignación para su guard humano).
+    // Best-effort: un fallo aquí JAMÁS rompe la ingesta.
+    if (result.created && result.threadId) {
+      if (result.threadCreated) {
+        try {
+          const assignee = await this.routing.match(tenantId, {
+            channel: 'EMAIL',
+            endpointId: connectionId,
+            subject: email.subject ?? null,
+            text: (email.text ?? email.snippet ?? '').slice(0, 4000),
+            fromAddress: email.fromAddress ?? null,
+          });
+          if (assignee) {
+            await this.shared.assignSystem(tenantId, result.threadId, assignee);
+            this.logger.log({ threadId: result.threadId, assignee }, 'hilo enrutado por regla');
+          }
+        } catch (err) {
+          this.logger.warn({ err }, 'enrutado de correo no aplicado');
+        }
+      }
+      await this.autoReply.maybeRespond(tenantId, {
+        connectionId,
+        threadId: result.threadId,
+        messageId: result.messageId!,
+        email,
+      });
     }
     return result;
   }
