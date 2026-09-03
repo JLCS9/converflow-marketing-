@@ -165,9 +165,10 @@ export class MailInboxService {
   }
 
   /**
-   * Añade `unreadForMe` a cada fila (una sola query por página). El global
-   * `unreadCount` se conserva: los buzones privados y los badges lo siguen
-   * usando.
+   * Añade `unreadForMe` y `hasAiDraft` a cada fila (dos queries por página).
+   * El global `unreadCount` se conserva: los buzones privados y los badges lo
+   * siguen usando. `hasAiDraft` marca en la lista los hilos con una respuesta
+   * del Asistente lista para revisar — el valor de la IA, visible sin abrir.
    */
   private async annotateUnread(
     tenantId: string,
@@ -175,14 +176,27 @@ export class MailInboxService {
     items: { id: string; lastMessageAt: Date | null; unreadCount: number }[],
   ) {
     if (!items.length) return items;
-    const reads = await this.prisma.withTenant(tenantId, (tx) =>
-      tx.emailThreadRead.findMany({
-        where: { userId, threadId: { in: items.map((i) => i.id) } },
-        select: { threadId: true, lastReadAt: true },
-      }),
+    const ids = items.map((i) => i.id);
+    const [reads, aiDrafts] = await this.prisma.withTenant(tenantId, (tx) =>
+      Promise.all([
+        tx.emailThreadRead.findMany({
+          where: { userId, threadId: { in: ids } },
+          select: { threadId: true, lastReadAt: true },
+        }),
+        tx.emailMessage.findMany({
+          where: { threadId: { in: ids }, isDraft: true, sentByAi: true },
+          select: { threadId: true },
+          distinct: ['threadId'],
+        }),
+      ]),
     );
     const byThread = new Map(reads.map((r) => [r.threadId, r]));
-    return items.map((i) => ({ ...i, unreadForMe: isUnreadForMe(byThread.get(i.id), i) }));
+    const withDraft = new Set(aiDrafts.map((d) => d.threadId));
+    return items.map((i) => ({
+      ...i,
+      unreadForMe: isUnreadForMe(byThread.get(i.id), i),
+      hasAiDraft: withDraft.has(i.id),
+    }));
   }
 
   /** Trim the sentinel row and derive the next cursor from the last kept item. */

@@ -56,6 +56,32 @@ export function MailAssistant({
   const [variants, setVariants] = useState<Variant[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  /**
+   * «Proponer respuesta»: un clic y el servicio de atención autónoma (el MISMO
+   * cerebro que responde solo cuando el buzón está en «Responde sola») redacta
+   * la respuesta con el Conocimiento y la ficha del cliente. Solo en respuestas.
+   */
+  async function propose() {
+    if (!threadId) return;
+    setBusy('propose');
+    setError(null);
+    setNotice(null);
+    setVariants([]);
+    try {
+      const r = await apiFetch<{ html: string; canAnswer: boolean }>(
+        `/mail/threads/${threadId}/assistant/propose`,
+        { method: 'POST' },
+      );
+      onApply(r.html);
+      if (!r.canAnswer) setNotice(t('proposeNoAnswer'));
+    } catch (err) {
+      setError(aiErrorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   // Lo que el usuario ha escrito DE VERDAD, sin la firma que el compositor
   // inserta sola: sin esto, un "Mejorar" recién abierto le pasaría solo la firma
@@ -107,13 +133,40 @@ export function MailAssistant({
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1 text-xs text-primary-700 hover:underline"
-      >
-        <Sparkles size={12} /> {t('assistant')}
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        {threadId && (
+          <button
+            type="button"
+            onClick={() => void propose()}
+            disabled={busy !== null}
+            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+          >
+            <Sparkles size={12} />
+            {busy === 'propose' ? t('proposing') : t('proposeReply')}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1 text-xs text-primary-700 hover:underline"
+        >
+          {threadId ? t('assistantMore') : (
+            <>
+              <Sparkles size={12} /> {t('assistant')}
+            </>
+          )}
+        </button>
+        {notice && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-amber-700">
+            <AlertTriangle size={11} /> {notice}
+          </span>
+        )}
+        {error && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-red-700">
+            <AlertTriangle size={11} /> {error}
+          </span>
+        )}
+      </div>
     );
   }
 
@@ -132,6 +185,21 @@ export function MailAssistant({
           <X size={13} />
         </button>
       </div>
+
+      {threadId && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 border-b border-primary-100 pb-2">
+          <button
+            type="button"
+            onClick={() => void propose()}
+            disabled={busy !== null}
+            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+          >
+            <Sparkles size={12} />
+            {busy === 'propose' ? t('proposing') : t('proposeReply')}
+          </button>
+          <span className="text-[11px] text-ink-500">{t('proposeHint')}</span>
+        </div>
+      )}
 
       <div className="flex gap-1.5">
         <input
@@ -232,6 +300,11 @@ export function MailAssistant({
         </div>
       )}
 
+      {notice && (
+        <p className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-amber-700">
+          <AlertTriangle size={11} /> {notice}
+        </p>
+      )}
       {error && (
         <p className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-red-700">
           <AlertTriangle size={11} /> {error}

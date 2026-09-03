@@ -2,7 +2,7 @@
 
 > Single source of truth. Update after every sprint. If reading this in a new session, you can skip 100% of conversation history and rely on this file + the repo.
 
-**Last sync:** **MAIL MODULE rebuild — Fase 2 COMPLETA** (Fases 1, 2.1–2.5 en `main`): bandeja unificada dentro de Conversaciones→Correo, sidebar colapsable, ajustes en `/app/mail/ajustes`, búsqueda, adjuntos R2 y buzón compartido (asignación/estado/notas/anti-colisión). ⚠️ deploy 2.5 = `db push` + `apply:rls`. Siguiente: Fase 3 (transaccional) → Fase 4 (campañas). Ver sección "MAIL MODULE — rebuild". Antes de eso se hizo: feature de **Soporte/tickets**, **Campañas v1** (email/WhatsApp), **email pro** (compositor Tiptap, plantillas GrapesJS/MJML, adjuntos) — ese email es el "intento previo" que se está sustituyendo. **Incidente operativo resuelto**: disco del VPS por caché de build (limpiado + `daemon.json` con GC 10GB + rotación de logs); proyecto viejo `converflow` (Clerk) eliminado del VPS; saldo Anthropic agotado (recargado). **LIVE in prod**: Sprint 7 (WhatsApp Baileys 7), Sprint 8 (Conversaciones inbox with channel-aware reply: text/emoji/documents + one-click AI suggestion send), **Agents v1a/b/d** (self-service builder + playground + tool execution + AUTO mode with AI disclosure + rate limit), **Design v2** (fixed shell, icon sidebar with expandable groups, "Hoy" home), **Web chat** (embeddable widget + agent auto-reply), **Email channel** (Resend system path + tenant **self-service IMAP/SMTP** with encrypted creds + workers IMAP poller), **Lead→Cliente** auto-conversion. (Kit Digital product side complete since Sprint 5: 17/18, #18 user-owned.) **Pending**: Agents v1c RAG (needs embeddings key from user), historical metrics for Hoy home (sparklines/IA-semana), WhatsApp Cloud API upgrade.
+**Last sync (2026-09-03):** **MOTOR DE IA COMPLETO + ATENCIÓN AUTÓNOMA MULTICANAL EN PROD** — ver la sección «IA — Motor, Convergencia y Atención autónoma» más abajo (es la más reciente y manda sobre cualquier mención anterior a agentes/IA de este fichero). Manual de usuario en `docs/manual-asistente-ia.md`. Lo anterior sigue siendo válido como historia: **MAIL MODULE rebuild — Fase 2 COMPLETA** (Fases 1, 2.1–2.5 en `main`): bandeja unificada dentro de Conversaciones→Correo, sidebar colapsable, ajustes en `/app/mail/ajustes`, búsqueda, adjuntos R2 y buzón compartido (asignación/estado/notas/anti-colisión). ⚠️ deploy 2.5 = `db push` + `apply:rls`. Siguiente: Fase 3 (transaccional) → Fase 4 (campañas). Ver sección "MAIL MODULE — rebuild". Antes de eso se hizo: feature de **Soporte/tickets**, **Campañas v1** (email/WhatsApp), **email pro** (compositor Tiptap, plantillas GrapesJS/MJML, adjuntos) — ese email es el "intento previo" que se está sustituyendo. **Incidente operativo resuelto**: disco del VPS por caché de build (limpiado + `daemon.json` con GC 10GB + rotación de logs); proyecto viejo `converflow` (Clerk) eliminado del VPS; saldo Anthropic agotado (recargado). **LIVE in prod**: Sprint 7 (WhatsApp Baileys 7), Sprint 8 (Conversaciones inbox with channel-aware reply: text/emoji/documents + one-click AI suggestion send), **Agents v1a/b/d** (self-service builder + playground + tool execution + AUTO mode with AI disclosure + rate limit), **Design v2** (fixed shell, icon sidebar with expandable groups, "Hoy" home), **Web chat** (embeddable widget + agent auto-reply), **Email channel** (Resend system path + tenant **self-service IMAP/SMTP** with encrypted creds + workers IMAP poller), **Lead→Cliente** auto-conversion. (Kit Digital product side complete since Sprint 5: 17/18, #18 user-owned.) **Pending**: Agents v1c RAG (needs embeddings key from user), historical metrics for Hoy home (sparklines/IA-semana), WhatsApp Cloud API upgrade.
 
 > **Cross-tenant isolation:** ✅ FIXED & VERIFIED. API now connects as non-superuser
 > `converflow_app` so RLS is enforced. A new tenant sees ONLY its own data. This was
@@ -118,6 +118,29 @@ Stack: pnpm monorepo + Turborepo · Next.js 15 · NestJS 10 + Fastify 4 · Postg
 | IA RGPD / AI Act / aviso | ✅ |
 | Logs acceso en BD | ✅ (admin-only) |
 | Capacitación 20h + diploma | ❌ (Sprint 6) |
+
+## IA — Motor, Convergencia y Atención autónoma (estado 2026-09, TODO EN PROD)
+
+Plan original: `docs/motor-ia-plan.md` (F0–F4 ✅). Después: plan «Convergencia IA» (E1 ✅, E2 parcial ✅, E3 T1+T2 ✅) y sprint «Atención autónoma multicanal» (PRs #8–#17 ✅).
+
+**Un solo Asistente por tenant.** La pestaña «Agentes IA» murió; la identidad (tono, idioma) vive junto al Conocimiento (`/app/knowledge`, hub con 6 sub-pestañas: Fuentes, Instrucciones, Verificadas, Lagunas, Identidad, Probador). Marca registrada del producto: el nombre del proveedor de IA jamás es visible para el usuario final.
+
+**Cerebro único**: `ConversationEngineService.respond` (`apps/api/src/modules/conversation-engine/`) — agnóstico de canal (WEBCHAT/WHATSAPP/EMAIL), con Conocimiento (RAG pgvector 1024 + verificadas prioritarias), extracción a perfil, consentimiento, lagunas con lead esperando, acciones (agendar, escalar) y `extraContext` (ficha CRM). Métricas: feature `conversation_engine` con metadata `{channel, mode, delivered, actions}` — el widget «Pulso del Asistente» del Home y el informe mensual cuentan todos los canales de ahí.
+
+**Servicio transversal de atención autónoma** (NO es una feature de mail):
+- Política única `BotReplyMode` OFF/SUGGEST/AUTO por endpoint: `Bot.replyMode` (bots) y `MailConnection.aiReplyMode` (por buzón, UI en `/app/mail/ajustes`).
+- Guardas compartidas: interruptor del tenant (`Tenant.aiInboundAnalysis` — **si está apagado no se propone NADA en ningún canal**), presupuesto mensual, remitente automatizado (RFC 3834 en mail), idempotencia por `dedupeKey`, cap anti-loop 3 respuestas IA/hilo/24h, guard humano unificado (solo degrada AUTO→SUGGEST si el asignado respondió <24h), rate por buzón.
+- Adaptador mail: `MailAutoReplyService` (`maybeRespond` en el post-tx del ingest; **cada salto de guarda se loguea con motivo** — buscar `auto-respuesta saltada` en logs de cfai-api para diagnosticar). AUTO+canAnswer → envía como «✨ Asistente» y el hilo pasa a PENDING («esperando al cliente»); resto → borrador listo en el compositor + banner. Fallo SMTP → borrador con el MISMO texto, jamás re-generar.
+- **Botón «Proponer respuesta»** del compositor (`POST /mail/threads/:id/assistant/propose`): el mismo motor bajo demanda; ignora el modo del buzón (acción humana explícita), respeta presupuesto y rate. El flujo viejo de redacción (instrucción + tonos, `mail-draft-ai`) sigue como «Más opciones de redacción».
+- Ciclo de ticket: IN siempre (re)abre (CLOSED→OPEN); cierre solo humano; la vía IA jamás completa la tarea del asignado.
+- Enrutado a personas: `RoutingRule` genérica (channel+endpointId, primera-regla-gana, keywords OR + dominio AND) → `assignSystem` en mail / `assignedUserId` en bots. UI en `/app/mail/ajustes`.
+- Lista de hilos: `hasAiDraft` (chispa esmeralda) marca los hilos con respuesta del Asistente lista.
+
+**Aprendizaje continuo**: corrección humana → verificada (`learnFromHumanReply`), lagunas agrupadas por coseno, playbooks borrador-para-aprobar, preguntas de control con bloqueo+rollback, informe mensual vía Batch API.
+
+**Pendiente/diferido**: E2 final (borrar agent-runtime legado cuando haya 14 días sin `agent_reply`), WhatsApp Cloud API cuando Meta apruebe (Baileys se mantiene hasta entonces), OCR y juez LLM a demanda del piloto.
+
+**RLS: 55 tablas** con política `tenant_isolation` (spec estático la verifica en CI). Deploy: `cd /opt/converflow-ai && git pull && bash infra/scripts/deploy.sh`.
 
 ## MAIL MODULE — rebuild (greenfield, independiente de Bots)
 

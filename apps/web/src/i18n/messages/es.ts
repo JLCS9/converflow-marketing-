@@ -111,6 +111,13 @@ const es = {
   mail: {
     summarizeThread: 'Resumir este hilo con IA',
     assistantFootnote: 'Redactado por IA · revísalo antes de enviar. Nunca se envía solo.',
+    proposeReply: 'Proponer respuesta',
+    proposing: 'Redactando…',
+    proposeHint: 'Responde con el Conocimiento y la ficha del cliente, como cuando atiende sola.',
+    proposeNoAnswer:
+      'El Asistente no encontró esta respuesta en el Conocimiento: revisa el texto antes de enviar. La duda queda registrada como laguna.',
+    assistantMore: 'Más opciones de redacción',
+    aiDraftBadge: 'El Asistente ha preparado una respuesta',
     chooseVersion: 'Elige una versión — se pone en el editor y la revisas antes de enviar:',
     useThis: 'Usar esta',
     bccShort: 'Cco',
@@ -823,6 +830,9 @@ const es = {
     aiModeSuggest: 'Sugiere',
     aiModeAuto: 'Responde sola',
     aiModeSaved: 'Modo del asistente guardado',
+    inboundOffWarning:
+      'El análisis automático de mensajes está desactivado para toda la cuenta: el Asistente no propondrá ni enviará respuestas aunque actives un modo aquí.',
+    inboundOffCta: 'Actívalo en Configuración',
     membersAll: 'Todo el equipo',
     membersSome: 'Solo {n} personas',
     membersAllOption: 'Todo el equipo',

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
-import { Lock, Users } from 'lucide-react';
+import { AlertTriangle, Lock, Users } from 'lucide-react';
 import { serverApiFetch } from '@/lib/server-api';
 import { Card, Badge, buttonClass } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/ui/page-header';
@@ -43,11 +43,17 @@ const STATUS = {
 
 export default async function MailConnectionsSettingsPage() {
   const t = await getTranslations('mailboxes');
-  const [conns, team, rules] = await Promise.all([
+  const [conns, team, rules, automation] = await Promise.all([
     serverApiFetch<ConnRow[]>('/mail/connections').catch(() => [] as ConnRow[]),
     serverApiFetch<{ id: string; name: string }[]>('/mail/team').catch(() => []),
     serverApiFetch<RuleRow[]>('/routing-rules?channel=EMAIL').catch(() => [] as RuleRow[]),
+    // Solo quien tiene permiso de configuración lo ve (403 → sin aviso).
+    serverApiFetch<{ aiInboundAnalysis: boolean }>('/me/automation').catch(() => null),
   ]);
+  // El interruptor global del tenant manda sobre el modo por buzón: si está
+  // apagado, el Asistente no propone nada aunque aquí se active — avisarlo
+  // aquí evita el «lo activé y no pasa nada».
+  const inboundOff = automation != null && !automation.aiInboundAnalysis;
 
   return (
     <div className="space-y-6">
@@ -62,6 +68,18 @@ export default async function MailConnectionsSettingsPage() {
           </Link>
         }
       />
+
+      {inboundOff && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
+          <p>
+            {t('inboundOffWarning')}{' '}
+            <Link href="/app/settings" className="font-medium underline">
+              {t('inboundOffCta')}
+            </Link>
+          </p>
+        </div>
+      )}
 
       {conns.length === 0 ? (
         <EmptyState

@@ -105,6 +105,13 @@ const en: Messages = {
   mail: {
     summarizeThread: 'Summarize this thread with AI',
     assistantFootnote: 'Drafted by AI · review before sending. It never sends on its own.',
+    proposeReply: 'Propose a reply',
+    proposing: 'Writing…',
+    proposeHint: 'Replies using your Knowledge and the contact’s CRM record, just like autonomous mode.',
+    proposeNoAnswer:
+      'The Assistant could not find this answer in your Knowledge: review the text before sending. The question was logged as a gap.',
+    assistantMore: 'More writing options',
+    aiDraftBadge: 'The Assistant has prepared a reply',
     chooseVersion: 'Pick a version — it goes into the editor for you to review before sending:',
     useThis: 'Use this one',
     bccShort: 'Bcc',
@@ -814,6 +821,9 @@ const en: Messages = {
     aiModeSuggest: 'Suggests',
     aiModeAuto: 'Replies on its own',
     aiModeSaved: 'Assistant mode saved',
+    inboundOffWarning:
+      'Automatic analysis of incoming messages is disabled account-wide: the Assistant will not suggest or send replies even if you enable a mode here.',
+    inboundOffCta: 'Enable it in Settings',
     membersAll: 'Whole team',
     membersSome: 'Only {n} people',
     membersAllOption: 'Whole team',
