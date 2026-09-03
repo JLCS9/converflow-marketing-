@@ -13,7 +13,8 @@
 import { useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { DateRangeFilter, PRESET_LABEL_KEY, PRESETS, type DateRangeValue } from '@/components/ui/date-range-filter';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
+import { PRESET_LABEL_KEY, PRESETS, type DateRangeValue } from '@/components/ui/date-range';
 
 export function OpportunitiesDateFilter({ value }: { value: DateRangeValue }) {
   const t = useTranslations('dateRange');

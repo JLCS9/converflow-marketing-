@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
 import { buttonClass } from '@/components/ui/primitives';
 import { TabBar, CRM_TABS } from '@/components/ui/tab-bar';
-import { computeDateRange, type DateRangePreset } from '@/components/ui/date-range-filter';
+import { computeDateRange, type DateRangePreset } from '@/components/ui/date-range';
 import { OpportunitiesBoard } from './opportunities-board';
 import { OpportunitiesDateFilter } from './opportunities-date-filter';
 import type { OppCard, Pipeline } from './types';
@@ -34,10 +34,13 @@ export default async function OpportunitiesPage({
     { from: params.from, to: params.to },
   );
 
+  // Un fallo transitorio de la API no debe tumbar la página entera (ya
+  // pasaba antes de este bloque BI, agravado ahora por tener más parámetros
+  // que podrían fallar) — degrada a tablero vacío, igual que `pipelines`.
   const opps = selected
     ? await serverApiFetch<OppCard[]>(
         `/opportunities?pipelineId=${selected.id}&limit=500&from=${range.from}&to=${range.to}`,
-      )
+      ).catch(() => [] as OppCard[])
     : [];
 
   return (

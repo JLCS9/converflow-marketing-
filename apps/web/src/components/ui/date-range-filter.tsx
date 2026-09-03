@@ -9,69 +9,16 @@
  * Deliberadamente "tonto": no sabe si el rango vive en la URL (Oportunidades,
  * vía `router.replace`) o en estado local (el widget de inicio, para no
  * recargar la página) — quien lo usa decide con `value`/`onChange`.
+ *
+ * Solo el COMPONENTE vive aquí — la lógica de rango (`computeDateRange` y
+ * compañía) vive en `./date-range.ts`, SIN `'use client'`, precisamente para
+ * que una página de servidor (Oportunidades) pueda invocarla. Mezclar ambas
+ * cosas en un módulo `'use client'` es justo lo que rompió esa página en
+ * producción: Next.js no deja llamar a una función de un módulo cliente
+ * desde el servidor, aunque sea pura y sin hooks.
  */
 
-const PRESETS = ['7d', '30d', '90d', 'month', 'quarter', 'custom'] as const;
-export type DateRangePreset = (typeof PRESETS)[number];
-
-export interface DateRangeValue {
-  preset: DateRangePreset;
-  /** yyyy-mm-dd */
-  from: string;
-  /** yyyy-mm-dd */
-  to: string;
-}
-
-const PRESET_LABEL_KEY: Record<DateRangePreset, string> = {
-  '7d': 'last7',
-  '30d': 'last30',
-  '90d': 'last90',
-  month: 'thisMonth',
-  quarter: 'thisQuarter',
-  custom: 'custom',
-};
-
-function toDateStr(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function daysAgo(n: number): Date {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d;
-}
-
-/**
- * Rango efectivo de un preset — **últimos 30 días es el default de todo el
- * bloque de BI** (Oportunidades, el widget de ventas): quien llama sin
- * preset explícito recibe ese rango, no "todo el tiempo".
- */
-export function computeDateRange(
-  preset: DateRangePreset = '30d',
-  custom?: { from?: string; to?: string },
-): DateRangeValue {
-  const today = new Date();
-  switch (preset) {
-    case '7d':
-      return { preset, from: toDateStr(daysAgo(7)), to: toDateStr(today) };
-    case '90d':
-      return { preset, from: toDateStr(daysAgo(90)), to: toDateStr(today) };
-    case 'month': {
-      const start = new Date(today.getFullYear(), today.getMonth(), 1);
-      return { preset, from: toDateStr(start), to: toDateStr(today) };
-    }
-    case 'quarter': {
-      const q = Math.floor(today.getMonth() / 3);
-      const start = new Date(today.getFullYear(), q * 3, 1);
-      return { preset, from: toDateStr(start), to: toDateStr(today) };
-    }
-    case 'custom':
-      return { preset, from: custom?.from ?? toDateStr(daysAgo(30)), to: custom?.to ?? toDateStr(today) };
-    case '30d':
-    default:
-      return { preset: '30d', from: toDateStr(daysAgo(30)), to: toDateStr(today) };
-  }
-}
+import { PRESETS, type DateRangePreset, type DateRangeValue, computeDateRange } from './date-range';
 
 const selectCls =
   'rounded-md border border-ink-200 bg-white py-1.5 pl-2 pr-8 text-xs text-ink-700 focus:border-ink-700 focus:outline-none';
@@ -123,5 +70,3 @@ export function DateRangeFilter({
     </div>
   );
 }
-
-export { PRESET_LABEL_KEY, PRESETS };
