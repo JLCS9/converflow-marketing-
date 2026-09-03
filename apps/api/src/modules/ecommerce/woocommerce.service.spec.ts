@@ -5,44 +5,75 @@ import { hashApiKey } from '../../common/auth/api-key.util.js';
 /**
  * Handshake WooCommerce: clave de conexión de un solo uso → secreto HMAC
  * real generado server-side. Nunca se acepta una clave caducada o repetida.
+ * Varias tiendas por tenant están soportadas a propósito (p. ej. una
+ * instalación de WordPress por idioma del mismo negocio).
  */
-function makeService(over: { connection?: Record<string, unknown> | null } = {}) {
-  const ingestSourceCreate = vi.fn().mockResolvedValue({ id: 'src1' });
+function makePrisma(over: { connections?: Record<string, unknown>[]; findOne?: Record<string, unknown> | null } = {}) {
+  const ingestSourceCreate = vi.fn().mockImplementation(() => Promise.resolve({ id: `src-${Math.random()}` }));
   const ingestSourceUpdate = vi.fn().mockResolvedValue({});
   const connCreate = vi.fn().mockResolvedValue({ id: 'conn1' });
   const connUpdate = vi.fn().mockResolvedValue({});
-  const connFindUnique = vi.fn().mockResolvedValue(over.connection === undefined ? null : over.connection);
+  const connFindMany = vi.fn().mockResolvedValue(over.connections ?? []);
+  const connFindUnique = vi.fn().mockResolvedValue(over.findOne === undefined ? null : over.findOne);
 
   const tx = {
-    ecommerceConnection: { findUnique: connFindUnique, create: connCreate, update: connUpdate },
+    ecommerceConnection: { findMany: connFindMany, findUnique: connFindUnique, create: connCreate, update: connUpdate },
     ingestSource: { create: ingestSourceCreate, update: ingestSourceUpdate },
   };
   const prisma = {
     withTenant: (_t: string, fn: (tx: unknown) => unknown) => Promise.resolve(fn(tx)),
     bypass: (fn: (tx: unknown) => unknown) => Promise.resolve(fn(tx)),
   } as never;
-  return { svc: new WoocommerceService(prisma), ingestSourceCreate, ingestSourceUpdate, connCreate, connUpdate, connFindUnique };
+  return { svc: new WoocommerceService(prisma), ingestSourceCreate, ingestSourceUpdate, connCreate, connUpdate, connFindMany, connFindUnique };
 }
 
 describe('WoocommerceService.connect', () => {
-  it('primera vez: crea IngestSource inactivo + EcommerceConnection con clave y TTL', async () => {
-    const { svc, ingestSourceCreate, connCreate } = makeService();
-    const res = await svc.connect('t1');
+  it('crea SIEMPRE una tienda nueva (IngestSource inactivo + EcommerceConnection con clave y TTL)', async () => {
+    const { svc, ingestSourceCreate, connCreate } = makePrisma();
+    const res = await svc.connect('t1', 'ES');
     expect(res.connectionKey).toMatch(/^cfwc_/);
+    expect(res.connectionId).toBe('conn1');
     expect(new Date(res.expiresAt).getTime()).toBeGreaterThan(Date.now());
     expect(ingestSourceCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ kind: 'woocommerce', active: false }) }),
+      expect.objectContaining({ data: expect.objectContaining({ kind: 'woocommerce', active: false, name: 'ES' }) }),
     );
-    expect(connCreate).toHaveBeenCalledOnce();
+    expect(connCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ label: 'ES' }) }),
+    );
   });
 
-  it('ya conectado antes: regenera la clave sobre la conexión existente, no crea una nueva', async () => {
-    const { svc, ingestSourceCreate, connUpdate } = makeService({ connection: { id: 'conn1', ingestSourceId: 'src1' } });
+  it('llamarlo dos veces crea DOS conexiones distintas (varias tiendas por tenant)', async () => {
+    const { svc, ingestSourceCreate, connCreate } = makePrisma();
+    await svc.connect('t1', 'ES');
+    await svc.connect('t1', 'EN');
+    expect(ingestSourceCreate).toHaveBeenCalledTimes(2);
+    expect(connCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it('sin label → funciona igual, label queda undefined', async () => {
+    const { svc, connCreate } = makePrisma();
     await svc.connect('t1');
-    expect(ingestSourceCreate).not.toHaveBeenCalled();
-    expect(connUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'conn1' }, data: expect.objectContaining({ connectionKeyPrefix: expect.any(String) }) }),
-    );
+    expect(connCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ label: undefined }) }));
+  });
+});
+
+describe('WoocommerceService.list', () => {
+  it('devuelve todas las tiendas del tenant, más de una si las hay', async () => {
+    const { svc } = makePrisma({
+      connections: [
+        { id: 'c1', label: 'ES', status: 'CONNECTED' },
+        { id: 'c2', label: 'EN', status: 'PENDING' },
+        { id: 'c3', label: 'FR', status: 'CONNECTED' },
+      ],
+    });
+    const res = await svc.list('t1');
+    expect(res).toHaveLength(3);
+    expect(res.map((c) => c.label)).toEqual(['ES', 'EN', 'FR']);
+  });
+
+  it('tenant sin ninguna tienda → lista vacía, no error', async () => {
+    const { svc } = makePrisma({ connections: [] });
+    expect(await svc.list('t1')).toEqual([]);
   });
 });
 
@@ -59,7 +90,7 @@ describe('WoocommerceService.register', () => {
       connectionKeyExpiresAt: new Date(Date.now() + 60_000),
       ...keyOverrides,
     };
-    const svc = makeService({ connection: conn });
+    const svc = makePrisma({ findOne: conn });
     return { ...svc, secret, conn };
   }
 
@@ -94,27 +125,27 @@ describe('WoocommerceService.register', () => {
   });
 
   it('sin conexión pendiente para ese prefijo → rechazada', async () => {
-    const { svc } = makeService({ connection: null });
+    const { svc } = makePrisma({ findOne: null });
     await expect(svc.register({ connectionKey: 'cfwc_' + 'c'.repeat(32) })).rejects.toThrow();
   });
 });
 
 describe('WoocommerceService.disconnect', () => {
-  it('desactiva el IngestSource y marca DISCONNECTED', async () => {
-    const { svc, ingestSourceUpdate, connUpdate } = makeService({
-      connection: { id: 'conn1', ingestSourceId: 'src1' },
+  it('desactiva el IngestSource de ESA tienda y marca DISCONNECTED, sin tocar las demás', async () => {
+    const { svc, ingestSourceUpdate, connUpdate } = makePrisma({
+      findOne: { id: 'conn2', ingestSourceId: 'src2' },
     });
-    await svc.disconnect('t1');
+    await svc.disconnect('t1', 'conn2');
     expect(ingestSourceUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'src1' }, data: { active: false } }),
+      expect.objectContaining({ where: { id: 'src2' }, data: { active: false } }),
     );
     expect(connUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'DISCONNECTED' }) }),
+      expect.objectContaining({ where: { id: 'conn2' }, data: expect.objectContaining({ status: 'DISCONNECTED' }) }),
     );
   });
 
-  it('sin conexión previa → error visible', async () => {
-    const { svc } = makeService({ connection: null });
-    await expect(svc.disconnect('t1')).rejects.toThrow();
+  it('id de tienda inexistente → error visible', async () => {
+    const { svc } = makePrisma({ findOne: null });
+    await expect(svc.disconnect('t1', 'no-existe')).rejects.toThrow();
   });
 });

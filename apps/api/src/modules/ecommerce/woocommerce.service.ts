@@ -24,10 +24,15 @@ function webhookUrls(sourceId: string) {
 /**
  * Integración WooCommerce (y Shopify el día de mañana, mismo contrato):
  * handshake de un solo uso para el plugin propio de WordPress + estado de
- * la conexión visible en Ajustes. El secreto que firma cada webhook de
- * verdad (`IngestSource.secret`) lo genera SIEMPRE el servidor — la clave
+ * la(s) conexión(es) visibles en Ajustes. El secreto que firma cada webhook
+ * de verdad (`IngestSource.secret`) lo genera SIEMPRE el servidor — la clave
  * de conexión que el humano copia solo sirve para el apretón de manos
  * inicial y expira sola.
+ *
+ * VARIAS TIENDAS por tenant están soportadas a propósito (p. ej. un mismo
+ * negocio con una instalación de WordPress independiente por idioma, cada
+ * una con su propio WooCommerce): cada `connect()` da de alta una conexión
+ * NUEVA, nunca reutiliza una existente.
  */
 @Injectable()
 export class WoocommerceService {
@@ -35,49 +40,46 @@ export class WoocommerceService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Genera (o regenera) la clave de conexión de un solo uso para este tenant. */
-  async connect(tenantId: string) {
+  /** Da de alta una tienda NUEVA y genera su clave de conexión de un solo uso. */
+  async connect(tenantId: string, label?: string) {
     const { secret, prefix, hash } = generateConnectionKey();
     const expiresAt = new Date(Date.now() + CONNECTION_KEY_TTL_MS);
 
-    await this.prisma.withTenant(tenantId, async (tx) => {
-      const existing = await tx.ecommerceConnection.findUnique({
-        where: { tenantId_provider: { tenantId, provider: 'WOOCOMMERCE' } },
-      });
-      if (existing) {
-        await tx.ecommerceConnection.update({
-          where: { id: existing.id },
-          data: { connectionKeyPrefix: prefix, connectionKeyHash: hash, connectionKeyExpiresAt: expiresAt },
-        });
-        return;
-      }
+    const connectionId = await this.prisma.withTenant(tenantId, async (tx) => {
       const source = await tx.ingestSource.create({
-        data: { tenantId, kind: 'woocommerce', name: 'WooCommerce', active: false },
+        data: { tenantId, kind: 'woocommerce', name: label?.trim() || 'WooCommerce', active: false },
       });
-      await tx.ecommerceConnection.create({
+      const conn = await tx.ecommerceConnection.create({
         data: {
           tenantId,
           provider: 'WOOCOMMERCE',
           ingestSourceId: source.id,
+          label: label?.trim() || undefined,
           connectionKeyPrefix: prefix,
           connectionKeyHash: hash,
           connectionKeyExpiresAt: expiresAt,
         },
       });
+      return conn.id;
     });
 
     return {
+      connectionId,
       connectionKey: secret,
       expiresAt: expiresAt.toISOString(),
       webhookBaseUrl: env.API_PUBLIC_URL,
     };
   }
 
-  async status(tenantId: string) {
-    const conn = await this.prisma.withTenant(tenantId, (tx) =>
-      tx.ecommerceConnection.findUnique({
-        where: { tenantId_provider: { tenantId, provider: 'WOOCOMMERCE' } },
+  /** Todas las tiendas conectadas (o pendientes de conectar) de este tenant. */
+  async list(tenantId: string) {
+    return this.prisma.withTenant(tenantId, (tx) =>
+      tx.ecommerceConnection.findMany({
+        where: { provider: 'WOOCOMMERCE' },
+        orderBy: { createdAt: 'asc' },
         select: {
+          id: true,
+          label: true,
           status: true,
           storeName: true,
           storeUrl: true,
@@ -87,19 +89,17 @@ export class WoocommerceService {
           ordersImported: true,
           productsImported: true,
           connectedAt: true,
+          connectionKeyExpiresAt: true,
         },
       }),
     );
-    return conn ?? { status: 'DISCONNECTED' as const };
   }
 
-  /** Corta el grifo: el plugin viejo deja de poder entregar webhooks al instante. */
-  async disconnect(tenantId: string) {
+  /** Corta el grifo de ESA tienda: el plugin viejo deja de poder entregar webhooks al instante. */
+  async disconnect(tenantId: string, connectionId: string) {
     await this.prisma.withTenant(tenantId, async (tx) => {
-      const conn = await tx.ecommerceConnection.findUnique({
-        where: { tenantId_provider: { tenantId, provider: 'WOOCOMMERCE' } },
-      });
-      if (!conn) throw new NotFoundError('No hay ninguna tienda conectada');
+      const conn = await tx.ecommerceConnection.findUnique({ where: { id: connectionId } });
+      if (!conn) throw new NotFoundError('Tienda no encontrada');
       await tx.ingestSource.update({ where: { id: conn.ingestSourceId }, data: { active: false } });
       await tx.ecommerceConnection.update({
         where: { id: conn.id },

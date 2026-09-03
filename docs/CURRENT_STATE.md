@@ -160,8 +160,15 @@ sin claves de API a copiar a mano ni webhooks que configurar en Woo).
 - **`EcommerceConnection`** (nuevo modelo, 1:1 con un `IngestSource`, paralelo
   a `MailConnection`): estado visible en Ajustes, handshake de clave de
   conexión de un solo uso (30 min TTL) → el servidor genera el secreto HMAC
-  real. Módulo `apps/api/src/modules/ecommerce/` (`connect`/`status`/
-  `register` público/`disconnect`).
+  real. Módulo `apps/api/src/modules/ecommerce/` (`connect`/`connections`
+  [lista]/`register` público/`disconnect` por id).
+- **Varias tiendas por tenant, a propósito** (sin `@@unique([tenantId,
+  provider])`): un mismo negocio con instalaciones de WordPress
+  independientes — p. ej. una por idioma — conecta cada una por separado
+  (botón «Añadir tienda», `label` opcional para distinguirlas) y todas
+  alimentan el mismo CRM/tenant. Cada tienda es su propio `IngestSource`/
+  secreto/plugin; el resto del pipeline (Event, CrmSyncService, Catalog) ya
+  era genérico por `IngestSource.id`, sin cambios ahí.
 - **Auto-alta de Cliente**: `CrmSyncService` (`apps/api/src/modules/leads/`)
   se engancha a `IngestService.processBatch` igual que `lifecycle`/
   `playbooks` — si compra alguien sin Lead/Cliente previo, se crea uno en
@@ -179,7 +186,7 @@ sin claves de API a copiar a mano ni webhooks que configurar en Woo).
   pnpm — recurso estático) + `.zip` servido desde
   `apps/web/public/downloads/converflow-woocommerce-latest.zip`.
 - **Fuera de alcance**: suscripciones/renovaciones, reembolsos parciales,
-  pedidos editados a mano, analítica de ingresos, multi-tienda por tenant.
+  pedidos editados a mano, analítica de ingresos agregada entre tiendas.
 
 ## MAIL MODULE — rebuild (greenfield, independiente de Bots)
 

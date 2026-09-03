@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ecommerceRegisterSchema } from '@converflow/shared';
 import { TenantAuthGuard } from '../../common/guards/tenant-auth.guard.js';
@@ -12,25 +12,30 @@ import { WoocommerceService } from './woocommerce.service.js';
 export class WoocommerceController {
   constructor(private readonly woocommerce: WoocommerceService) {}
 
+  /**
+   * Da de alta una tienda NUEVA (varias tiendas por tenant están soportadas
+   * a propósito — p. ej. una instalación de WordPress por idioma del mismo
+   * negocio). `label` es opcional, solo para distinguirlas en la UI.
+   */
   @UseGuards(TenantAuthGuard, PermissionsGuard)
   @RequirePerm('settings')
-  @Get('connect')
-  connect(@CurrentUser() user: AuthenticatedUser) {
-    return this.woocommerce.connect(user.tenantId);
+  @Post('connect')
+  connect(@Body() body: { label?: string } | undefined, @CurrentUser() user: AuthenticatedUser) {
+    return this.woocommerce.connect(user.tenantId, body?.label);
   }
 
   @UseGuards(TenantAuthGuard, PermissionsGuard)
   @RequirePerm('settings')
-  @Get('status')
-  status(@CurrentUser() user: AuthenticatedUser) {
-    return this.woocommerce.status(user.tenantId);
+  @Get('connections')
+  list(@CurrentUser() user: AuthenticatedUser) {
+    return this.woocommerce.list(user.tenantId);
   }
 
   @UseGuards(TenantAuthGuard, PermissionsGuard)
   @RequirePerm('settings')
-  @Delete()
-  disconnect(@CurrentUser() user: AuthenticatedUser) {
-    return this.woocommerce.disconnect(user.tenantId);
+  @Delete(':id')
+  disconnect(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.woocommerce.disconnect(user.tenantId, id);
   }
 
   /**
