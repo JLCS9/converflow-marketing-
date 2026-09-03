@@ -131,6 +131,21 @@ export class IngestService implements OnModuleInit {
       }
       accepted++;
 
+      // Contador visible en Ajustes → Integraciones: cuenta pedidos NUEVOS
+      // (los reintentos deduplicados arriba nunca llegan aquí). No-op
+      // silencioso si `batch.source` no es el id de un IngestSource con
+      // EcommerceConnection asociada (canales que no son e-commerce).
+      if (ev.type === 'purchase') {
+        await this.prisma
+          .withTenant(tenantId, (tx) =>
+            tx.ecommerceConnection.updateMany({
+              where: { ingestSourceId: batch.source },
+              data: { ordersImported: { increment: 1 }, lastSyncedAt: new Date() },
+            }),
+          )
+          .catch((err) => this.logger.warn(`contador de pedidos importados falló: ${err.message}`));
+      }
+
       // 3. Ciclo de vida: solo los eventos NUEVOS transicionan estados.
       if (profile) {
         const newState = await this.lifecycle

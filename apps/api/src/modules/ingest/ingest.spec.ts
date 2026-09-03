@@ -17,7 +17,8 @@ function makeService(over: { duplicateOnSecond?: boolean } = {}) {
     }
     return Promise.resolve({});
   });
-  const tx = { event: { create: eventCreate } };
+  const ecommerceUpdateMany = vi.fn().mockResolvedValue({ count: 0 });
+  const tx = { event: { create: eventCreate }, ecommerceConnection: { updateMany: ecommerceUpdateMany } };
   const prisma = {
     withTenant: (_t: string, fn: (tx: unknown) => unknown) => Promise.resolve(fn(tx)),
     bypass: vi.fn(),
@@ -38,7 +39,7 @@ function makeService(over: { duplicateOnSecond?: boolean } = {}) {
     prisma, profiles as never, lifecycle as never, queue as never, rag as never, playbooks as never,
     reports as never, crmSync as never,
   );
-  return { svc, eventCreate, profiles, lifecycle, queue, playbooks, crmSync };
+  return { svc, eventCreate, profiles, lifecycle, queue, playbooks, crmSync, ecommerceUpdateMany };
 }
 
 const batch = (n: number) => ({
@@ -108,6 +109,38 @@ describe('IngestService.processBatch', () => {
     crmSync.onEvent.mockRejectedValue(new Error('boom'));
     const res = await svc.processBatch('t1', batch(1) as never);
     expect(res).toEqual({ accepted: 1, deduped: 0 });
+  });
+
+  it('un evento purchase NUEVO incrementa el contador de pedidos importados de esa fuente concreta', async () => {
+    const { svc, ecommerceUpdateMany } = makeService();
+    await svc.processBatch('t1', {
+      source: 'src-es', // el id de ESA fuente/tienda concreta, no un nombre genérico
+      events: [{ type: 'purchase', externalId: 'order:1', identity: { email: 'ana@empresa.com' } }],
+    } as never);
+    expect(ecommerceUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { ingestSourceId: 'src-es' },
+        data: expect.objectContaining({ ordersImported: { increment: 1 } }),
+      }),
+    );
+  });
+
+  it('un evento que NO es purchase no toca el contador de pedidos', async () => {
+    const { svc, ecommerceUpdateMany } = makeService();
+    await svc.processBatch('t1', batch(1) as never); // batch() usa type: 'enrollment'
+    expect(ecommerceUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('un purchase deduplicado (reintento) NO vuelve a incrementar el contador', async () => {
+    const { svc, ecommerceUpdateMany } = makeService({ duplicateOnSecond: true });
+    await svc.processBatch('t1', {
+      source: 'src-es',
+      events: [
+        { type: 'purchase', externalId: 'order:1', identity: { email: 'ana@empresa.com' } },
+        { type: 'purchase', externalId: 'order:1', identity: { email: 'ana@empresa.com' } },
+      ],
+    } as never);
+    expect(ecommerceUpdateMany).toHaveBeenCalledTimes(1);
   });
 
   it('ingestBatch valida y encola (202): no escribe nada en línea', async () => {
