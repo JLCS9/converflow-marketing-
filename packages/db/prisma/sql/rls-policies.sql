@@ -480,6 +480,15 @@ CREATE POLICY tenant_isolation ON ingest_sources
   USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
   WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
 
+-- ecommerce_connections (conexión de tienda: WooCommerce/Shopify)
+ALTER TABLE ecommerce_connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ecommerce_connections FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ecommerce_connections;
+CREATE POLICY tenant_isolation ON ecommerce_connections
+  FOR ALL
+  USING (rls_bypass_enabled() OR "tenantId" = current_tenant_id())
+  WITH CHECK (rls_bypass_enabled() OR "tenantId" = current_tenant_id());
+
 -- verified_answers (respuestas verificadas del bucle de mejora)
 ALTER TABLE verified_answers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE verified_answers FORCE ROW LEVEL SECURITY;

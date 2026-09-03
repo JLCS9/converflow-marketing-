@@ -653,6 +653,49 @@ const fr: Messages = {
       redirecting: 'Redirection…',
       connect: 'Connecter Google Calendar',
     },
+    integrations: {
+      title: 'Intégrations',
+      description:
+        'Connectez la boutique du tenant pour récupérer l’historique des commandes, le catalogue produits et déclencher des automatisations depuis un achat.',
+      breadcrumbSettings: 'Configuration',
+      comingSoon: 'Bientôt disponible',
+      comingSoonTooltip: 'Bientôt disponible — nous y travaillons',
+      woocommerce: {
+        title: 'WooCommerce',
+        description:
+          'Installez le plugin propre à Converflow sur votre WordPress : aucune clé API à copier à la main, aucun webhook à configurer vous-même.',
+        statusCONNECTED: 'Connecté',
+        statusPENDING: 'En attente du plugin',
+        statusDEGRADED: 'Avec incidents',
+        statusERROR: 'Erreur',
+        statusDISCONNECTED: 'Non connecté',
+        ordersImported: '{count} commandes importées',
+        productsImported: '{count} produits importés',
+        lastSynced: 'dernière synchronisation {date}',
+        pluginVersion: 'Plugin v{version}',
+        connect: 'Générer une clé de connexion',
+        connecting: 'Génération…',
+        connectedToast: 'Boutique connectée avec succès.',
+        downloadPlugin: 'Télécharger le plugin',
+        disconnect: 'Déconnecter',
+        disconnecting: 'Déconnexion…',
+        disconnectConfirmTitle: 'Déconnecter WooCommerce',
+        disconnectConfirmDescription:
+          'Le plugin ne pourra plus envoyer de commandes ni de produits. L’historique déjà importé n’est pas supprimé.',
+        keyReadyTitle: 'Clé de connexion générée',
+        keyReadyHelp:
+          'Copiez-la et collez-la dans Converflow → Réglages depuis votre WordPress, à côté du plugin déjà installé. Expire dans 30 minutes et ne fonctionne qu’une seule fois.',
+        keyExpiresAt: 'Expire à {time}',
+        copy: 'Copier',
+        copied: 'Copiée',
+        close: 'Fermer',
+        unexpectedError: 'Erreur inattendue',
+      },
+      shopify: {
+        title: 'Shopify',
+        description: 'Même historique des commandes et catalogue produits, pour les boutiques Shopify.',
+      },
+    },
     customFields: {
       title: 'Champs personnalisés',
       description:
@@ -2201,6 +2244,7 @@ const fr: Messages = {
     tabCustomFields: 'Champs personnalisés',
     tabPipelines: 'Tableaux',
     tabDeveloper: 'Développeur',
+    tabIntegrations: 'Intégrations',
     byRole: 'via le rôle',
     permCrm: 'CRM',
     permConversations: 'Conversations',

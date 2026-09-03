@@ -14,5 +14,6 @@ export * from './schemas/campaign';
 export * from './schemas/email-template';
 export * from './schemas/mail';
 export * from './schemas/events';
+export * from './schemas/ecommerce';
 export * from './utils';
 export * as constants from './constants';

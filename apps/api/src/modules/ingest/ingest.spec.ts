@@ -33,11 +33,12 @@ function makeService(over: { duplicateOnSecond?: boolean } = {}) {
     onTransition: vi.fn().mockResolvedValue(undefined),
   };
   const reports = { generate: vi.fn(), pollPendingNarratives: vi.fn() };
+  const crmSync = { onEvent: vi.fn().mockResolvedValue(undefined) };
   const svc = new IngestService(
     prisma, profiles as never, lifecycle as never, queue as never, rag as never, playbooks as never,
-    reports as never,
+    reports as never, crmSync as never,
   );
-  return { svc, eventCreate, profiles, lifecycle, queue, playbooks };
+  return { svc, eventCreate, profiles, lifecycle, queue, playbooks, crmSync };
 }
 
 const batch = (n: number) => ({
@@ -86,6 +87,27 @@ describe('IngestService.processBatch', () => {
     expect(profiles.resolveForEvent).not.toHaveBeenCalled();
     expect(lifecycle.applyEvent).not.toHaveBeenCalled();
     expect(eventCreate.mock.calls[0]![0].data.profileId).toBeUndefined();
+  });
+
+  it('un evento con perfil resuelto dispara crm-sync (p.ej. purchase de WooCommerce) — cualquier fuente', async () => {
+    const { svc, crmSync } = makeService();
+    await svc.processBatch('t1', {
+      source: 'woocommerce',
+      events: [{ type: 'purchase', externalId: 'order:1', identity: { email: 'ana@empresa.com' } }],
+    } as never);
+    expect(crmSync.onEvent).toHaveBeenCalledWith(
+      't1',
+      'woocommerce',
+      { id: 'prof1' },
+      expect.objectContaining({ type: 'purchase' }),
+    );
+  });
+
+  it('un fallo de crm-sync no rompe la ingesta (best-effort, igual que playbooks/lifecycle)', async () => {
+    const { svc, crmSync } = makeService();
+    crmSync.onEvent.mockRejectedValue(new Error('boom'));
+    const res = await svc.processBatch('t1', batch(1) as never);
+    expect(res).toEqual({ accepted: 1, deduped: 0 });
   });
 
   it('ingestBatch valida y encola (202): no escribe nada en línea', async () => {

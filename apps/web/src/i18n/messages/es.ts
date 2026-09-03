@@ -661,6 +661,49 @@ const es = {
       redirecting: 'Redirigiendo…',
       connect: 'Conectar Google Calendar',
     },
+    integrations: {
+      title: 'Integraciones',
+      description:
+        'Conecta la tienda del tenant para traer el histórico de pedidos, el catálogo de productos y disparar automatizaciones desde una compra.',
+      breadcrumbSettings: 'Configuración',
+      comingSoon: 'Próximamente',
+      comingSoonTooltip: 'Próximamente — estamos trabajando en ello',
+      woocommerce: {
+        title: 'WooCommerce',
+        description:
+          'Instala el plugin propio de Converflow en tu WordPress: sin claves de API que copiar a mano ni webhooks que configurar tú mismo.',
+        statusCONNECTED: 'Conectado',
+        statusPENDING: 'Esperando al plugin',
+        statusDEGRADED: 'Con incidencias',
+        statusERROR: 'Error',
+        statusDISCONNECTED: 'Sin conectar',
+        ordersImported: '{count} pedidos importados',
+        productsImported: '{count} productos importados',
+        lastSynced: 'última sincronización {date}',
+        pluginVersion: 'Plugin v{version}',
+        connect: 'Generar clave de conexión',
+        connecting: 'Generando…',
+        connectedToast: 'Tienda conectada correctamente.',
+        downloadPlugin: 'Descargar plugin',
+        disconnect: 'Desconectar',
+        disconnecting: 'Desconectando…',
+        disconnectConfirmTitle: 'Desconectar WooCommerce',
+        disconnectConfirmDescription:
+          'El plugin dejará de poder enviar pedidos y productos. El histórico ya importado no se borra.',
+        keyReadyTitle: 'Clave de conexión generada',
+        keyReadyHelp:
+          'Cópiala y pégala en Converflow → Ajustes dentro de tu WordPress, junto al plugin ya instalado. Caduca en 30 minutos y solo sirve una vez.',
+        keyExpiresAt: 'Caduca a las {time}',
+        copy: 'Copiar',
+        copied: 'Copiada',
+        close: 'Cerrar',
+        unexpectedError: 'Error inesperado',
+      },
+      shopify: {
+        title: 'Shopify',
+        description: 'Mismo histórico de pedidos y catálogo de productos, para tiendas Shopify.',
+      },
+    },
     customFields: {
       title: 'Campos personalizados',
       description:
@@ -2199,6 +2242,7 @@ const es = {
     tabCustomFields: 'Campos personalizados',
     tabPipelines: 'Tableros',
     tabDeveloper: 'Desarrollador',
+    tabIntegrations: 'Integraciones',
     byRole: 'por rol',
     permCrm: 'CRM',
     permConversations: 'Conversaciones',

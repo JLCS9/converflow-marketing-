@@ -36,6 +36,15 @@ interface TimelineInput {
     closedAt: Date | null;
   }[];
   conversations: { id: string; channel: string; createdAt: Date }[];
+  /** Compras/reembolsos del plano de datos (e-commerce, cualquier fuente). */
+  purchaseEvents?: {
+    /** 'purchase' | 'refund'. */
+    type: string;
+    /** Adaptador emisor: 'woocommerce'… */
+    source: string;
+    occurredAt: Date;
+    props: Record<string, unknown>;
+  }[];
 }
 
 export function buildLeadTimeline(input: TimelineInput): LeadTimelineEvent[] {
@@ -68,6 +77,12 @@ export function buildLeadTimeline(input: TimelineInput): LeadTimelineEvent[] {
       conversationId: conv.id,
       channel: conv.channel,
     });
+  }
+
+  // Compras/reembolsos de e-commerce — conviven con las compras derivadas de
+  // Oportunidades ganadas de arriba (distinto `source`, sin colisión).
+  for (const ev of input.purchaseEvents ?? []) {
+    push(ev.type, ev.occurredAt, ev.source, ev.props);
   }
 
   // Newest first — the UI shows the rail top-down.

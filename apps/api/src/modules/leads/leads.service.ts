@@ -12,6 +12,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { ScoringRunner } from '../agents/agent-runners/scoring.js';
 import { buildLeadTimeline } from './lead-timeline.js';
+import { mirrorLeadToClient } from './lead-client-mirror.js';
 import { AiService } from '../../common/ai/ai.service.js';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service.js';
 
@@ -126,6 +127,7 @@ export class LeadsService {
           contactedAt: true,
           qualifiedAt: true,
           convertedAt: true,
+          profileId: true,
           opportunities: {
             select: {
               id: true,
@@ -141,10 +143,33 @@ export class LeadsService {
         },
       });
       if (!lead) throw new NotFoundError('Lead no encontrado');
+
+      // Compras del plano de datos (e-commerce) — solo si el lead ya tiene un
+      // Profile enlazado (ProfilesService.resolveForEvent / CrmSyncService lo
+      // hacen al llegar la primera compra). Un reembolso NO añade su propia
+      // fila al timeline: CrmSyncService anota `refundedAt` en el Event de
+      // `purchase` original, y es esa fila (ya marcada) la que se pinta aquí
+      // — una fila 'refund' aparte sería una segunda entrada redundante para
+      // el mismo pedido.
+      const purchaseEvents = lead.profileId
+        ? await tx.event.findMany({
+            where: { tenantId, profileId: lead.profileId, type: 'purchase' },
+            orderBy: { occurredAt: 'desc' },
+            take: 50,
+            select: { type: true, source: true, occurredAt: true, props: true },
+          })
+        : [];
+
       return buildLeadTimeline({
         lead,
         opportunities: lead.opportunities,
         conversations: lead.conversations,
+        purchaseEvents: purchaseEvents.map((ev) => ({
+          type: ev.type,
+          source: ev.source,
+          occurredAt: ev.occurredAt,
+          props: (ev.props as Record<string, unknown>) ?? {},
+        })),
       });
     });
   }
@@ -190,28 +215,9 @@ export class LeadsService {
 
       // When a lead is marked CLIENT it gets mirrored in the Client table for
       // legacy compatibility (the unified data model lives on Lead, but tasks
-      // and opportunities still reference Client). We try to reuse a matching
-      // client row by email before creating a new one.
-      let clientId = lead.clientId ?? undefined;
-      if (data.status === 'CLIENT' && !lead.clientId) {
-        const existing = lead.email
-          ? await tx.client.findFirst({ where: { email: lead.email } })
-          : null;
-        const client =
-          existing ??
-          (await tx.client.create({
-            data: {
-              tenantId,
-              name: lead.company?.trim() || lead.name,
-              email: lead.email,
-              phone: lead.phone,
-              source: lead.source,
-              ownerId: lead.ownerId,
-              status: 'ACTIVE',
-            },
-          }));
-        clientId = client.id;
-      }
+      // and opportunities still reference Client) — see lead-client-mirror.ts.
+      const clientId =
+        data.status === 'CLIENT' ? await mirrorLeadToClient(tx, tenantId, lead) : (lead.clientId ?? undefined);
 
       const dataWithStamps = {
         ...data,

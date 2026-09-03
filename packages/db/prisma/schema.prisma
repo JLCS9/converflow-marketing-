@@ -175,6 +175,7 @@ model Tenant {
   lifecycleStates          LifecycleState[]
   consents                 Consent[]
   ingestSources            IngestSource[]
+  ecommerceConnections     EcommerceConnection[]
   verifiedAnswers          VerifiedAnswer[]
   tenantInstructions       TenantInstruction[]
   knowledgeGaps            KnowledgeGap[]
@@ -1788,6 +1789,81 @@ model IngestSource {
 
   @@index([tenantId])
   @@map("ingest_sources")
+
+  ecommerceConnection EcommerceConnection?
+}
+
+enum EcommerceProvider {
+  WOOCOMMERCE
+  /// Reservado — sin lógica todavía, mismo patrón que los drivers de mail
+  /// no implementados (OAUTH_GOOGLE, etc.): el enum ya modela el futuro.
+  SHOPIFY
+}
+
+enum EcommerceConnStatus {
+  PENDING
+  CONNECTED
+  DEGRADED
+  ERROR
+  DISCONNECTED
+}
+
+enum EcommerceBackfillStatus {
+  NONE
+  RUNNING
+  DONE
+  FAILED
+}
+
+/// Conexión de tienda (integración e-commerce, cualquier vertical). 1:1 con
+/// un IngestSource — reutiliza su id/secret/URL de webhook (autenticación
+/// HMAC ya resuelta) y añade el estado "visible en Ajustes" que IngestSource
+/// deliberadamente no tiene (es genérico para brevo/learndash/generic).
+/// La clave de conexión (connectionKey*) es un secreto de UN SOLO USO que el
+/// humano pega en el plugin para el handshake inicial — el secreto que firma
+/// cada webhook de verdad vive en IngestSource.secret, generado por el
+/// servidor, nunca tecleado.
+model EcommerceConnection {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  provider       EcommerceProvider @default(WOOCOMMERCE)
+  ingestSourceId String            @unique
+  ingestSource   IngestSource      @relation(fields: [ingestSourceId], references: [id], onDelete: Cascade)
+
+  storeName     String?
+  storeUrl      String?
+  /// Reportado por el plugin en cada webhook (header x-cf-plugin-version).
+  pluginVersion String?
+
+  status       EcommerceConnStatus @default(PENDING)
+  lastError    String?
+  lastSyncedAt DateTime?
+
+  ordersImported   Int @default(0)
+  productsImported Int @default(0)
+
+  /// Handshake de un solo uso — ver comentario del modelo. `Prefix` es la
+  /// clave de búsqueda pública (como ApiKey.prefix); `Hash` es lo que se
+  /// compara de verdad, nunca el secreto en claro.
+  connectionKeyPrefix    String?   @unique
+  connectionKeyHash      String?
+  connectionKeyExpiresAt DateTime?
+  connectedAt            DateTime?
+  disconnectedAt         DateTime?
+
+  backfillStatus EcommerceBackfillStatus @default(NONE)
+  /// Progreso informativo que reporta el plugin durante el backfill inicial.
+  backfillCursor Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Una tienda activa por proveedor y tenant (MVP: sin multi-tienda).
+  @@unique([tenantId, provider])
+  @@index([tenantId])
+  @@map("ecommerce_connections")
 }
 
 /// Respuesta verificada (F2): par pregunta→respuesta GENERALIZADO que nace
