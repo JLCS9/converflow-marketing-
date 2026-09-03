@@ -23,6 +23,74 @@ function makeService(over: {
   return { svc: new ReportsService(prisma), aggregate };
 }
 
+/**
+ * BUG arreglado: overview() seguía agrupando leads por el modelo legado de
+ * 5 estados (NEW/CONTACTED/QUALIFIED/CONVERTED/LOST) — el status real de un
+ * Lead vive en el triplete LEAD/CLIENT/LOST desde hace tiempo. Con el mapa
+ * viejo, TODO lead moderno (incluidos los de la integración WooCommerce)
+ * quedaba sin contar: total de leads, tasa de conversión y el embudo del
+ * panel de inicio siempre en cero pese a haber datos reales.
+ */
+function makeOverviewService(leadsByStatus: { status: string; _count: { _all: number } }[]) {
+  const tx = {
+    lead: {
+      groupBy: vi.fn().mockImplementation(({ by }) =>
+        Promise.resolve(by[0] === 'status' ? leadsByStatus : []),
+      ),
+    },
+    opportunity: {
+      groupBy: vi.fn().mockResolvedValue([]),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    task: { count: vi.fn().mockResolvedValue(0) },
+    client: { count: vi.fn().mockResolvedValue(0) },
+  };
+  const prisma = {
+    withTenant: (_t: string, fn: (tx: unknown) => unknown) => Promise.resolve(fn(tx)),
+  } as never;
+  return { svc: new ReportsService(prisma) };
+}
+
+describe('ReportsService.overview — modelo de status del Lead', () => {
+  it('cuenta leads con status canónico LEAD/CLIENT/LOST (no solo los 5 valores legacy)', async () => {
+    const { svc } = makeOverviewService([
+      { status: 'LEAD', _count: { _all: 10 } },
+      { status: 'CLIENT', _count: { _all: 4 } },
+      { status: 'LOST', _count: { _all: 2 } },
+    ]);
+    const res = await svc.overview('t1');
+    expect(res.leads.total).toBe(16);
+    expect(res.leads.byStatus).toEqual(
+      expect.arrayContaining([
+        { status: 'LEAD', count: 10 },
+        { status: 'CLIENT', count: 4 },
+        { status: 'LOST', count: 2 },
+      ]),
+    );
+  });
+
+  it('la tasa de conversión sale de CLIENT, no del legacy CONVERTED', async () => {
+    const { svc } = makeOverviewService([
+      { status: 'LEAD', _count: { _all: 6 } },
+      { status: 'CLIENT', _count: { _all: 4 } },
+    ]);
+    const res = await svc.overview('t1');
+    expect(res.leads.conversionRate).toBeCloseTo(0.4);
+  });
+
+  it('una fila con status legacy sin migrar (NEW/CONTACTED/QUALIFIED/CONVERTED) se colapsa a su canónico', async () => {
+    const { svc } = makeOverviewService([
+      { status: 'NEW', _count: { _all: 3 } },
+      { status: 'CONTACTED', _count: { _all: 2 } },
+      { status: 'CONVERTED', _count: { _all: 5 } },
+    ]);
+    const res = await svc.overview('t1');
+    expect(res.leads.total).toBe(10); // nada se pierde
+    expect(res.leads.byStatus.find((s) => s.status === 'LEAD')?.count).toBe(5); // NEW+CONTACTED
+    expect(res.leads.byStatus.find((s) => s.status === 'CLIENT')?.count).toBe(5); // CONVERTED
+  });
+});
+
 describe('ReportsService.economics', () => {
   it('sin from/to → usa los últimos 30 días por defecto', async () => {
     const { svc, aggregate } = makeService();

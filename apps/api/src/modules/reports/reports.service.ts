@@ -1,7 +1,27 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 
-const LEAD_STATUSES = ['NEW', 'CONTACTED', 'QUALIFIED', 'CONVERTED', 'LOST'] as const;
+// El status del Lead vive en el triplete canónico LEAD/CLIENT/LOST desde
+// hace tiempo (LEAD_STATUS_COLOR en apps/web/src/lib/labels.ts documenta lo
+// mismo), pero el enum de Prisma todavía admite los valores legacy
+// (NEW/CONTACTED/QUALIFIED/CONVERTED) por si quedara alguna fila sin
+// migrar. BUG encontrado en este arreglo: este fichero seguía agrupando por
+// los 5 valores legacy — cualquier lead con status LEAD/CLIENT (la inmensa
+// mayoría, incluidos TODOS los dados de alta por la integración WooCommerce)
+// nunca se contaba, dejando el total de leads, la tasa de conversión y el
+// embudo del panel de inicio en cero pase lo que pase con los datos reales.
+// Se colapsa aquí el valor crudo a su equivalente canónico para contar bien
+// tanto si la fila ya está migrada como si no.
+const LEAD_STATUS_ALIAS: Record<string, 'LEAD' | 'CLIENT' | 'LOST'> = {
+  LEAD: 'LEAD',
+  NEW: 'LEAD',
+  CONTACTED: 'LEAD',
+  QUALIFIED: 'LEAD',
+  CLIENT: 'CLIENT',
+  CONVERTED: 'CLIENT',
+  LOST: 'LOST',
+};
+const LEAD_STATUSES = ['LEAD', 'CLIENT', 'LOST'] as const;
 const OPP_STAGES = ['OPEN', 'QUOTED', 'NEGOTIATING', 'WON', 'LOST'] as const;
 const OPEN_OPP_STAGES = ['OPEN', 'QUOTED', 'NEGOTIATING'] as const;
 
@@ -90,13 +110,17 @@ export class ReportsService {
         tx.client.count({ where: { status: 'ACTIVE' } }),
       ]);
 
-      const statusCounts = new Map(leadsByStatus.map((r) => [r.status, r._count._all]));
+      const statusCounts = new Map<string, number>();
+      for (const r of leadsByStatus) {
+        const canonical = LEAD_STATUS_ALIAS[r.status] ?? 'LEAD';
+        statusCounts.set(canonical, (statusCounts.get(canonical) ?? 0) + r._count._all);
+      }
       const byStatus = LEAD_STATUSES.map((status) => ({
         status,
         count: statusCounts.get(status) ?? 0,
       }));
       const totalLeads = byStatus.reduce((sum, r) => sum + r.count, 0);
-      const convertedLeads = statusCounts.get('CONVERTED') ?? 0;
+      const convertedLeads = statusCounts.get('CLIENT') ?? 0;
 
       const bySource = leadsBySourceRaw
         .map((r) => ({ source: r.source ?? 'desconocida', count: r._count._all }))
