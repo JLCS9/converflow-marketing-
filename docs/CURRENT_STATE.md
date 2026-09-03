@@ -2,7 +2,7 @@
 
 > Single source of truth. Update after every sprint. If reading this in a new session, you can skip 100% of conversation history and rely on this file + the repo.
 
-**Last sync (2026-09-03):** **INTEGRACIÓN E-COMMERCE WOOCOMMERCE** (Shopify «Próximamente») — ver sección «Integración e-commerce — WooCommerce» más abajo: plugin propio de WordPress, `EcommerceConnection`, auto-alta de Cliente desde compras, catálogo, timeline. RLS ahora en **56 tablas**. Antes de eso: **MOTOR DE IA COMPLETO + ATENCIÓN AUTÓNOMA MULTICANAL EN PROD** — ver la sección «IA — Motor, Convergencia y Atención autónoma» más abajo. Manual de usuario en `docs/manual-asistente-ia.md`. Lo anterior sigue siendo válido como historia: **MAIL MODULE rebuild — Fase 2 COMPLETA** (Fases 1, 2.1–2.5 en `main`): bandeja unificada dentro de Conversaciones→Correo, sidebar colapsable, ajustes en `/app/mail/ajustes`, búsqueda, adjuntos R2 y buzón compartido (asignación/estado/notas/anti-colisión). ⚠️ deploy 2.5 = `db push` + `apply:rls`. Siguiente: Fase 3 (transaccional) → Fase 4 (campañas). Ver sección "MAIL MODULE — rebuild". Antes de eso se hizo: feature de **Soporte/tickets**, **Campañas v1** (email/WhatsApp), **email pro** (compositor Tiptap, plantillas GrapesJS/MJML, adjuntos) — ese email es el "intento previo" que se está sustituyendo. **Incidente operativo resuelto**: disco del VPS por caché de build (limpiado + `daemon.json` con GC 10GB + rotación de logs); proyecto viejo `converflow` (Clerk) eliminado del VPS; saldo Anthropic agotado (recargado). **LIVE in prod**: Sprint 7 (WhatsApp Baileys 7), Sprint 8 (Conversaciones inbox with channel-aware reply: text/emoji/documents + one-click AI suggestion send), **Agents v1a/b/d** (self-service builder + playground + tool execution + AUTO mode with AI disclosure + rate limit), **Design v2** (fixed shell, icon sidebar with expandable groups, "Hoy" home), **Web chat** (embeddable widget + agent auto-reply), **Email channel** (Resend system path + tenant **self-service IMAP/SMTP** with encrypted creds + workers IMAP poller), **Lead→Cliente** auto-conversion. (Kit Digital product side complete since Sprint 5: 17/18, #18 user-owned.) **Pending**: Agents v1c RAG (needs embeddings key from user), historical metrics for Hoy home (sparklines/IA-semana), WhatsApp Cloud API upgrade.
+**Last sync (2026-09-03):** **CRM + Inteligencia de Negocio + Navbar** — ver sección «CRM + Inteligencia de Negocio + Navbar» más abajo: compra de e-commerce → Oportunidad ganada (nombre real del producto, fecha real del pedido), filtro de fechas compartido (30 días por defecto) en Oportunidades y en un widget de ventas nuevo del panel de inicio, paginación real de Contactos (el bug que ocultaba leads antiguos), y IA sube a un puesto fijo en el navbar con notificación de preguntas sin responder. Justo antes: **INTEGRACIÓN E-COMMERCE WOOCOMMERCE** (Shopify «Próximamente») — ver sección «Integración e-commerce — WooCommerce» más abajo: plugin propio de WordPress, `EcommerceConnection`, auto-alta de Cliente desde compras, catálogo, timeline. RLS en **56 tablas**. Antes de eso: **MOTOR DE IA COMPLETO + ATENCIÓN AUTÓNOMA MULTICANAL EN PROD** — ver la sección «IA — Motor, Convergencia y Atención autónoma» más abajo. Manual de usuario en `docs/manual-asistente-ia.md`. Lo anterior sigue siendo válido como historia: **MAIL MODULE rebuild — Fase 2 COMPLETA** (Fases 1, 2.1–2.5 en `main`): bandeja unificada dentro de Conversaciones→Correo, sidebar colapsable, ajustes en `/app/mail/ajustes`, búsqueda, adjuntos R2 y buzón compartido (asignación/estado/notas/anti-colisión). ⚠️ deploy 2.5 = `db push` + `apply:rls`. Siguiente: Fase 3 (transaccional) → Fase 4 (campañas). Ver sección "MAIL MODULE — rebuild". Antes de eso se hizo: feature de **Soporte/tickets**, **Campañas v1** (email/WhatsApp), **email pro** (compositor Tiptap, plantillas GrapesJS/MJML, adjuntos) — ese email es el "intento previo" que se está sustituyendo. **Incidente operativo resuelto**: disco del VPS por caché de build (limpiado + `daemon.json` con GC 10GB + rotación de logs); proyecto viejo `converflow` (Clerk) eliminado del VPS; saldo Anthropic agotado (recargado). **LIVE in prod**: Sprint 7 (WhatsApp Baileys 7), Sprint 8 (Conversaciones inbox with channel-aware reply: text/emoji/documents + one-click AI suggestion send), **Agents v1a/b/d** (self-service builder + playground + tool execution + AUTO mode with AI disclosure + rate limit), **Design v2** (fixed shell, icon sidebar with expandable groups, "Hoy" home), **Web chat** (embeddable widget + agent auto-reply), **Email channel** (Resend system path + tenant **self-service IMAP/SMTP** with encrypted creds + workers IMAP poller), **Lead→Cliente** auto-conversion. (Kit Digital product side complete since Sprint 5: 17/18, #18 user-owned.) **Pending**: Agents v1c RAG (needs embeddings key from user), historical metrics for Hoy home (sparklines/IA-semana), WhatsApp Cloud API upgrade.
 
 > **Cross-tenant isolation:** ✅ FIXED & VERIFIED. API now connects as non-superuser
 > `converflow_app` so RLS is enforced. A new tenant sees ONLY its own data. This was
@@ -186,7 +186,77 @@ sin claves de API a copiar a mano ni webhooks que configurar en Woo).
   pnpm — recurso estático) + `.zip` servido desde
   `apps/web/public/downloads/converflow-woocommerce-latest.zip`.
 - **Fuera de alcance**: suscripciones/renovaciones, reembolsos parciales,
-  pedidos editados a mano, analítica de ingresos agregada entre tiendas.
+  pedidos editados a mano.
+
+## CRM + Inteligencia de Negocio + Navbar (2026-09, sprint de consolidación)
+
+Conecta las piezas ya construidas (WooCommerce, CRM, panel de inicio, IA)
+bajo un mismo criterio, y corrige dos bugs reales encontrados al usarlo:
+
+- **Bug — Contactos sin paginación real**: `contacts/page.tsx` pedía siempre
+  `limit=100` sin `offset` y solo re-cortaba (`.slice`) ese mismo array en
+  memoria — la página 3 en adelante SIEMPRE salía vacía, y cualquier
+  contacto fuera del top-100/1000 por `createdAt desc` (p. ej. anterior a
+  una integración que trajo muchos leads nuevos de golpe) nunca llegaba a
+  pedirse. Fix: `fetchLimit = page * PAGE_SIZE` (cubre correctamente hasta la
+  página pedida tras fusionar Lead+Client) + `GET /clients/count` nuevo
+  (`GET /leads/count` ya existía) para un footer con página real. Se
+  reactivó `LeadsPagination` (existía completa, sin ningún uso) → movida y
+  adaptada a `contacts/pagination.tsx` (`ContactsPagination`).
+- **Compra de e-commerce → Oportunidad ganada** (antes solo creaba/promovía
+  el Cliente, nunca tocaba el pipeline comercial): `PurchaseOpportunityService`
+  (`apps/api/src/modules/opportunities/`), enganchado a `IngestService`
+  justo después de `CrmSyncService` (resuelve el Lead por `profileId`, que
+  `CrmSyncService` acaba de enlazar — servicios independientes, nada viaja
+  entre ellos por parámetro). **Una Oportunidad por PEDIDO** (no por línea de
+  producto), `name` = el producto real (`props.lineItems[].name`, ya lo
+  manda el plugin — sin cruzar con `CatalogItem`) o "primero +N más" si hay
+  varios. `status: WON`, `createdAt`/`closedAt` = la fecha REAL del pedido
+  (nunca "ahora" — imprescindible para el bloque de BI de abajo).
+  `Opportunity` gana `source`/`externalId` (dedupe `@@unique`, mismo patrón
+  que `Event`/`CatalogItem`). Reembolso → nota visible en la Oportunidad
+  (`tx.note.create`, `authorId:'system'` — las notas de Oportunidad no
+  muestran autor en la UI), sin revertir `WON→LOST` (mismo criterio
+  conservador que el Lead). **Backfill** de las compras que ya estaban en
+  producción antes de este servicio:
+  `apps/api/scripts/backfill-purchase-opportunities.cjs` (`--apply` para
+  escribir; reutiliza el mismo `resolveStageForStatus`/`syncStatusFromStage`
+  /`opportunityName` requeridos del `dist` compilado — cero reglas de
+  negocio reimplementadas).
+- **Deuda reducida de paso**: `resolveStageForStatus`/`syncStatusFromStage`
+  (antes solo inline en `OpportunitiesService.create()`) extraídas a
+  `pipelines.service.ts`, compartidas por el alta manual y la automática.
+- **Bloque de Inteligencia de Negocio** — antes NINGÚN agregado económico
+  tenía rango de fechas configurable (`overview()` es todo-el-tiempo,
+  `series()` es una ventana fija de 14 días, ninguno sirve como filtro):
+  - `ReportsService.economics(tenantId, {from, to, source})` — nuevo,
+    default últimos 30 días. `source:'automated'` filtra cualquier
+    procedencia automática (no solo `'woocommerce'`).
+  - Componente compartido `apps/web/src/components/ui/date-range-filter.tsx`
+    (presets 7/30/90 días, mes, trimestre, personalizado) usado en
+    Oportunidades y en el nuevo widget de inicio — mismo criterio en toda
+    la app, un solo sitio para mantenerlo.
+  - **Oportunidades filtra SOLO lo cerrado** (`closedAt` de WON/LOST) por el
+    rango elegido — las oportunidades ABIERTAS se ven SIEMPRE, pase lo que
+    pase con el filtro: el tablero es una herramienta de trabajo del
+    pipeline activo, no un informe; esconder un trato de hace 2 meses que
+    alguien sigue moviendo sería un defecto, no una función de BI.
+  - Widget nuevo `ecommerce-sales` en el panel de inicio (`defaultOn:
+    false`, como `unread-mail`/`sources`) con su PROPIO selector de rango
+    (cambiar el preset vuelve a pedir `economics()` sin recargar la
+    página) — a diferencia del resto de widgets, que pintan datos ya
+    traídos por el servidor con ventana fija.
+- **Navbar**: IA sale del bloque genérico de secciones y sube a un puesto
+  fijo justo bajo «Inicio» (antes iba después de Conversaciones/Alertas/
+  Tareas); icono `Bot` → `Brain`. Notificación (mismo patrón que el badge de
+  Mensajes: poll 20s, seed server-side en `layout.tsx`) = preguntas sin
+  responder — `GET /knowledge/gaps/count` nuevo, misma query que
+  `ReportsService.attention().openGaps` pero expuesta aparte para no traer
+  todo ese agregado solo para un número del sidebar.
+- **Deuda de lint arreglada de paso**: los scripts `.cjs` de operación no
+  tenían declarados `__dirname`/`setTimeout`/etc. como globales de Node en
+  `eslint.config.mjs` — arreglado en el sitio común, corrige también un
+  error preexistente en `demo-mail.local.cjs`.
 
 ## MAIL MODULE — rebuild (greenfield, independiente de Bots)
 

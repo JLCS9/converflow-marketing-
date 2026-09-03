@@ -9,7 +9,7 @@ import {
 } from '@converflow/shared';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service.js';
-import { PipelinesService } from '../pipelines/pipelines.service.js';
+import { PipelinesService, resolveStageForStatus, syncStatusFromStage } from '../pipelines/pipelines.service.js';
 
 interface ListOpts {
   status?: string;
@@ -18,7 +18,14 @@ interface ListOpts {
   search?: string;
   limit?: number;
   offset?: number;
+  /** Bloque de Inteligencia de Negocio — ver el comentario de `list()`. */
+  from?: Date;
+  to?: Date;
 }
+
+const OPEN_STATUSES = ['OPEN', 'QUOTED', 'NEGOTIATING'] as const;
+const CLOSED_STATUSES = ['WON', 'LOST'] as const;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const STAGE_INCLUDE = {
   lead: { select: { id: true, name: true, email: true, company: true } },
@@ -35,7 +42,27 @@ export class OpportunitiesService {
     private readonly pipelines: PipelinesService,
   ) {}
 
+  /**
+   * Bloque de Inteligencia de Negocio: `from`/`to` (por defecto últimos 30
+   * días si se omiten AMBOS — igual que `ReportsService.economics()`, para
+   * que el tablero y el widget de inicio arranquen con el mismo criterio)
+   * acotan lo CERRADO (`closedAt` de WON/LOST) al rango elegido — "cuánto
+   * cerramos este periodo". Las oportunidades ABIERTAS quedan SIEMPRE
+   * visibles pase lo que pase con el rango: el tablero es una herramienta de
+   * trabajo del pipeline activo, no un informe — filtrar por fecha de
+   * creación escondería un trato de hace 60 días que un comercial todavía
+   * está moviendo, y eso sería un defecto, no una función de BI.
+   */
   list(tenantId: string, opts: ListOpts = {}) {
+    const to = opts.to ?? new Date();
+    const from = opts.from ?? new Date(to.getTime() - 30 * DAY_MS);
+    const dateFilter = {
+      OR: [
+        { status: { in: [...OPEN_STATUSES] } },
+        { status: { in: [...CLOSED_STATUSES] }, closedAt: { gte: from, lte: to } },
+      ],
+    };
+
     return this.prisma.withTenant(tenantId, (tx) =>
       tx.opportunity.findMany({
         where: {
@@ -45,6 +72,7 @@ export class OpportunitiesService {
           name: opts.search
             ? { contains: opts.search, mode: 'insensitive' }
             : undefined,
+          ...dateFilter,
         },
         orderBy: { createdAt: 'desc' },
         take: opts.limit ?? 200,
@@ -97,15 +125,7 @@ export class OpportunitiesService {
       if (def) {
         pipelineId = pipelineId ?? def.id;
         if (!stageId) {
-          // Pick stage matching the requested status (by isWon/isLost), else
-          // the first stage in order.
-          let candidate = def.stages[0];
-          if (data.status === 'WON') candidate = def.stages.find((s) => s.isWon) ?? candidate;
-          else if (data.status === 'LOST') candidate = def.stages.find((s) => s.isLost) ?? candidate;
-          else if (data.status) {
-            const byKey = def.stages.find((s) => s.key === data.status);
-            if (byKey) candidate = byKey;
-          }
+          const candidate = resolveStageForStatus(def, data.status);
           stageId = candidate?.id;
           if (candidate) status = syncStatusFromStage(candidate, status);
         }
@@ -245,18 +265,4 @@ export class OpportunitiesService {
       }));
     });
   }
-}
-
-function syncStatusFromStage(
-  stage: { isWon: boolean; isLost: boolean; key: string },
-  fallback: 'OPEN' | 'QUOTED' | 'NEGOTIATING' | 'WON' | 'LOST',
-): 'OPEN' | 'QUOTED' | 'NEGOTIATING' | 'WON' | 'LOST' {
-  if (stage.isWon) return 'WON';
-  if (stage.isLost) return 'LOST';
-  const known = ['OPEN', 'QUOTED', 'NEGOTIATING'] as const;
-  if ((known as readonly string[]).includes(stage.key)) {
-    return stage.key as 'OPEN' | 'QUOTED' | 'NEGOTIATING';
-  }
-  if (fallback === 'WON' || fallback === 'LOST') return 'OPEN';
-  return fallback;
 }

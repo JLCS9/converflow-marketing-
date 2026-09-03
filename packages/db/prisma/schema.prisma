@@ -620,6 +620,14 @@ model Opportunity {
   proposalUrl  String?
   customFields Json?
 
+  /// Procedencia de la venta: 'woocommerce'… — null = alta manual del equipo
+  /// comercial (mismo significado que Lead.source/Client.source). Junto con
+  /// `externalId`, identifica de forma única el pedido de origen que la creó.
+  source     String?
+  /// "order:<id del pedido>" — dedupe ante reintentos de webhook o una
+  /// segunda pasada del backfill, mismo patrón que Event/CatalogItem.
+  externalId String?
+
   pipelineId String?
   pipeline   Pipeline?      @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
   stageId    String?
@@ -633,9 +641,13 @@ model Opportunity {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([tenantId, source, externalId])
   @@index([tenantId, status])
   @@index([tenantId, expectedCloseDate])
   @@index([tenantId, pipelineId, stageId])
+  /// Bloque de Inteligencia de Negocio: filtrar ventas ganadas por rango de
+  /// fecha real de cierre es la consulta central de Oportunidades/economics().
+  @@index([tenantId, closedAt])
   @@map("opportunities")
 }
 

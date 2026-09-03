@@ -268,6 +268,13 @@ const es = {
     wKpis: 'Indicadores (KPIs)',
     wQueue: 'Tu cola de hoy',
     wAiWeek: 'Pulso del Asistente',
+    wEcommerceSales: 'Ventas',
+    ecommerceOrders: 'Pedidos',
+    ecommerceRevenue: 'Ingresos',
+    ecommerceAvgTicket: 'Ticket medio',
+    ecommerceViewInOpportunities: 'Ver en Oportunidades',
+    ecommerceEmpty: 'Conecta tu tienda para ver aquí tus ventas automáticamente.',
+    ecommerceEmptyCta: 'Conectar una tienda',
     wFunnel: 'Embudo de leads',
     wSources: 'Leads por fuente',
     wRecentDocs: 'Documentos recientes',
@@ -396,6 +403,14 @@ const es = {
     search: 'Buscar',
     close: 'Cerrar',
   },
+  dateRange: {
+    last7: 'Últimos 7 días',
+    last30: 'Últimos 30 días',
+    last90: 'Últimos 90 días',
+    thisMonth: 'Este mes',
+    thisQuarter: 'Este trimestre',
+    custom: 'Personalizado',
+  },
   crm: {
     pagination: 'Paginación',
     prevPage: 'Página anterior',
@@ -508,6 +523,7 @@ const es = {
     searchPlaceholder: 'Buscar…',
   },
   contacts: {
+    paginationSummary: 'Página {page} de {totalPages} · {total} contactos',
     title: 'Contactos',
     subtitle: 'Leads y clientes en una sola lista. Los filtros se comparten por URL.',
     type: 'Tipo',
@@ -528,6 +544,7 @@ const es = {
       'Los leads que pasen a ganado se convierten automáticamente en clientes. También puedes darlos de alta a mano.',
   },
   opportunities: {
+    closedInRange: 'Ganadas/perdidas cerradas en:',
     saveErrorMsg: 'No se pudo guardar',
     unexpected: 'Error inesperado',
     moveError: 'No se pudo mover la oportunidad',
@@ -1743,6 +1760,7 @@ const es = {
       importCsv: 'Importar leads desde CSV',
       aiScoring: 'Puntuar leads con IA',
       opportunities: 'Oportunidades y pipelines',
+      ecommerce: 'Conectar tu tienda (WooCommerce)',
       fields: 'Campos personalizados',
       users: 'Usuarios y permisos',
       api: 'API para desarrolladores',
@@ -1816,6 +1834,18 @@ const es = {
       item2:
         'Crea oportunidades a mano desde el detalle de un lead, o deja que el agente de Oportunidades las abra automáticamente cuando detecte interés.',
       item3: 'Cada movimiento de etapa queda registrado en el historial con quién y cuándo.',
+    },
+    ec: {
+      intro:
+        'Conecta tu tienda y Converflow se encarga del resto: cada compra crea o actualiza la ficha del cliente y queda registrada como una venta ganada en tu pipeline, con el producto y el importe reales — sin que tengas que introducir nada a mano.',
+      item1:
+        'Ve a <link>Ajustes → Integraciones</link> y pulsa «Añadir tienda». Instala el plugin en tu WordPress (se descarga desde ahí mismo) y pega la clave de conexión que te da Converflow — la tienda queda enlazada en el momento.',
+      item2:
+        'A partir de ahí, cada pedido pagado se refleja solo: el comprador aparece como cliente (o se actualiza si ya lo era) y la venta entra en Oportunidades como ganada, con el nombre real de lo comprado y la fecha real del pedido.',
+      item3:
+        'Si tu negocio tiene varias tiendas (por ejemplo, una instalación distinta por idioma), conéctalas todas por separado con «Añadir tienda»: cada una con su propia clave, todas alimentando el mismo panel.',
+      item4:
+        'En <link>Oportunidades</link> y en el widget de ventas del inicio puedes filtrar por fecha (últimos 30 días por defecto, o el periodo que elijas) para ver de un vistazo cuánto se ha vendido.',
     },
     fl: {
       intro: 'Puedes ampliar el modelo de datos de leads, clientes y oportunidades sin tocar código.',

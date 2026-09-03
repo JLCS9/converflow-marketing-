@@ -6,28 +6,32 @@ import { useTranslations } from 'next-intl';
 interface Props {
   page: number;
   totalPages: number;
-  perPage: number;
   total: number;
   filterQs: string;
 }
 
 /**
- * Numeric pagination footer: « ‹ 1 … 4 [5] 6 … 12 › »
- * Builds links from filterQs so the existing status/search filters survive the
- * page change.
+ * Paginación numérica del footer: « ‹ 1 … 4 [5] 6 … 12 › ». Construye los
+ * enlaces a partir de `filterQs` para que los filtros ya aplicados
+ * (estado/origen/fechas/búsqueda…) sobrevivan al cambio de página.
+ *
+ * Movido desde `/app/leads/pagination.tsx` (existía, sin ningún uso — la
+ * lista real vive en `/app/contacts` desde la unificación Lead+Client) y
+ * adaptado: la ruta base ahora es `/app/contacts`, y sin `perPage` en la URL
+ * porque esta página no lo expone como parámetro (tamaño de página fijo).
  */
-export function LeadsPagination({ page, totalPages, perPage, total, filterQs }: Props) {
+export function ContactsPagination({ page, totalPages, total, filterQs }: Props) {
   const t = useTranslations('crm');
+  const tContacts = useTranslations('contacts');
   if (totalPages <= 1) return null;
 
   function href(p: number) {
     const qs = new URLSearchParams(filterQs);
     qs.set('page', String(p));
-    qs.set('perPage', String(perPage));
-    return `/app/leads?${qs.toString()}`;
+    return `/app/contacts?${qs.toString()}`;
   }
 
-  // Compact page-window: first, last and 5 around current.
+  // Ventana compacta de páginas: primera, última y 5 alrededor de la actual.
   const pages: number[] = [];
   const push = (n: number) => {
     if (n >= 1 && n <= totalPages && !pages.includes(n)) pages.push(n);
@@ -37,7 +41,6 @@ export function LeadsPagination({ page, totalPages, perPage, total, filterQs }: 
   push(totalPages);
   pages.sort((a, b) => a - b);
 
-  // Insert ellipsis markers.
   const withGaps: (number | 'gap')[] = [];
   pages.forEach((n, i) => {
     if (i > 0 && n - pages[i - 1]! > 1) withGaps.push('gap');
@@ -50,7 +53,7 @@ export function LeadsPagination({ page, totalPages, perPage, total, filterQs }: 
       className="flex flex-wrap items-center justify-between gap-3 text-xs"
     >
       <span className="text-ink-500">
-        Página {page} de {totalPages} · {total.toLocaleString('es-ES')} leads
+        {tContacts('paginationSummary', { page, totalPages, total: total.toLocaleString('es-ES') })}
       </span>
       <ul className="flex flex-wrap items-center gap-1">
         <li>

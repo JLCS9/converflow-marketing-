@@ -181,6 +181,66 @@ export class ReportsService {
   }
 
   /**
+   * Bloque de Inteligencia de Negocio: cuánto se vendió (y cuánto pipeline
+   * abierto entró) en un rango de fechas REAL, elegido por quien mira el
+   * dato — a diferencia de `overview()` (todo-el-tiempo, sin rango) y
+   * `series()` (ventana fija de 14 días para el "Pulso del Asistente", que
+   * no se toca). Único agregado de este tipo: lo consume tanto el widget
+   * de ventas del panel de inicio como el filtro de fecha de Oportunidades,
+   * para que ambos muestren SIEMPRE el mismo número ante el mismo rango.
+   *
+   * `from`/`to` por defecto: últimos 30 días — un GET sin parámetros ya es
+   * útil, no exige que el cliente calcule el rango.
+   *
+   * `source`: sin filtrar (todo el pipeline comercial) si se omite; una
+   * cadena (p. ej. 'woocommerce') para solo esa procedencia; `'automated'`
+   * para cualquier venta de origen automático (cualquier `source` no nulo —
+   * así Shopify el día de mañana no exige tocar esto).
+   */
+  economics(tenantId: string, opts: { from?: Date; to?: Date; source?: string } = {}) {
+    const to = opts.to ?? new Date();
+    const from = opts.from ?? new Date(to.getTime() - 30 * DAY_MS);
+    const sourceWhere =
+      opts.source === undefined
+        ? {}
+        : opts.source === 'automated'
+          ? { source: { not: null } }
+          : { source: opts.source };
+
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const [won, open] = await Promise.all([
+        tx.opportunity.aggregate({
+          where: { status: 'WON', closedAt: { gte: from, lte: to }, ...sourceWhere },
+          _count: { _all: true },
+          _sum: { amount: true },
+        }),
+        tx.opportunity.aggregate({
+          where: {
+            status: { in: [...OPEN_OPP_STAGES] },
+            createdAt: { gte: from, lte: to },
+            ...sourceWhere,
+          },
+          _count: { _all: true },
+          _sum: { amount: true },
+        }),
+      ]);
+
+      const orders = won._count._all;
+      const revenue = toNumber(won._sum.amount);
+
+      return {
+        from: from.toISOString(),
+        to: to.toISOString(),
+        orders,
+        revenue,
+        avgTicket: orders > 0 ? revenue / orders : 0,
+        openCount: open._count._all,
+        openValue: toNumber(open._sum.amount),
+      };
+    });
+  }
+
+  /**
    * Time series for the Hoy home: daily buckets over the last 14 calendar days
    * (TZ-aware) for the metrics that have a real event timestamp, plus
    * week-over-week deltas (last 7 days vs the prior 7) and a 7-day AI activity

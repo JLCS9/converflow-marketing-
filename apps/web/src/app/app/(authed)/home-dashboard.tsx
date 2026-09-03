@@ -29,6 +29,7 @@ import { useFeedback } from '@/components/ui/feedback';
 import { Card, StatCard, buttonClass } from '@/components/ui/primitives';
 import { Avatar } from '@/components/ui/inbox-kit';
 import { OnboardingChecklist, type OnboardingStep } from '@/components/ui/onboarding-checklist';
+import { EcommerceSalesWidget } from './ecommerce-sales-widget';
 import type { PermissionModule } from '@converflow/shared';
 
 // ---- data shapes (fetched server-side, passed in) ----
@@ -87,6 +88,9 @@ const WIDGETS: WidgetDef[] = [
   { id: 'kpis', titleKey: 'wKpis', perm: 'crm', defaultOn: true, size: 'lg' },
   { id: 'queue', titleKey: 'wQueue', defaultOn: false, size: 'sm' },
   { id: 'ai-week', titleKey: 'wAiWeek', perm: 'agents', defaultOn: true, size: 'lg' },
+  // Bloque de Inteligencia de Negocio: no todos los tenants venden online,
+  // igual criterio que unread-mail/sources — opt-in, no todo el mundo lo necesita.
+  { id: 'ecommerce-sales', titleKey: 'wEcommerceSales', perm: 'crm', defaultOn: false, size: 'lg' },
   { id: 'funnel', titleKey: 'wFunnel', perm: 'crm', defaultOn: true, size: 'sm' },
   { id: 'sources', titleKey: 'wSources', perm: 'crm', defaultOn: false, size: 'sm' },
   { id: 'recent-docs', titleKey: 'wRecentDocs', perm: 'documents', defaultOn: false, size: 'sm' },
@@ -479,6 +483,8 @@ export function HomeDashboard({
           </Card>
         );
       }
+      case 'ecommerce-sales':
+        return <EcommerceSalesWidget titleKey="wEcommerceSales" />;
       case 'funnel': {
         const max = Math.max(1, ...overview.leads.byStatus.map((s) => s.count));
         return (

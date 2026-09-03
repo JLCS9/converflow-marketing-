@@ -9,6 +9,13 @@ import {
 } from '../../common/decorators/current-user.decorator.js';
 import { OpportunitiesService } from './opportunities.service.js';
 
+/** ISO/yyyy-mm-dd → Date, o undefined si no parsea. */
+function parseDate(v: string | undefined): Date | undefined {
+  if (!v) return undefined;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
 @ApiTags('opportunities')
 @UseGuards(TenantOrApiKeyGuard, PermissionsGuard)
 @RequirePerm('crm')
@@ -25,6 +32,8 @@ export class OpportunitiesController {
     @Query('search') search?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     return this.opps.list(user.tenantId, {
       status,
@@ -33,6 +42,8 @@ export class OpportunitiesController {
       search,
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
+      from: parseDate(from),
+      to: parseDate(to),
     });
   }
 

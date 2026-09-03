@@ -68,12 +68,27 @@ export default tseslint.config(
     // Scripts de operación en CommonJS (migraciones puntuales, restablecer la
     // contraseña del super admin). Se ejecutan con `node` a pelo dentro del
     // contenedor, así que usan require() y los globales de Node: sin declararlo
-    // eslint los marcaba como 42 errores de 'require is not defined'.
+    // eslint los marcaba como 42 errores de 'require is not defined'. Lista
+    // ampliada (antes solo require/process/console/module) tras tropezar con
+    // __dirname/setTimeout sin declarar en dos scripts distintos — mismo
+    // problema, mismo sitio para arreglarlo una vez.
     files: ['**/scripts/*.cjs', '**/*.local.cjs'],
     languageOptions: {
       sourceType: 'commonjs',
       parserOptions: { projectService: false, project: false },
-      globals: { require: 'readonly', process: 'readonly', console: 'readonly', module: 'writable' },
+      globals: {
+        require: 'readonly',
+        process: 'readonly',
+        console: 'readonly',
+        module: 'writable',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        setTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearTimeout: 'readonly',
+        clearInterval: 'readonly',
+        Buffer: 'readonly',
+      },
     },
     rules: {
       '@typescript-eslint/no-require-imports': 'off',

@@ -262,6 +262,13 @@ const fr: Messages = {
     wKpis: 'Indicateurs (KPI)',
     wQueue: 'Votre file du jour',
     wAiWeek: 'Pouls de l’Assistant',
+    wEcommerceSales: 'Ventes',
+    ecommerceOrders: 'Commandes',
+    ecommerceRevenue: 'Revenus',
+    ecommerceAvgTicket: 'Panier moyen',
+    ecommerceViewInOpportunities: 'Voir dans Opportunités',
+    ecommerceEmpty: 'Connectez votre boutique pour voir vos ventes ici automatiquement.',
+    ecommerceEmptyCta: 'Connecter une boutique',
     wFunnel: 'Entonnoir de leads',
     wSources: 'Leads par source',
     wRecentDocs: 'Documents récents',
@@ -390,6 +397,14 @@ const fr: Messages = {
     search: 'Rechercher',
     close: 'Fermer',
   },
+  dateRange: {
+    last7: '7 derniers jours',
+    last30: '30 derniers jours',
+    last90: '90 derniers jours',
+    thisMonth: 'Ce mois-ci',
+    thisQuarter: 'Ce trimestre',
+    custom: 'Personnalisé',
+  },
   crm: {
     pagination: 'Pagination',
     prevPage: 'Page précédente',
@@ -500,6 +515,7 @@ const fr: Messages = {
     searchPlaceholder: 'Rechercher…',
   },
   contacts: {
+    paginationSummary: 'Page {page} sur {totalPages} · {total} contacts',
     title: 'Contacts',
     subtitle: 'Leads et clients dans une seule liste. Les filtres vivent dans l’URL : les vues se partagent.',
     type: 'Type',
@@ -520,6 +536,7 @@ const fr: Messages = {
       'Les leads passés en gagné deviennent automatiquement des clients. Vous pouvez aussi les créer à la main.',
   },
   opportunities: {
+    closedInRange: 'Gagnées/perdues clôturées en :',
     saveErrorMsg: 'Impossible d’enregistrer',
     unexpected: 'Erreur inattendue',
     moveError: 'Impossible de déplacer l’opportunité',
@@ -1738,6 +1755,7 @@ const fr: Messages = {
       importCsv: 'Importer des leads depuis un CSV',
       aiScoring: 'Noter les leads avec l’IA',
       opportunities: 'Opportunités et pipelines',
+      ecommerce: 'Connecter votre boutique (WooCommerce)',
       fields: 'Champs personnalisés',
       users: 'Utilisateurs et permissions',
       api: 'API pour développeurs',
@@ -1813,6 +1831,18 @@ const fr: Messages = {
       item2:
         'Créez des opportunités à la main depuis la fiche d’un lead, ou laissez l’agent Opportunités les ouvrir automatiquement lorsqu’il détecte un intérêt.',
       item3: 'Chaque changement d’étape est enregistré dans l’historique avec qui et quand.',
+    },
+    ec: {
+      intro:
+        'Connectez votre boutique et Converflow s’occupe du reste : chaque achat crée ou met à jour la fiche du client et apparaît comme une vente gagnée dans votre pipeline, avec le produit et le montant réels — sans aucune saisie manuelle.',
+      item1:
+        'Allez dans <link>Configuration → Intégrations</link> et cliquez sur « Ajouter une boutique ». Installez le plugin sur votre WordPress (téléchargé sur place) et collez la clé de connexion fournie par Converflow — la boutique est liée instantanément.',
+      item2:
+        'Ensuite, chaque commande payée apparaît toute seule : l’acheteur devient client (ou sa fiche est mise à jour s’il l’était déjà), et la vente arrive dans Opportunités comme gagnée, avec le nom réel de ce qui a été acheté et la date réelle de la commande.',
+      item3:
+        'Si votre activité gère plusieurs boutiques (par exemple une installation distincte par langue), connectez-les toutes séparément avec « Ajouter une boutique » : chacune avec sa propre clé, toutes alimentant le même tableau de bord.',
+      item4:
+        'Dans <link>Opportunités</link> et le widget de ventes de l’accueil, vous pouvez filtrer par date (30 derniers jours par défaut, ou toute période choisie) pour voir d’un coup d’œil combien vous avez vendu.',
     },
     fl: {
       intro:

@@ -9,6 +9,7 @@ import {
   MessageCircle,
   Bell,
   Users,
+  Brain,
   Bot,
   Megaphone,
   Settings,
@@ -40,7 +41,9 @@ type IconType = ComponentType<{ size?: number; strokeWidth?: number; className?:
 
 const sectionIcons: Record<string, IconType> = {
   crm: Users,
-  ia: Bot,
+  // Icono de cerebro (antes robot): el Asistente no es "un bot" — es la
+  // capa de inteligencia que ya toca correo, CRM y ventas del tenant.
+  ia: Brain,
   campaigns: Megaphone,
   config: Settings,
 };
@@ -104,10 +107,13 @@ function SectionLink({
   section,
   pathname,
   collapsed,
+  badge,
 }: {
   section: NavSection;
   pathname: string;
   collapsed?: boolean;
+  /** Notificación junto al icono (p. ej. lagunas de conocimiento sin responder en IA). */
+  badge?: number;
 }) {
   const Icon = sectionIcons[section.key];
   const active = isSectionActive(pathname, section);
@@ -119,6 +125,7 @@ function SectionLink({
     >
       {Icon && <Icon size={18} strokeWidth={1.75} aria-hidden />}
       {!collapsed && <span>{section.label}</span>}
+      {!!badge && <Count n={badge} color="red" collapsed={collapsed} />}
       {collapsed && <Tip label={section.label} />}
     </Link>
   );
@@ -127,10 +134,13 @@ function SectionLink({
 export function SidebarNav({
   convPending,
   alertCount,
+  gapsCount,
   collapsed = false,
 }: {
   convPending: number;
   alertCount: number;
+  /** Preguntas sin responder (lagunas de conocimiento abiertas) — badge de IA. */
+  gapsCount: number;
   collapsed?: boolean;
 }) {
   const t = useTranslations('nav');
@@ -144,10 +154,16 @@ export function SidebarNav({
   const visibleSections = NAV_SECTIONS.filter(
     (s) => isOwner || hasAny(perms, s.requires),
   );
+  // IA sube a un puesto fijo justo bajo Inicio (petición explícita: es la
+  // capa transversal del producto, no una sección más) — el resto de
+  // NAV_SECTIONS sigue en el bloque de siempre, con su separador.
+  const iaSection = visibleSections.find((s) => s.key === 'ia');
+  const otherSections = visibleSections.filter((s) => s.key !== 'ia');
   const showConversations = isOwner || perms.includes('conversations');
   const showTasks = isOwner || perms.includes('crm');
   const showSettings = isOwner || hasAny(perms, SETTINGS_SECTION.requires);
   const [pending, setPending] = useState(convPending);
+  const [gaps, setGaps] = useState(gapsCount);
   const [menu, setMenu] = useState(false);
 
   useEffect(() => {
@@ -155,11 +171,16 @@ export function SidebarNav({
     const poll = async () => {
       try {
         // Conversaciones badge = IM pendientes + correo sin leer.
-        const [c, m] = await Promise.all([
+        // IA badge = preguntas sin responder (lagunas abiertas).
+        const [c, m, g] = await Promise.all([
           apiFetch<{ pending: number }>('/conversations/count'),
           apiFetch<{ unread: number }>('/mail/unread-count').catch(() => ({ unread: 0 })),
+          apiFetch<{ count: number }>('/knowledge/gaps/count').catch(() => ({ count: gapsCount })),
         ]);
-        if (active) setPending(c.pending + m.unread);
+        if (active) {
+          setPending(c.pending + m.unread);
+          setGaps(g.count);
+        }
       } catch {
         /* keep last */
       }
@@ -171,6 +192,7 @@ export function SidebarNav({
       active = false;
       clearInterval(timer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -235,6 +257,10 @@ export function SidebarNav({
           {!collapsed && <span>{t('home')}</span>}
           {collapsed && <Tip label={t('home')} />}
         </Link>
+        {/* IA justo bajo Inicio, a propósito — es la capa transversal del
+            producto (correo, CRM, ventas), no una sección más del bloque de
+            abajo. Notificación = preguntas sin responder (lagunas abiertas). */}
+        {iaSection && <SectionLink section={iaSection} pathname={pathname} collapsed={collapsed} badge={gaps} />}
         {showConversations && (
           <Link
             href="/app/mail"
@@ -272,11 +298,11 @@ export function SidebarNav({
           </Link>
         )}
 
-        {visibleSections.length > 0 && (
+        {otherSections.length > 0 && (
           <div className="my-2 border-t border-ink-100" aria-hidden />
         )}
 
-        {visibleSections.map((s) => (
+        {otherSections.map((s) => (
           <SectionLink key={s.key} section={s} pathname={pathname} collapsed={collapsed} />
         ))}
       </nav>

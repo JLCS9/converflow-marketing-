@@ -8,6 +8,7 @@ import { TabBar, CRM_TABS } from '@/components/ui/tab-bar';
 import { LEAD_STATUS_COLOR, statusColor, statusLabel } from '@/lib/labels';
 import { getLabelMaps } from '@/lib/get-labels';
 import { ContactsFilters, type OwnerOption } from './contacts-filters';
+import { ContactsPagination } from './pagination';
 
 /**
  * Página unificada de contactos: leads y clientes en una sola lista con filtros
@@ -95,11 +96,23 @@ export default async function ContactsPage({
         : undefined;
   const page = Math.max(1, Number(params.page) || 1);
 
+  // Paginación real: se piden TODAS las filas desde el principio hasta el
+  // final de la página pedida (no un offset por fuente — leads y clientes
+  // son dos tablas distintas que hay que fusionar y reordenar juntas, así
+  // que solo "traer lo suficiente para cubrir hasta esta página y recortar
+  // después de fusionar" da un resultado correcto). Antes de este fix se
+  // pedían siempre los mismos 100 registros sin más: la página 3 en
+  // adelante SIEMPRE salía vacía, y cualquier contacto fuera de ese top-100
+  // por fecha de creación —como los anteriores a una integración que trajo
+  // muchos leads nuevos de golpe— nunca llegaba a pedirse.
+  // Tope de 1000: mismo límite duro que ya aplica el backend de leads.
+  const fetchLimit = Math.min(page * PAGE_SIZE, 1000);
+
   // Los filtros específicos de lead (origen, responsable, score) solo viajan a
   // /leads: el modelo Client no los tiene. Con tipo=client se ignoran, y la UI
   // los deshabilita para que no parezca que filtran.
-  const leadQs = new URLSearchParams({ limit: String(PAGE_SIZE * 2) });
-  const clientQs = new URLSearchParams({ limit: String(PAGE_SIZE * 2) });
+  const leadQs = new URLSearchParams({ limit: String(fetchLimit) });
+  const clientQs = new URLSearchParams({ limit: String(fetchLimit) });
   if (params.search) {
     leadQs.set('search', params.search);
     clientQs.set('search', params.search);
@@ -125,7 +138,14 @@ export default async function ContactsPage({
     !params.ownerId &&
     !params.scoreMin;
 
-  const [leads, clients, owners] = await Promise.all([
+  // Mismos filtros que las listas, sin `limit` — para el total real de la
+  // paginación (footer «Página X de Y · Z contactos»).
+  const countQs = new URLSearchParams(leadQs);
+  countQs.delete('limit');
+  const clientCountQs = new URLSearchParams(clientQs);
+  clientCountQs.delete('limit');
+
+  const [leads, clients, owners, leadCount, clientCount] = await Promise.all([
     wantLeads
       ? serverApiFetch<LeadRow[]>(`/leads?${leadQs}`).catch(() => [] as LeadRow[])
       : Promise.resolve([] as LeadRow[]),
@@ -133,7 +153,20 @@ export default async function ContactsPage({
       ? serverApiFetch<ClientRow[]>(`/clients?${clientQs}`).catch(() => [] as ClientRow[])
       : Promise.resolve([] as ClientRow[]),
     serverApiFetch<OwnerOption[]>('/users/assignable').catch(() => [] as OwnerOption[]),
+    wantLeads
+      ? serverApiFetch<{ total: number }>(`/leads/count?${countQs}`).catch(() => ({ total: 0 }))
+      : Promise.resolve({ total: 0 }),
+    wantClients
+      ? serverApiFetch<{ total: number }>(`/clients/count?${clientCountQs}`).catch(() => ({ total: 0 }))
+      : Promise.resolve({ total: 0 }),
   ]);
+  // Aproximado, no exacto: un lead ya convertido cuenta una vez en cada
+  // fuente aunque su espejo de Client se oculte en la fila (ver
+  // mirroredClientIds abajo) — mismo criterio "Volumen Pyme" que ya asumía
+  // este fichero para el filtro de fechas de Client. Es solo el número del
+  // footer, no afecta a qué contactos aparecen.
+  const total = leadCount.total + clientCount.total;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // El endpoint de clientes no filtra por fechas: se aplica aquí. Volumen Pyme.
   const from = params.createdFrom ? new Date(`${params.createdFrom}T00:00:00`) : null;
@@ -191,6 +224,11 @@ export default async function ContactsPage({
     status || params.source || params.ownerId || params.createdFrom ||
     params.createdTo || params.scoreMin || params.search,
   );
+
+  // Filtros actuales sin `page` — la paginación los conserva al cambiar de página.
+  const filterQs = new URLSearchParams(
+    Object.entries(params).filter(([k, v]) => k !== 'page' && v) as [string, string][],
+  ).toString();
 
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -261,6 +299,8 @@ export default async function ContactsPage({
           </table>
         </Card>
       )}
+
+      <ContactsPagination page={page} totalPages={totalPages} total={total} filterQs={filterQs} />
     </div>
   );
 }

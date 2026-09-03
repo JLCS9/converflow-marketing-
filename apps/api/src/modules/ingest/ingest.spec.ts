@@ -35,11 +35,12 @@ function makeService(over: { duplicateOnSecond?: boolean } = {}) {
   };
   const reports = { generate: vi.fn(), pollPendingNarratives: vi.fn() };
   const crmSync = { onEvent: vi.fn().mockResolvedValue(undefined) };
+  const purchaseOpportunity = { onEvent: vi.fn().mockResolvedValue(undefined) };
   const svc = new IngestService(
     prisma, profiles as never, lifecycle as never, queue as never, rag as never, playbooks as never,
-    reports as never, crmSync as never,
+    reports as never, crmSync as never, purchaseOpportunity as never,
   );
-  return { svc, eventCreate, profiles, lifecycle, queue, playbooks, crmSync, ecommerceUpdateMany };
+  return { svc, eventCreate, profiles, lifecycle, queue, playbooks, crmSync, ecommerceUpdateMany, purchaseOpportunity };
 }
 
 const batch = (n: number) => ({
@@ -102,6 +103,31 @@ describe('IngestService.processBatch', () => {
       { id: 'prof1' },
       expect.objectContaining({ type: 'purchase' }),
     );
+  });
+
+  it('el mismo evento también dispara purchase-opportunity, DESPUÉS de crm-sync', async () => {
+    const { svc, crmSync, purchaseOpportunity } = makeService();
+    const order: number[] = [];
+    crmSync.onEvent.mockImplementation(async () => void order.push(1));
+    purchaseOpportunity.onEvent.mockImplementation(async () => void order.push(2));
+    await svc.processBatch('t1', {
+      source: 'woocommerce',
+      events: [{ type: 'purchase', externalId: 'order:1', identity: { email: 'ana@empresa.com' } }],
+    } as never);
+    expect(purchaseOpportunity.onEvent).toHaveBeenCalledWith(
+      't1',
+      'woocommerce',
+      { id: 'prof1' },
+      expect.objectContaining({ type: 'purchase' }),
+    );
+    expect(order).toEqual([1, 2]); // crmSync ha enlazado el Lead antes de que purchaseOpportunity lo busque
+  });
+
+  it('un fallo de purchase-opportunity no rompe la ingesta (best-effort)', async () => {
+    const { svc, purchaseOpportunity } = makeService();
+    purchaseOpportunity.onEvent.mockRejectedValue(new Error('boom'));
+    const res = await svc.processBatch('t1', batch(1) as never);
+    expect(res).toEqual({ accepted: 1, deduped: 0 });
   });
 
   it('un fallo de crm-sync no rompe la ingesta (best-effort, igual que playbooks/lifecycle)', async () => {

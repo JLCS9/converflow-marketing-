@@ -26,20 +26,33 @@ export class ClientsService {
   list(tenantId: string, opts: ListOpts = {}) {
     return this.prisma.withTenant(tenantId, (tx) =>
       tx.client.findMany({
-        where: {
-          status: (opts.status as never) || undefined,
-          OR: opts.search
-            ? [
-                { name: { contains: opts.search, mode: 'insensitive' } },
-                { email: { contains: opts.search, mode: 'insensitive' } },
-              ]
-            : undefined,
-        },
+        where: this.buildWhere(opts),
         orderBy: { createdAt: 'desc' },
         take: opts.limit ?? 100,
         skip: opts.offset ?? 0,
       }),
     );
+  }
+
+  /** Total real (mismos filtros que `list`) — página real en Contactos en
+   *  vez de re-cortar un array ya traído en memoria. */
+  count(tenantId: string, opts: ListOpts = {}) {
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const total = await tx.client.count({ where: this.buildWhere(opts) });
+      return { total };
+    });
+  }
+
+  private buildWhere(opts: ListOpts) {
+    return {
+      status: (opts.status as never) || undefined,
+      OR: opts.search
+        ? [
+            { name: { contains: opts.search, mode: 'insensitive' as const } },
+            { email: { contains: opts.search, mode: 'insensitive' as const } },
+          ]
+        : undefined,
+    };
   }
 
   async findById(tenantId: string, id: string) {
