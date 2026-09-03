@@ -29,6 +29,7 @@ import { useFeedback } from '@/components/ui/feedback';
 import { Card, StatCard, buttonClass } from '@/components/ui/primitives';
 import { Avatar } from '@/components/ui/inbox-kit';
 import { OnboardingChecklist, type OnboardingStep } from '@/components/ui/onboarding-checklist';
+import { useLabelMaps } from '@/lib/use-labels';
 import { EcommerceSalesWidget } from './ecommerce-sales-widget';
 import type { PermissionModule } from '@converflow/shared';
 
@@ -104,8 +105,15 @@ const SIZE_KEY = { sm: 'sizeSm', lg: 'sizeLg' } as const;
 // ---- helpers ----
 
 const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
-const FUNNEL_KEY: Record<string, string> = { NEW: 'fNew', CONTACTED: 'fContacted', QUALIFIED: 'fQualified', CONVERTED: 'fConverted', LOST: 'fLost' };
-const leadStatusColor: Record<string, string> = { NEW: 'bg-ink-300', CONTACTED: 'bg-blue-400', QUALIFIED: 'bg-amber-400', CONVERTED: 'bg-green-500', LOST: 'bg-red-400' };
+// BUG arreglado: este mapa (y su gemelo del backend, LEAD_STATUSES en
+// reports.service.ts) seguía en el modelo legado de 5 estados
+// (NEW/CONTACTED/QUALIFIED/CONVERTED/LOST). El status real de un Lead vive
+// en el triplete LEAD/CLIENT/LOST desde hace tiempo — con el mapa viejo,
+// NINGÚN lead moderno (incluidos todos los de la integración WooCommerce)
+// encontraba su color, y el embudo se veía siempre vacío o desactualizado.
+// Colores alineados con LEAD_STATUS_COLOR de @/lib/labels (mismo criterio
+// que los badges de Contactos), en clases bg-* para las barras.
+const leadStatusBarColor: Record<string, string> = { LEAD: 'bg-blue-400', CLIENT: 'bg-green-500', LOST: 'bg-red-400' };
 const alertIcon: Record<string, LucideIcon> = { LEAD_STALE: Clock, OPPORTUNITY_DUE: Target, TASK_OVERDUE: ListChecks, HIGH_SCORE_LEAD: Flame };
 const toneChip: Record<string, string> = { blue: 'bg-blue-100 text-blue-800', red: 'bg-red-100 text-red-800', amber: 'bg-amber-100 text-amber-800', green: 'bg-green-100 text-green-800', gray: 'bg-ink-100 text-ink-500' };
 
@@ -167,6 +175,9 @@ export function HomeDashboard({
   const tCommon = useTranslations('common');
   const tInbox = useTranslations('inbox');
   const tMail = useTranslations('mail');
+  // Embudo de leads: etiquetas canónicas (LEAD/CLIENT/LOST) ya compartidas
+  // con el resto de la app — ver leadStatusBarColor más abajo para el color.
+  const { LEAD_STATUS } = useLabelMaps();
   const locale = useLocale();
   const can = useCallback(
     (p?: PermissionModule) => !p || session.role === 'OWNER' || session.permissions.includes(p),
@@ -492,7 +503,7 @@ export function HomeDashboard({
             <CardTitle>{t('wFunnel')}</CardTitle>
             <div className="space-y-3">
               {overview.leads.byStatus.map((s) => (
-                <Bar key={s.status} label={FUNNEL_KEY[s.status] ? t(FUNNEL_KEY[s.status] as never) : s.status} value={s.count} max={max} color={leadStatusColor[s.status] ?? 'bg-ink-300'} />
+                <Bar key={s.status} label={LEAD_STATUS[s.status] ?? s.status} value={s.count} max={max} color={leadStatusBarColor[s.status] ?? 'bg-ink-300'} />
               ))}
             </div>
           </Card>
