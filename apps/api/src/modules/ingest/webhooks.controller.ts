@@ -66,6 +66,15 @@ export class WebhooksController {
 
     const translate = TRANSLATORS[source.kind];
     const batch = translate ? translate(body) : translateGeneric(body, source.kind);
+    // El `source` que devuelve el traductor es el NOMBRE del adaptador
+    // ('woocommerce', 'brevo'...) — genérico entre TODAS las fuentes de ese
+    // kind del tenant. Un tenant puede tener varias fuentes del mismo kind
+    // (varias tiendas WooCommerce, p. ej. una por idioma) cuyo `externalId`
+    // (p. ej. "order:4831") NO es único entre instalaciones distintas.
+    // Se sobrescribe con el id de ESTA fuente para que el dedupe
+    // [tenantId, source, externalId] nunca cruce datos de una fuente con
+    // los de otra homónima.
+    batch.source = source.id;
 
     if (batch.events.length > 0) {
       await this.queue.enqueueBatch(source.tenantId, batch);
@@ -120,11 +129,24 @@ export class WebhooksController {
     const parsed = catalogBatchSchema.safeParse(body);
     if (!parsed.success) return { upserted: 0 };
 
-    const { upserted } = await this.catalog.upsertBatch(source.tenantId, source.kind, parsed.data.items);
+    // Mismo motivo que en receive(): source.id, no source.kind — varias
+    // tiendas del mismo kind no deben compartir el espacio de externalId
+    // de su catálogo (el producto "213" de una tienda no es el "213" de otra).
+    const { upserted } = await this.catalog.upsertBatch(source.tenantId, source.id, parsed.data.items);
 
     await this.prisma.bypass((tx) =>
       tx.ingestSource.update({ where: { id: source.id }, data: { lastEventAt: new Date() } }),
     );
+    // Contador visible en Ajustes — no-op silencioso si esta fuente no tiene
+    // EcommerceConnection asociada (brevo/learndash/generic no la tienen).
+    if (upserted > 0) {
+      await this.prisma.withTenant(source.tenantId, (tx) =>
+        tx.ecommerceConnection.updateMany({
+          where: { ingestSourceId: source.id },
+          data: { productsImported: { increment: upserted }, lastSyncedAt: new Date() },
+        }),
+      );
+    }
 
     return { upserted };
   }
