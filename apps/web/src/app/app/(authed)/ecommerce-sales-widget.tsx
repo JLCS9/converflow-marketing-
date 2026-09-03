@@ -15,7 +15,8 @@ import { useTranslations } from 'next-intl';
 import { ShoppingBag, Receipt, TrendingUp } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { Card } from '@/components/ui/primitives';
-import { DateRangeFilter, PRESET_LABEL_KEY, PRESETS, computeDateRange, type DateRangeValue } from '@/components/ui/date-range-filter';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
+import { PRESET_LABEL_KEY, PRESETS, computeDateRange, type DateRangeValue } from '@/components/ui/date-range';
 
 interface Economics {
   from: string;
