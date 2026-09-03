@@ -20,6 +20,9 @@ export type {
   PlatformAdminSession,
   AdminActionLog,
   AppVersion,
+  IngestSource,
+  EcommerceConnection,
+  CatalogItem,
   Prisma,
 } from '@prisma/client';
 
@@ -36,4 +39,7 @@ export {
   AlertSeverity,
   ConversationStatus,
   MessageDirection,
+  EcommerceProvider,
+  EcommerceConnStatus,
+  EcommerceBackfillStatus,
 } from '@prisma/client';

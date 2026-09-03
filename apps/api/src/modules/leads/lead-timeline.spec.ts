@@ -69,6 +69,69 @@ describe('buildLeadTimeline', () => {
     }
   });
 
+  it('emite las compras de e-commerce con su propio source, y una reembolsada lleva refundedAt en el payload', () => {
+    const events = buildLeadTimeline({
+      lead: baseLead,
+      opportunities: [],
+      conversations: [],
+      purchaseEvents: [
+        {
+          type: 'purchase',
+          source: 'woocommerce',
+          occurredAt: d('2026-01-06T00:00:00Z'),
+          props: { orderId: '4831', amount: '149.00', currency: 'EUR', name: 'Pedido #4831' },
+        },
+        {
+          type: 'purchase',
+          source: 'woocommerce',
+          occurredAt: d('2026-01-07T00:00:00Z'),
+          props: {
+            orderId: '9000',
+            amount: '20.00',
+            currency: 'EUR',
+            name: 'Pedido #9000',
+            refundedAt: '2026-01-08T00:00:00.000Z',
+          },
+        },
+      ],
+    });
+    const purchases = events.filter((e) => e.type === 'purchase' && e.source === 'woocommerce');
+    expect(purchases).toHaveLength(2);
+    expect(purchases.find((e) => e.payload.orderId === '9000')).toMatchObject({
+      payload: expect.objectContaining({ refundedAt: '2026-01-08T00:00:00.000Z' }),
+    });
+    // Newest first, junto al resto del timeline (mismo orden global).
+    expect(events[0]).toMatchObject({ payload: { orderId: '9000' } });
+  });
+
+  it('convive con las compras derivadas de Oportunidades ganadas sin colisionar (distinto source)', () => {
+    const events = buildLeadTimeline({
+      lead: baseLead,
+      opportunities: [
+        {
+          id: 'o1',
+          name: 'Plan anual',
+          status: 'WON',
+          amount: '1200.00',
+          currency: 'EUR',
+          createdAt: d('2026-01-03T00:00:00Z'),
+          closedAt: d('2026-01-05T00:00:00Z'),
+        },
+      ],
+      conversations: [],
+      purchaseEvents: [
+        {
+          type: 'purchase',
+          source: 'woocommerce',
+          occurredAt: d('2026-01-06T00:00:00Z'),
+          props: { orderId: '4831' },
+        },
+      ],
+    });
+    const sources = events.filter((e) => e.type === 'purchase').map((e) => e.source);
+    expect(sources.sort()).toEqual(['crm', 'woocommerce']);
+  });
+
   it('maps conversations to inbox events with their channel and sorts everything newest-first', () => {
     const events = buildLeadTimeline({
       lead: baseLead,

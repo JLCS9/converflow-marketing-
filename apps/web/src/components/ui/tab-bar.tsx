@@ -103,5 +103,6 @@ export const SETTINGS_TABS: TabItem[] = [
   { href: '/app/profile', label: 'Perfil', labelKey: 'uiBits.tabProfile' },
   { href: '/app/settings/custom-fields', label: 'Campos personalizados', labelKey: 'uiBits.tabCustomFields' },
   { href: '/app/settings/pipelines', label: 'Tableros', labelKey: 'uiBits.tabPipelines' },
+  { href: '/app/settings/integrations', label: 'Integraciones', labelKey: 'uiBits.tabIntegrations' },
   { href: '/app/settings/developer', label: 'Desarrollador', labelKey: 'uiBits.tabDeveloper' },
 ];

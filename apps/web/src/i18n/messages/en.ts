@@ -652,6 +652,49 @@ const en: Messages = {
       redirecting: 'Redirecting…',
       connect: 'Connect Google Calendar',
     },
+    integrations: {
+      title: 'Integrations',
+      description:
+        'Connect the tenant’s store to bring in order history, the product catalog, and trigger automations from a purchase.',
+      breadcrumbSettings: 'Settings',
+      comingSoon: 'Coming soon',
+      comingSoonTooltip: 'Coming soon — we are working on it',
+      woocommerce: {
+        title: 'WooCommerce',
+        description:
+          'Install Converflow’s own plugin on your WordPress: no API keys to copy by hand and no webhooks to set up yourself.',
+        statusCONNECTED: 'Connected',
+        statusPENDING: 'Waiting for the plugin',
+        statusDEGRADED: 'Having issues',
+        statusERROR: 'Error',
+        statusDISCONNECTED: 'Not connected',
+        ordersImported: '{count} orders imported',
+        productsImported: '{count} products imported',
+        lastSynced: 'last synced {date}',
+        pluginVersion: 'Plugin v{version}',
+        connect: 'Generate connection key',
+        connecting: 'Generating…',
+        connectedToast: 'Store connected successfully.',
+        downloadPlugin: 'Download plugin',
+        disconnect: 'Disconnect',
+        disconnecting: 'Disconnecting…',
+        disconnectConfirmTitle: 'Disconnect WooCommerce',
+        disconnectConfirmDescription:
+          'The plugin will stop being able to send orders and products. Data already imported is not deleted.',
+        keyReadyTitle: 'Connection key generated',
+        keyReadyHelp:
+          'Copy it and paste it into Converflow → Settings inside your WordPress, next to the plugin you already installed. Expires in 30 minutes and works only once.',
+        keyExpiresAt: 'Expires at {time}',
+        copy: 'Copy',
+        copied: 'Copied',
+        close: 'Close',
+        unexpectedError: 'Unexpected error',
+      },
+      shopify: {
+        title: 'Shopify',
+        description: 'Same order history and product catalog, for Shopify stores.',
+      },
+    },
     customFields: {
       title: 'Custom fields',
       description:
@@ -2188,6 +2231,7 @@ const en: Messages = {
     tabCustomFields: 'Custom fields',
     tabPipelines: 'Boards',
     tabDeveloper: 'Developer',
+    tabIntegrations: 'Integrations',
     byRole: 'from role',
     permCrm: 'CRM',
     permConversations: 'Conversations',

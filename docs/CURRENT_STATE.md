@@ -2,7 +2,7 @@
 
 > Single source of truth. Update after every sprint. If reading this in a new session, you can skip 100% of conversation history and rely on this file + the repo.
 
-**Last sync (2026-09-03):** **MOTOR DE IA COMPLETO + ATENCIÓN AUTÓNOMA MULTICANAL EN PROD** — ver la sección «IA — Motor, Convergencia y Atención autónoma» más abajo (es la más reciente y manda sobre cualquier mención anterior a agentes/IA de este fichero). Manual de usuario en `docs/manual-asistente-ia.md`. Lo anterior sigue siendo válido como historia: **MAIL MODULE rebuild — Fase 2 COMPLETA** (Fases 1, 2.1–2.5 en `main`): bandeja unificada dentro de Conversaciones→Correo, sidebar colapsable, ajustes en `/app/mail/ajustes`, búsqueda, adjuntos R2 y buzón compartido (asignación/estado/notas/anti-colisión). ⚠️ deploy 2.5 = `db push` + `apply:rls`. Siguiente: Fase 3 (transaccional) → Fase 4 (campañas). Ver sección "MAIL MODULE — rebuild". Antes de eso se hizo: feature de **Soporte/tickets**, **Campañas v1** (email/WhatsApp), **email pro** (compositor Tiptap, plantillas GrapesJS/MJML, adjuntos) — ese email es el "intento previo" que se está sustituyendo. **Incidente operativo resuelto**: disco del VPS por caché de build (limpiado + `daemon.json` con GC 10GB + rotación de logs); proyecto viejo `converflow` (Clerk) eliminado del VPS; saldo Anthropic agotado (recargado). **LIVE in prod**: Sprint 7 (WhatsApp Baileys 7), Sprint 8 (Conversaciones inbox with channel-aware reply: text/emoji/documents + one-click AI suggestion send), **Agents v1a/b/d** (self-service builder + playground + tool execution + AUTO mode with AI disclosure + rate limit), **Design v2** (fixed shell, icon sidebar with expandable groups, "Hoy" home), **Web chat** (embeddable widget + agent auto-reply), **Email channel** (Resend system path + tenant **self-service IMAP/SMTP** with encrypted creds + workers IMAP poller), **Lead→Cliente** auto-conversion. (Kit Digital product side complete since Sprint 5: 17/18, #18 user-owned.) **Pending**: Agents v1c RAG (needs embeddings key from user), historical metrics for Hoy home (sparklines/IA-semana), WhatsApp Cloud API upgrade.
+**Last sync (2026-09-03):** **INTEGRACIÓN E-COMMERCE WOOCOMMERCE** (Shopify «Próximamente») — ver sección «Integración e-commerce — WooCommerce» más abajo: plugin propio de WordPress, `EcommerceConnection`, auto-alta de Cliente desde compras, catálogo, timeline. RLS ahora en **56 tablas**. Antes de eso: **MOTOR DE IA COMPLETO + ATENCIÓN AUTÓNOMA MULTICANAL EN PROD** — ver la sección «IA — Motor, Convergencia y Atención autónoma» más abajo. Manual de usuario en `docs/manual-asistente-ia.md`. Lo anterior sigue siendo válido como historia: **MAIL MODULE rebuild — Fase 2 COMPLETA** (Fases 1, 2.1–2.5 en `main`): bandeja unificada dentro de Conversaciones→Correo, sidebar colapsable, ajustes en `/app/mail/ajustes`, búsqueda, adjuntos R2 y buzón compartido (asignación/estado/notas/anti-colisión). ⚠️ deploy 2.5 = `db push` + `apply:rls`. Siguiente: Fase 3 (transaccional) → Fase 4 (campañas). Ver sección "MAIL MODULE — rebuild". Antes de eso se hizo: feature de **Soporte/tickets**, **Campañas v1** (email/WhatsApp), **email pro** (compositor Tiptap, plantillas GrapesJS/MJML, adjuntos) — ese email es el "intento previo" que se está sustituyendo. **Incidente operativo resuelto**: disco del VPS por caché de build (limpiado + `daemon.json` con GC 10GB + rotación de logs); proyecto viejo `converflow` (Clerk) eliminado del VPS; saldo Anthropic agotado (recargado). **LIVE in prod**: Sprint 7 (WhatsApp Baileys 7), Sprint 8 (Conversaciones inbox with channel-aware reply: text/emoji/documents + one-click AI suggestion send), **Agents v1a/b/d** (self-service builder + playground + tool execution + AUTO mode with AI disclosure + rate limit), **Design v2** (fixed shell, icon sidebar with expandable groups, "Hoy" home), **Web chat** (embeddable widget + agent auto-reply), **Email channel** (Resend system path + tenant **self-service IMAP/SMTP** with encrypted creds + workers IMAP poller), **Lead→Cliente** auto-conversion. (Kit Digital product side complete since Sprint 5: 17/18, #18 user-owned.) **Pending**: Agents v1c RAG (needs embeddings key from user), historical metrics for Hoy home (sparklines/IA-semana), WhatsApp Cloud API upgrade.
 
 > **Cross-tenant isolation:** ✅ FIXED & VERIFIED. API now connects as non-superuser
 > `converflow_app` so RLS is enforced. A new tenant sees ONLY its own data. This was
@@ -140,7 +140,46 @@ Plan original: `docs/motor-ia-plan.md` (F0–F4 ✅). Después: plan «Convergen
 
 **Pendiente/diferido**: E2 final (borrar agent-runtime legado cuando haya 14 días sin `agent_reply`), WhatsApp Cloud API cuando Meta apruebe (Baileys se mantiene hasta entonces), OCR y juez LLM a demanda del piloto.
 
-**RLS: 55 tablas** con política `tenant_isolation` (spec estático la verifica en CI). Deploy: `cd /opt/converflow-ai && git pull && bash infra/scripts/deploy.sh`.
+**RLS: 56 tablas** con política `tenant_isolation` (spec estático la verifica en CI). Deploy: `cd /opt/converflow-ai && git pull && bash infra/scripts/deploy.sh`.
+
+## Integración e-commerce — WooCommerce (Shopify «Próximamente»)
+
+Objetivo: saber quién compra, cuándo y qué compra, para **cualquier tienda
+WooCommerce de cualquier vertical** (no solo e-learning) — conectada por un
+**plugin propio de WordPress** (descargable desde `Ajustes → Integraciones`,
+sin claves de API a copiar a mano ni webhooks que configurar en Woo).
+
+- Reutiliza la tubería de ingesta ya existente de F1: `IngestSource`
+  (`kind='woocommerce'`, ya reservado desde antes de esta entrega) +
+  `POST /webhooks/:sourceId` (eventos, firma HMAC) — el plugin arma el batch
+  ya en forma canónica; `translateWoocommerce` en `adapters.ts` es validación
+  defensiva, no traducción real.
+- **Catálogo** (`CatalogItem`, existía en el schema sin ningún uso) por un
+  endpoint aparte `POST /webhooks/:sourceId/catalog` — es upsert, no
+  append-only como los eventos (un producto cambia de precio).
+- **`EcommerceConnection`** (nuevo modelo, 1:1 con un `IngestSource`, paralelo
+  a `MailConnection`): estado visible en Ajustes, handshake de clave de
+  conexión de un solo uso (30 min TTL) → el servidor genera el secreto HMAC
+  real. Módulo `apps/api/src/modules/ecommerce/` (`connect`/`status`/
+  `register` público/`disconnect`).
+- **Auto-alta de Cliente**: `CrmSyncService` (`apps/api/src/modules/leads/`)
+  se engancha a `IngestService.processBatch` igual que `lifecycle`/
+  `playbooks` — si compra alguien sin Lead/Cliente previo, se crea uno en
+  `CLIENT`; promueve LEAD→CLIENT; nunca pisa un `LOST`; reutiliza el espejo
+  a `Client` ya existente en `LeadsService` (extraído a
+  `lead-client-mirror.ts`). Reembolsos anotan `refundedAt` en el `Event` de
+  compra original (timeline lo pinta tachado), sin tocar el status del Lead.
+- **Timeline del Lead**: ya pintaba compras (de Oportunidades ganadas); ahora
+  también las de e-commerce (`Event.type='purchase'` por `profileId`), sin
+  tocar el componente de frontend (mismas claves `amount`/`currency`/`name`).
+- **Automatizaciones**: gratis — `PlaybooksService.options()` ya lista los
+  tipos de evento vistos en el tenant, `purchase` aparece solo en el
+  selector en cuanto llega la primera compra.
+- Plugin PHP en `integrations/woocommerce-plugin/` (fuera del build de
+  pnpm — recurso estático) + `.zip` servido desde
+  `apps/web/public/downloads/converflow-woocommerce-latest.zip`.
+- **Fuera de alcance**: suscripciones/renovaciones, reembolsos parciales,
+  pedidos editados a mano, analítica de ingresos, multi-tienda por tenant.
 
 ## MAIL MODULE — rebuild (greenfield, independiente de Bots)
 

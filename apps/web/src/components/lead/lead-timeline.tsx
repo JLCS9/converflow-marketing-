@@ -91,6 +91,7 @@ const EVENT_META: Record<string, EventMeta> = {
       const id = str(p.opportunityId);
       const name = str(p.name) ?? 'Oportunidad ganada';
       const amount = money(p);
+      const refunded = str(p.refundedAt);
       return (
         <>
           {id ? (
@@ -98,9 +99,20 @@ const EVENT_META: Record<string, EventMeta> = {
               {name}
             </Link>
           ) : (
-            name
+            <span className={refunded ? 'line-through decoration-ink-400' : undefined}>{name}</span>
           )}
-          {amount && <span className="ml-1.5 font-medium text-emerald-700">{amount}</span>}
+          {amount && (
+            <span
+              className={`ml-1.5 font-medium ${refunded ? 'text-ink-400 line-through' : 'text-emerald-700'}`}
+            >
+              {amount}
+            </span>
+          )}
+          {refunded && (
+            <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+              Reembolsado
+            </span>
+          )}
         </>
       );
     },

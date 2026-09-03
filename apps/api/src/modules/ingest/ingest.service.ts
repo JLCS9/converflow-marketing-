@@ -5,6 +5,7 @@ import { ProfilesService } from '../profiles/profiles.service.js';
 import { LifecycleService } from '../lifecycle/lifecycle.service.js';
 import { PlaybooksService } from '../playbooks/playbooks.service.js';
 import { AiReportsService } from '../ai-reports/ai-reports.service.js';
+import { CrmSyncService } from '../leads/crm-sync.service.js';
 import { RagService } from '../rag/rag.service.js';
 import { IngestQueue, type IngestJob } from './ingest.queue.js';
 
@@ -26,6 +27,7 @@ export class IngestService implements OnModuleInit {
     private readonly rag: RagService,
     private readonly playbooks: PlaybooksService,
     private readonly reports: AiReportsService,
+    private readonly crmSync: CrmSyncService,
   ) {}
 
   onModuleInit() {
@@ -147,6 +149,13 @@ export class IngestService implements OnModuleInit {
             .onTransition(tenantId, profile.id, newState)
             .catch((err) => this.logger.warn(`playbook onTransition falló: ${err.message}`));
         }
+        // Auto-alta/promoción de Cliente desde compras de e-commerce
+        // (cualquier fuente que emita 'purchase'/'refund', no solo
+        // WooCommerce). CrmSyncService decide internamente si el `type` le
+        // importa — este servicio no gana lógica de negocio de CRM.
+        await this.crmSync
+          .onEvent(tenantId, batch.source, profile, ev)
+          .catch((err) => this.logger.warn(`crm-sync falló: ${err.message}`));
       }
     }
 

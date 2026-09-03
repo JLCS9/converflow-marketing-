@@ -122,9 +122,47 @@ export function translateGeneric(payload: unknown, sourceName: string): EventBat
   return { source: sourceName, events: events as EventInput[] };
 }
 
+// ---------------------------------------------------------------------------
+// WooCommerce (y cualquier e-commerce futuro con el mismo plugin propio) —
+// el plugin arma el batch YA en forma canónica (es código nuestro, no un
+// webhook de tercero), así que este traductor es sobre todo VALIDACIÓN
+// DEFENSIVA: filtra eventos con forma rara en vez de dejar que UN evento
+// malformado tumbe el lote entero en el `eventBatchSchema.parse` posterior
+// (zod rechaza el array completo si un solo elemento no cuadra). Un plugin
+// desactualizado o modificado a mano no debe poder perder las demás compras
+// del mismo lote por un campo mal puesto.
+// ---------------------------------------------------------------------------
+const EVENT_TYPE_RE = /^[a-z][a-z0-9_.]{1,79}$/;
+
+export function translateWoocommerce(payload: unknown): EventBatchInput {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const raw = Array.isArray(p.events) ? p.events : [];
+  const events: EventInput[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const e = item as Record<string, unknown>;
+    const type = s(e.type);
+    if (!type || !EVENT_TYPE_RE.test(type)) continue;
+    const email = s((e.identity as Record<string, unknown> | undefined)?.email)?.toLowerCase();
+    const props =
+      e.props && typeof e.props === 'object' && !Array.isArray(e.props)
+        ? (e.props as Record<string, unknown>)
+        : undefined;
+    events.push({
+      type,
+      occurredAt: when(e.occurredAt),
+      externalId: s(e.externalId),
+      identity: email ? { email } : undefined,
+      props,
+    });
+  }
+  return { source: 'woocommerce', events };
+}
+
 export const TRANSLATORS: Record<string, (payload: unknown) => EventBatchInput> = {
   brevo: translateBrevo,
   learndash: translateLearndash,
+  woocommerce: translateWoocommerce,
 };
 
 // ---------------------------------------------------------------------------

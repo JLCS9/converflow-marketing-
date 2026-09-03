@@ -10,12 +10,24 @@ import { IngestQueueModule } from './ingest-queue.module.js';
 import { IngestService } from './ingest.service.js';
 import { PlaybooksModule } from '../playbooks/playbooks.module.js';
 import { AiReportsModule } from '../ai-reports/ai-reports.module.js';
+import { CatalogModule } from '../catalog/catalog.module.js';
+import { LeadsModule } from '../leads/leads.module.js';
 
 /** Plano de datos: POST /events → cola data-plane → identidad + evento +
  *  ciclo de vida. Los adaptadores por fuente (Brevo, LearnDash…) llegan en
  *  la segunda entrega de F1. */
 @Module({
-  imports: [IngestQueueModule, ProfilesModule, LifecycleModule, ConsentsModule, RagModule, PlaybooksModule, AiReportsModule],
+  imports: [
+    IngestQueueModule,
+    ProfilesModule,
+    LifecycleModule,
+    ConsentsModule,
+    RagModule,
+    PlaybooksModule,
+    AiReportsModule,
+    CatalogModule,
+    LeadsModule,
+  ],
   controllers: [IngestController, SourcesController, WebhooksController],
   providers: [IngestService],
   exports: [IngestService, IngestQueueModule],

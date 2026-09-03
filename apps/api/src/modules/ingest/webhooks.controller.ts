@@ -1,10 +1,12 @@
 import { Body, Controller, Headers, HttpCode, Param, Post, Req } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
-import { NotFoundError, UnauthorizedError } from '@converflow/shared';
+import { NotFoundError, UnauthorizedError, catalogBatchSchema } from '@converflow/shared';
+import type { IngestSource } from '@converflow/db';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { ConsentsService } from '../consents/consents.service.js';
 import { ProfilesService } from '../profiles/profiles.service.js';
+import { CatalogService } from '../catalog/catalog.service.js';
 import { IngestQueue } from './ingest.queue.js';
 import { TRANSLATORS, translateGeneric, verifyHmacSignature } from './adapters/adapters.js';
 
@@ -26,7 +28,29 @@ export class WebhooksController {
     private readonly queue: IngestQueue,
     private readonly profiles: ProfilesService,
     private readonly consents: ConsentsService,
+    private readonly catalog: CatalogService,
   ) {}
+
+  /**
+   * Resolución de tenant vía bypass (misma técnica que webchat/botId): la
+   * fila de la fuente ES la autorización de la ruta. Compartida por el
+   * endpoint de eventos y el de catálogo — misma fuente, misma firma.
+   */
+  private async resolveAndVerifySource(
+    sourceId: string,
+    rawBody: Buffer,
+    signature: string | undefined,
+  ): Promise<IngestSource> {
+    const source = await this.prisma.bypass((tx) =>
+      tx.ingestSource.findUnique({ where: { id: sourceId } }),
+    );
+    if (!source || !source.active) throw new NotFoundError('Fuente no encontrada');
+    if (source.secret) {
+      const ok = verifyHmacSignature(rawBody, source.secret, signature);
+      if (!ok) throw new UnauthorizedError();
+    }
+    return source;
+  }
 
   @Post(':sourceId')
   @HttpCode(202)
@@ -37,18 +61,8 @@ export class WebhooksController {
     @Headers('x-wc-webhook-signature') wcSignature?: string,
     @Headers('x-webhook-signature') genericSignature?: string,
   ) {
-    // Resolución de tenant vía bypass (misma técnica que webchat/botId): la
-    // fila de la fuente ES la autorización de la ruta.
-    const source = await this.prisma.bypass((tx) =>
-      tx.ingestSource.findUnique({ where: { id: sourceId } }),
-    );
-    if (!source || !source.active) throw new NotFoundError('Fuente no encontrada');
-
-    if (source.secret) {
-      const raw = req.rawBody ?? Buffer.from(JSON.stringify(body ?? {}));
-      const ok = verifyHmacSignature(raw, source.secret, wcSignature ?? genericSignature);
-      if (!ok) throw new UnauthorizedError();
-    }
+    const raw = req.rawBody ?? Buffer.from(JSON.stringify(body ?? {}));
+    const source = await this.resolveAndVerifySource(sourceId, raw, wcSignature ?? genericSignature);
 
     const translate = TRANSLATORS[source.kind];
     const batch = translate ? translate(body) : translateGeneric(body, source.kind);
@@ -82,5 +96,36 @@ export class WebhooksController {
     );
 
     return { accepted: batch.events.length };
+  }
+
+  /**
+   * Catálogo (productos/cursos/servicios) — endpoint APARTE del de eventos:
+   * `Event` es append-only (dedupe único por externalId), mientras que un
+   * ítem de catálogo se ACTUALIZA (precio, disponibilidad) con el mismo
+   * externalId una y otra vez. Mismo contrato de "siempre 202, nunca 4xx a
+   * un payload raro" que el endpoint de eventos.
+   */
+  @Post(':sourceId/catalog')
+  @HttpCode(202)
+  async receiveCatalog(
+    @Param('sourceId') sourceId: string,
+    @Body() body: unknown,
+    @Req() req: RawBodyRequest<FastifyRequest>,
+    @Headers('x-wc-webhook-signature') wcSignature?: string,
+    @Headers('x-webhook-signature') genericSignature?: string,
+  ) {
+    const raw = req.rawBody ?? Buffer.from(JSON.stringify(body ?? {}));
+    const source = await this.resolveAndVerifySource(sourceId, raw, wcSignature ?? genericSignature);
+
+    const parsed = catalogBatchSchema.safeParse(body);
+    if (!parsed.success) return { upserted: 0 };
+
+    const { upserted } = await this.catalog.upsertBatch(source.tenantId, source.kind, parsed.data.items);
+
+    await this.prisma.bypass((tx) =>
+      tx.ingestSource.update({ where: { id: source.id }, data: { lastEventAt: new Date() } }),
+    );
+
+    return { upserted };
   }
 }

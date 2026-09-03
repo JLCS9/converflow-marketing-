@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { eventBatchSchema } from '@converflow/shared';
-import { translateBrevo, translateLearndash, verifyHmacSignature } from './adapters.js';
+import { translateBrevo, translateLearndash, translateWoocommerce, verifyHmacSignature } from './adapters.js';
 import { VERTICAL_TEMPLATES } from '../../verticals/templates.js';
 import { validateDefinition } from '../../lifecycle/lifecycle.engine.js';
 
@@ -68,6 +68,55 @@ describe('adaptador LearnDash', () => {
       .toBe('course_activity');
     expect(translateLearndash({ trigger: 'quiz_completed', email: 'a@b.com' }).events[0]!.type)
       .toBe('course_activity');
+  });
+});
+
+describe('adaptador WooCommerce (validación defensiva de un plugin propio)', () => {
+  it('acepta un pedido de compra en forma canónica (el plugin ya la manda así)', () => {
+    const batch = translateWoocommerce({
+      events: [
+        {
+          type: 'purchase',
+          occurredAt: '2026-09-03T10:15:00Z',
+          externalId: 'order:4831',
+          identity: { email: 'Ana@Empresa.com' },
+          props: { orderId: '4831', amount: '149.00', currency: 'EUR', company: 'Acme S.L.' },
+        },
+      ],
+    });
+    expect(batch.source).toBe('woocommerce');
+    expect(batch.events[0]).toMatchObject({
+      type: 'purchase',
+      externalId: 'order:4831',
+      identity: { email: 'ana@empresa.com' },
+      props: { orderId: '4831', amount: '149.00' },
+    });
+    expect(() => eventBatchSchema.parse(batch)).not.toThrow();
+  });
+
+  it('un evento con type malformado se descarta SIN tumbar los demás del mismo lote', () => {
+    const batch = translateWoocommerce({
+      events: [
+        { type: 'PURCHASE-mayúsculas!', identity: { email: 'a@b.com' } }, // no cuadra con el regex
+        { type: 'purchase', identity: { email: 'a@b.com' } },
+      ],
+    });
+    expect(batch.events).toHaveLength(1);
+    expect(batch.events[0]!.type).toBe('purchase');
+  });
+
+  it('reembolso sin email (identity opcional) se acepta igual', () => {
+    const batch = translateWoocommerce({
+      events: [{ type: 'refund', externalId: 'refund:4831', props: { orderId: '4831', amount: '149.00' } }],
+    });
+    expect(batch.events[0]).toMatchObject({ type: 'refund', identity: undefined });
+  });
+
+  it('payload basura → 0 eventos, jamás lanza', () => {
+    expect(translateWoocommerce(null).events).toHaveLength(0);
+    expect(translateWoocommerce('x').events).toHaveLength(0);
+    expect(translateWoocommerce({ events: 'no-es-un-array' }).events).toHaveLength(0);
+    expect(translateWoocommerce({ events: ['basura', null, 42] }).events).toHaveLength(0);
   });
 });
 
