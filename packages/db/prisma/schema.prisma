@@ -1832,6 +1832,10 @@ model EcommerceConnection {
   ingestSourceId String            @unique
   ingestSource   IngestSource      @relation(fields: [ingestSourceId], references: [id], onDelete: Cascade)
 
+  /// Nombre corto para distinguir tiendas cuando hay varias en el mismo
+  /// tenant (p. ej. instalaciones de WordPress por idioma del mismo
+  /// negocio: "ES", "EN", "FR"). Opcional — sin él se usa storeName/storeUrl.
+  label         String?
   storeName     String?
   storeUrl      String?
   /// Reportado por el plugin en cada webhook (header x-cf-plugin-version).
@@ -1860,9 +1864,11 @@ model EcommerceConnection {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /// Una tienda activa por proveedor y tenant (MVP: sin multi-tienda).
-  @@unique([tenantId, provider])
-  @@index([tenantId])
+  /// Varias tiendas por tenant y proveedor SÍ están soportadas (p. ej. un
+  /// mismo negocio con una instalación de WordPress independiente por
+  /// idioma) — cada una es su propio IngestSource/plugin/secreto, todas
+  /// alimentando el mismo CRM. Sin unique en [tenantId, provider] a propósito.
+  @@index([tenantId, provider])
   @@map("ecommerce_connections")
 }
 

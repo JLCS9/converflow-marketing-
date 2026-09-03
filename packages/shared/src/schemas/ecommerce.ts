@@ -33,6 +33,7 @@ export type CatalogBatchInput = z.infer<typeof catalogBatchSchema>;
 
 /** Respuesta al generar la clave de conexión de un solo uso (handshake del plugin). */
 export const ecommerceConnectResponseSchema = z.object({
+  connectionId: z.string(),
   connectionKey: z.string(),
   expiresAt: z.string(),
   webhookBaseUrl: z.string(),
