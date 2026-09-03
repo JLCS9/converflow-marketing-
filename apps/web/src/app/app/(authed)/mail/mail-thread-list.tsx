@@ -9,7 +9,7 @@
  * living in the same component.
  */
 
-import { Inbox, Mail, Search, UserCheck, Users, X } from 'lucide-react';
+import { Inbox, Mail, Search, Sparkles, UserCheck, Users, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Avatar } from '@/components/ui/inbox-kit';
 import { buttonClass } from '@/components/ui/primitives';
@@ -226,6 +226,14 @@ export function MailThreadList({
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-xs text-ink-400">{row.snippet}</span>
                   <span className="flex shrink-0 items-center gap-1">
+                    {row.hasAiDraft && (
+                      <span
+                        className="inline-flex items-center rounded-full bg-emerald-50 p-0.5 text-emerald-600 ring-1 ring-emerald-200"
+                        title={t('aiDraftBadge')}
+                      >
+                        <Sparkles size={10} />
+                      </span>
+                    )}
                     {row.unreadCount > 0 && (
                       <span className="inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-semibold text-white">{row.unreadCount}</span>
                     )}

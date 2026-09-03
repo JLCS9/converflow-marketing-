@@ -15,6 +15,7 @@ import { MailSharedService } from './mail-shared.service.js';
 import { MailAttachmentsService, type StagedAttachment } from './mail-attachments.service.js';
 import { MailAiService } from './mail-ai.service.js';
 import { MailDraftAiService } from './mail-draft-ai.service.js';
+import { MailAutoReplyService } from './mail-auto-reply.service.js';
 
 type MultipartFile = {
   filename: string;
@@ -34,6 +35,7 @@ export class MailInboxController {
     private readonly attachments: MailAttachmentsService,
     private readonly mailAi: MailAiService,
     private readonly draftAi: MailDraftAiService,
+    private readonly autoReply: MailAutoReplyService,
   ) {}
 
   private actor(user: AuthenticatedUser) {
@@ -119,6 +121,16 @@ export class MailInboxController {
       force: body?.force === true,
       locale: body?.locale,
     });
+  }
+
+  /**
+   * «Proponer respuesta»: el MISMO motor de atención autónoma (Conocimiento +
+   * ficha CRM + identidad del Asistente), bajo demanda desde el compositor.
+   * Nunca envía: el resultado va al compositor para revisar.
+   */
+  @Post('threads/:id/assistant/propose')
+  proposeReply(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.autoReply.propose(user.tenantId, id, this.actor(user));
   }
 
   /**

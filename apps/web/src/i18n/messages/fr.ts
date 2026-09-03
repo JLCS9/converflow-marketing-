@@ -105,6 +105,13 @@ const fr: Messages = {
   mail: {
     summarizeThread: 'Résumer ce fil avec l’IA',
     assistantFootnote: 'Rédigé par l’IA · relisez avant d’envoyer. Il ne s’envoie jamais seul.',
+    proposeReply: 'Proposer une réponse',
+    proposing: 'Rédaction…',
+    proposeHint: 'Répond avec la Connaissance et la fiche du contact, comme en mode autonome.',
+    proposeNoAnswer:
+      'L’Assistant n’a pas trouvé cette réponse dans la Connaissance : relisez le texte avant d’envoyer. La question a été enregistrée comme lacune.',
+    assistantMore: 'Plus d’options de rédaction',
+    aiDraftBadge: 'L’Assistant a préparé une réponse',
     chooseVersion: 'Choisissez une version — elle est placée dans l’éditeur pour relecture avant envoi :',
     useThis: 'Utiliser celle-ci',
     bccShort: 'Cci',
@@ -815,6 +822,9 @@ const fr: Messages = {
     aiModeSuggest: 'Suggère',
     aiModeAuto: 'Répond seul',
     aiModeSaved: 'Mode de l\u2019assistant enregistré',
+    inboundOffWarning:
+      'L\u2019analyse automatique des messages entrants est désactivée pour tout le compte : l\u2019Assistant ne proposera ni n\u2019enverra de réponses même si vous activez un mode ici.',
+    inboundOffCta: 'Activez-la dans Configuration',
     membersAll: 'Toute l\u2019équipe',
     membersSome: 'Seulement {n} personnes',
     membersAllOption: 'Toute l\u2019équipe',

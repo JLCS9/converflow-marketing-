@@ -29,6 +29,8 @@ export interface ThreadRow {
   unreadCount: number;
   /** Sin leer PARA MÍ (estado por usuario en buzones compartidos). */
   unreadForMe?: boolean;
+  /** El Asistente dejó una respuesta propuesta sin enviar en este hilo. */
+  hasAiDraft?: boolean;
   lastMessageAt: string | null;
   status: string;
   assigneeUserId: string | null;

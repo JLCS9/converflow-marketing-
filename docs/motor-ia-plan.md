@@ -1,5 +1,13 @@
 # Plan de ejecución — Motor de IA y RAG multi-tenant de Converflow
 
+> **ESTADO (2026-09): COMPLETADO Y EN PRODUCCIÓN.** Las fases F0–F4 están
+> desplegadas, más dos planes posteriores que este documento no cubre:
+> «Convergencia IA» (pipeline único multicanal) y «Atención autónoma
+> multicanal» (modos OFF/Sugiere/Responde sola por buzón y por bot, enrutado
+> por reglas, ciclo de ticket). El estado vivo está en `docs/CURRENT_STATE.md`
+> (sección «IA — Motor, Convergencia y Atención autónoma») y el manual de uso
+> en `docs/manual-asistente-ia.md`. Este fichero queda como registro de diseño.
+
 ## Contexto
 
 Converflow necesita su capa de IA definitiva: un motor conversacional que cualifica y atiende leads con el conocimiento propio de cada tenant, gestión del lead cualificado (resúmenes, handoff, follow-ups) e inteligencia agregada (informes, objeciones, motivos de pérdida), todo sobre un plano de datos que unifica eventos e identidades por tenant. La tesis de retención es arquitectónica: el LLM es intercambiable y sin estado; lo que mejora con el uso (conocimiento, respuestas verificadas, instrucciones, resultados) vive en la memoria del tenant dentro de Postgres. El sistema debe servir a verticales distintos sin desarrollo a medida: **piloto con e-learning/formación y residencias de ancianos (senior living)** — este segundo impone datos sensibles, consentimiento con evidencia y retención configurable desde el primer día.

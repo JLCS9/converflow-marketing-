@@ -23,13 +23,18 @@ function makeService(over: {
   const tx = {
     mailConnection: {
       findUnique: vi.fn().mockResolvedValue({
+        id: 'conn1',
         aiReplyMode: over.aiReplyMode ?? 'AUTO',
         signature: '<p>— Academia</p>',
         fromAddress: 'info@academia.com',
+        visibility: 'SHARED',
+        ownerUserId: null,
+        memberUserIds: null,
       }),
     },
     emailThread: {
       findUnique: vi.fn().mockResolvedValue({
+        connectionId: 'conn1',
         assigneeUserId: over.assignee ?? null,
         lockedByUserId: over.locked ? 'u9' : null,
         lockedAt: over.locked ? new Date() : null,
@@ -45,6 +50,16 @@ function makeService(over: {
       findFirst: vi.fn().mockImplementation(({ where }: { where: Record<string, unknown> }) => {
         if (where.dedupeKey) return Promise.resolve(over.dedupeExisting ? { id: 'dup' } : null);
         if (where.sentByUserId) return Promise.resolve(over.assigneeReplied ? { id: 'hout' } : null);
+        // Último IN del hilo (lo usa propose()).
+        if (where.direction === 'IN') {
+          return Promise.resolve({
+            id: 'm1',
+            text: '¿Cuánto dura el curso?',
+            detectedLang: 'es',
+            fromAddress: 'cliente@empresa.com',
+            fromName: 'Cliente',
+          });
+        }
         return Promise.resolve(over.outAfter ? { id: 'out' } : null);
       }),
       count: vi.fn().mockResolvedValue(over.aiCount24h ?? 0),
@@ -93,7 +108,7 @@ function makeService(over: {
   const svc = new MailAutoReplyService(
     prisma, ai as never, budget as never, engine as never, profiles as never, compose as never,
   );
-  return { svc, engine, compose, ai };
+  return { svc, engine, compose, ai, budget };
 }
 
 const email = (over: Partial<ParsedEmail> = {}): ParsedEmail => ({
@@ -202,6 +217,40 @@ describe('MailAutoReplyService — entrega por modo', () => {
     expect(compose.saveAssistantDraft).toHaveBeenCalledWith('t1', 'th1', {
       html: expect.stringContaining('seis semanas'),
     });
+  });
+});
+
+describe('MailAutoReplyService.propose — botón «Proponer respuesta»', () => {
+  const actor = { userId: 'u1', role: 'AGENT_USER' };
+
+  it('devuelve el html con firma, registra uso MANUAL y NO envía ni guarda borrador', async () => {
+    const { svc, compose, ai } = makeService();
+    const r = await svc.propose('t1', 'th1', actor);
+    expect(r.canAnswer).toBe(true);
+    expect(r.html).toContain('seis semanas');
+    expect(r.html).toContain('— Academia');
+    expect(compose.replyAsAssistant).not.toHaveBeenCalled();
+    expect(compose.saveAssistantDraft).not.toHaveBeenCalled();
+    expect(ai.recordUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        feature: 'conversation_engine',
+        metadata: expect.objectContaining({ channel: 'EMAIL', mode: 'MANUAL', delivered: false }),
+      }),
+    );
+  });
+
+  it('funciona aunque el buzón esté en OFF: la acción manual no depende del modo', async () => {
+    const { svc, engine } = makeService({ aiReplyMode: 'OFF' });
+    const r = await svc.propose('t1', 'th1', actor);
+    expect(engine.respond).toHaveBeenCalledTimes(1);
+    expect(r.html).toContain('seis semanas');
+  });
+
+  it('presupuesto agotado → error visible sin llamar al motor', async () => {
+    const { svc, engine, budget } = makeService();
+    budget.assertWithinBudget.mockRejectedValue(new Error('límite mensual'));
+    await expect(svc.propose('t1', 'th1', actor)).rejects.toThrow('límite mensual');
+    expect(engine.respond).not.toHaveBeenCalled();
   });
 });
 
