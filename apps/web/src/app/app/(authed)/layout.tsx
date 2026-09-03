@@ -42,6 +42,7 @@ export default async function TenantAuthedLayout({
   // Sidebar badge counts. Never let a hiccup break the whole tenant area.
   let alertCount = 0;
   let convPending = 0;
+  let gapsCount = 0;
   try {
     const res = await serverApiFetch<{ count: number }>('/alerts/count');
     alertCount = res.count;
@@ -53,6 +54,14 @@ export default async function TenantAuthedLayout({
     convPending = res.pending;
   } catch {
     convPending = 0;
+  }
+  try {
+    // Notificación de IA: preguntas sin responder (lagunas de conocimiento
+    // abiertas) — mismo trato que los otros dos contadores del sidebar.
+    const res = await serverApiFetch<{ count: number }>('/knowledge/gaps/count');
+    gapsCount = res.count;
+  } catch {
+    gapsCount = 0;
   }
 
   const sessionUser: SessionUser = {
@@ -73,6 +82,7 @@ export default async function TenantAuthedLayout({
           mustChangePassword={!!me.user.mustChangePassword}
           convPending={convPending}
           alertCount={alertCount}
+          gapsCount={gapsCount}
         >
           {children}
         </AppShell>

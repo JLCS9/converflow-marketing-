@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { serverApiFetch } from '@/lib/server-api';
 import { buttonClass } from '@/components/ui/primitives';
 import { TabBar, CRM_TABS } from '@/components/ui/tab-bar';
+import { computeDateRange, type DateRangePreset } from '@/components/ui/date-range-filter';
 import { OpportunitiesBoard } from './opportunities-board';
+import { OpportunitiesDateFilter } from './opportunities-date-filter';
 import type { OppCard, Pipeline } from './types';
 
 export async function generateMetadata() {
@@ -15,7 +17,7 @@ export const dynamic = 'force-dynamic';
 export default async function OpportunitiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ pipelineId?: string }>;
+  searchParams: Promise<{ pipelineId?: string; preset?: string; from?: string; to?: string }>;
 }) {
   const t = await getTranslations();
   const params = await searchParams;
@@ -24,8 +26,18 @@ export default async function OpportunitiesPage({
     pipelines.find((p) => p.id === params.pipelineId) ??
     pipelines.find((p) => p.isDefault) ??
     pipelines[0];
+
+  // Bloque de Inteligencia de Negocio: por defecto últimos 30 días — igual
+  // que el widget de ventas del inicio, mismo criterio en toda la app.
+  const range = computeDateRange(
+    (params.preset as DateRangePreset) || '30d',
+    { from: params.from, to: params.to },
+  );
+
   const opps = selected
-    ? await serverApiFetch<OppCard[]>(`/opportunities?pipelineId=${selected.id}&limit=500`)
+    ? await serverApiFetch<OppCard[]>(
+        `/opportunities?pipelineId=${selected.id}&limit=500&from=${range.from}&to=${range.to}`,
+      )
     : [];
 
   return (
@@ -67,6 +79,8 @@ export default async function OpportunitiesPage({
           </Link>
         </div>
       </header>
+
+      <OpportunitiesDateFilter value={range} />
 
       {!selected ? (
         <div className="rounded-md border border-dashed border-ink-200 p-6 text-sm text-ink-500">

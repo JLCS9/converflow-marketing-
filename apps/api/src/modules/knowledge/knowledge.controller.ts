@@ -118,6 +118,12 @@ export class KnowledgeController {
     return this.knowledge.listGaps(user.tenantId);
   }
 
+  /** Badge de notificación del navbar: preguntas sin responder abiertas. */
+  @Get('gaps/count')
+  countOpenGaps(@CurrentUser() user: AuthenticatedUser) {
+    return this.knowledge.countOpenGaps(user.tenantId);
+  }
+
   @Post('gaps/:id/cover')
   coverGap(
     @Param('id') id: string,

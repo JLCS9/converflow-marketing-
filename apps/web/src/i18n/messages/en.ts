@@ -262,6 +262,13 @@ const en: Messages = {
     wKpis: 'Indicators (KPIs)',
     wQueue: 'Your queue today',
     wAiWeek: 'Assistant Pulse',
+    wEcommerceSales: 'Sales',
+    ecommerceOrders: 'Orders',
+    ecommerceRevenue: 'Revenue',
+    ecommerceAvgTicket: 'Avg. ticket',
+    ecommerceViewInOpportunities: 'View in Opportunities',
+    ecommerceEmpty: 'Connect your store to see your sales here automatically.',
+    ecommerceEmptyCta: 'Connect a store',
     wFunnel: 'Lead funnel',
     wSources: 'Leads by source',
     wRecentDocs: 'Recent documents',
@@ -390,6 +397,14 @@ const en: Messages = {
     search: 'Search',
     close: 'Close',
   },
+  dateRange: {
+    last7: 'Last 7 days',
+    last30: 'Last 30 days',
+    last90: 'Last 90 days',
+    thisMonth: 'This month',
+    thisQuarter: 'This quarter',
+    custom: 'Custom',
+  },
   crm: {
     pagination: 'Pagination',
     prevPage: 'Previous page',
@@ -500,6 +515,7 @@ const en: Messages = {
     searchPlaceholder: 'Search…',
   },
   contacts: {
+    paginationSummary: 'Page {page} of {totalPages} · {total} contacts',
     title: 'Contacts',
     subtitle: 'Leads and clients in one list. Filters live in the URL, so views are shareable.',
     type: 'Type',
@@ -520,6 +536,7 @@ const en: Messages = {
       'Leads marked as won become clients automatically. You can also add them by hand.',
   },
   opportunities: {
+    closedInRange: 'Won/lost closed in:',
     saveErrorMsg: 'Could not save',
     unexpected: 'Unexpected error',
     moveError: 'Could not move the opportunity',
@@ -1733,6 +1750,7 @@ const en: Messages = {
       importCsv: 'Import leads from CSV',
       aiScoring: 'Score leads with AI',
       opportunities: 'Opportunities and pipelines',
+      ecommerce: 'Connect your store (WooCommerce)',
       fields: 'Custom fields',
       users: 'Users and permissions',
       api: 'API for developers',
@@ -1805,6 +1823,18 @@ const en: Messages = {
       item2:
         'Create opportunities manually from a lead’s detail, or let the Opportunities agent open them automatically when it detects interest.',
       item3: 'Every stage move is recorded in the history with who and when.',
+    },
+    ec: {
+      intro:
+        'Connect your store and Converflow takes care of the rest: every purchase creates or updates the customer record and shows up as a won sale in your pipeline, with the real product and amount — no manual entry needed.',
+      item1:
+        'Go to <link>Settings → Integrations</link> and click "Add store". Install the plugin on your WordPress (downloaded right there) and paste the connection key Converflow gives you — the store is linked instantly.',
+      item2:
+        'From then on, every paid order shows up on its own: the buyer appears as a customer (or gets updated if they already were one), and the sale lands in Opportunities as won, with the real name of what was bought and the real order date.',
+      item3:
+        'If your business runs several stores (say, a separate install per language), connect each one on its own with "Add store": each with its own key, all feeding the same dashboard.',
+      item4:
+        'In <link>Opportunities</link> and the home sales widget you can filter by date (last 30 days by default, or any period you choose) to see how much you sold at a glance.',
     },
     fl: {
       intro: 'You can extend the data model of leads, clients and opportunities without touching code.',

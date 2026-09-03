@@ -21,6 +21,48 @@ interface StageRow {
   isLost: boolean;
 }
 
+type OppStatusValue = 'OPEN' | 'QUOTED' | 'NEGOTIATING' | 'WON' | 'LOST';
+
+/**
+ * Resuelve la etapa de un pipeline para un status dado (WON/LOST/otra key),
+ * con fallback a la primera etapa en orden. MISMO criterio para el alta
+ * manual de una Oportunidad (`OpportunitiesService.create`) y el alta
+ * automática desde una compra de e-commerce (`PurchaseOpportunityService`) —
+ * una sola fuente de verdad, en vez de reimplementar "cuál es la etapa
+ * ganadora" en cada sitio que crea una Oportunidad.
+ */
+export function resolveStageForStatus(
+  pipeline: { stages: StageRow[] } | null | undefined,
+  status?: string,
+): StageRow | undefined {
+  if (!pipeline || pipeline.stages.length === 0) return undefined;
+  let candidate = pipeline.stages[0];
+  if (status === 'WON') candidate = pipeline.stages.find((s) => s.isWon) ?? candidate;
+  else if (status === 'LOST') candidate = pipeline.stages.find((s) => s.isLost) ?? candidate;
+  else if (status) {
+    const byKey = pipeline.stages.find((s) => s.key === status);
+    if (byKey) candidate = byKey;
+  }
+  return candidate;
+}
+
+/** El status real de una Oportunidad lo manda la etapa en la que vive
+ *  (isWon/isLost), no lo que se pida — evita un status "WON" en una etapa
+ *  que no lo es. `fallback` cubre etapas intermedias sin marcar. */
+export function syncStatusFromStage(
+  stage: { isWon: boolean; isLost: boolean; key: string },
+  fallback: OppStatusValue,
+): OppStatusValue {
+  if (stage.isWon) return 'WON';
+  if (stage.isLost) return 'LOST';
+  const known = ['OPEN', 'QUOTED', 'NEGOTIATING'] as const;
+  if ((known as readonly string[]).includes(stage.key)) {
+    return stage.key as 'OPEN' | 'QUOTED' | 'NEGOTIATING';
+  }
+  if (fallback === 'WON' || fallback === 'LOST') return 'OPEN';
+  return fallback;
+}
+
 @Injectable()
 export class PipelinesService {
   constructor(private readonly prisma: PrismaService) {}

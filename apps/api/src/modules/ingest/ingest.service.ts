@@ -6,6 +6,7 @@ import { LifecycleService } from '../lifecycle/lifecycle.service.js';
 import { PlaybooksService } from '../playbooks/playbooks.service.js';
 import { AiReportsService } from '../ai-reports/ai-reports.service.js';
 import { CrmSyncService } from '../leads/crm-sync.service.js';
+import { PurchaseOpportunityService } from '../opportunities/purchase-opportunity.service.js';
 import { RagService } from '../rag/rag.service.js';
 import { IngestQueue, type IngestJob } from './ingest.queue.js';
 
@@ -28,6 +29,7 @@ export class IngestService implements OnModuleInit {
     private readonly playbooks: PlaybooksService,
     private readonly reports: AiReportsService,
     private readonly crmSync: CrmSyncService,
+    private readonly purchaseOpportunity: PurchaseOpportunityService,
   ) {}
 
   onModuleInit() {
@@ -171,6 +173,14 @@ export class IngestService implements OnModuleInit {
         await this.crmSync
           .onEvent(tenantId, batch.source, profile, ev)
           .catch((err) => this.logger.warn(`crm-sync falló: ${err.message}`));
+        // Compra → Oportunidad ganada del pipeline comercial. Corre DESPUÉS
+        // de crmSync a propósito: resuelve el Lead que crmSync acaba de
+        // crear/enlazar por profileId, sin que ningún dato viaje entre
+        // ambos servicios por parámetro (desacoplados, cada uno resuelve lo
+        // que necesita desde la misma fuente de verdad: el Lead.profileId).
+        await this.purchaseOpportunity
+          .onEvent(tenantId, batch.source, profile, ev)
+          .catch((err) => this.logger.warn(`purchase-opportunity falló: ${err.message}`));
       }
     }
 

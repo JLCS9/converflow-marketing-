@@ -20,6 +20,7 @@ const SECTIONS: Section[] = [
   { id: 'importar', titleKey: 'sections.importCsv' },
   { id: 'score-ia', titleKey: 'sections.aiScoring' },
   { id: 'oportunidades', titleKey: 'sections.opportunities' },
+  { id: 'ecommerce', titleKey: 'sections.ecommerce' },
   { id: 'campos', titleKey: 'sections.fields' },
   { id: 'usuarios', titleKey: 'sections.users' },
   { id: 'desarrollador', titleKey: 'sections.api' },
@@ -149,6 +150,16 @@ export default async function HelpCenterPage() {
               <li>{t.rich('op.item1', { link: appLink('/app/settings/pipelines') })}</li>
               <li>{t('op.item2')}</li>
               <li>{t('op.item3')}</li>
+            </ul>
+          </Section>
+
+          <Section id="ecommerce" title={t('sections.ecommerce')}>
+            <p>{t('ec.intro')}</p>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>{t.rich('ec.item1', { link: appLink('/app/settings/integrations') })}</li>
+              <li>{t('ec.item2')}</li>
+              <li>{t('ec.item3')}</li>
+              <li>{t.rich('ec.item4', { link: appLink('/app/opportunities') })}</li>
             </ul>
           </Section>
 

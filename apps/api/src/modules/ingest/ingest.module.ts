@@ -12,6 +12,7 @@ import { PlaybooksModule } from '../playbooks/playbooks.module.js';
 import { AiReportsModule } from '../ai-reports/ai-reports.module.js';
 import { CatalogModule } from '../catalog/catalog.module.js';
 import { LeadsModule } from '../leads/leads.module.js';
+import { OpportunitiesModule } from '../opportunities/opportunities.module.js';
 
 /** Plano de datos: POST /events → cola data-plane → identidad + evento +
  *  ciclo de vida. Los adaptadores por fuente (Brevo, LearnDash…) llegan en
@@ -27,6 +28,7 @@ import { LeadsModule } from '../leads/leads.module.js';
     AiReportsModule,
     CatalogModule,
     LeadsModule,
+    OpportunitiesModule,
   ],
   controllers: [IngestController, SourcesController, WebhooksController],
   providers: [IngestService],

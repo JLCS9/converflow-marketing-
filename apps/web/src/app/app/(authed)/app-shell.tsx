@@ -16,6 +16,7 @@ interface Props {
   mustChangePassword: boolean;
   convPending: number;
   alertCount: number;
+  gapsCount: number;
   children: ReactNode;
 }
 
@@ -31,6 +32,7 @@ export function AppShell({
   mustChangePassword,
   convPending,
   alertCount,
+  gapsCount,
   children,
 }: Props) {
   const t = useTranslations('shell');
@@ -56,7 +58,7 @@ export function AppShell({
     <div className="flex h-screen overflow-hidden bg-ink-100/30">
       {/* Desktop icon rail (labels appear on hover) */}
       <aside className="hidden w-16 shrink-0 flex-col border-r border-ink-100 bg-white md:flex">
-        <SidebarNav convPending={convPending} alertCount={alertCount} collapsed />
+        <SidebarNav convPending={convPending} alertCount={alertCount} gapsCount={gapsCount} collapsed />
       </aside>
 
       {/* Mobile drawer */}
@@ -88,7 +90,7 @@ export function AppShell({
           </button>
         </div>
         <div className="text-xs text-ink-500 px-4 pb-2">{tenantName}</div>
-        <SidebarNav convPending={convPending} alertCount={alertCount} />
+        <SidebarNav convPending={convPending} alertCount={alertCount} gapsCount={gapsCount} />
         <div className="shrink-0 border-t border-ink-100 px-4 py-3 text-xs">
           <div className="text-ink-500">{t('connectedAs')}</div>
           <div className="truncate font-medium text-ink-900">{userEmail}</div>

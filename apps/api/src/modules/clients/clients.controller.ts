@@ -32,6 +32,15 @@ export class ClientsController {
     });
   }
 
+  @Get('count')
+  count(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.clients.count(user.tenantId, { status, search });
+  }
+
   @Get(':id')
   findById(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.clients.findById(user.tenantId, id);

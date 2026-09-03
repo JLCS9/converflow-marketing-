@@ -254,6 +254,16 @@ export class KnowledgeService {
     });
   }
 
+  /** Contador ligero para el badge de notificación del navbar (IA) — misma
+   *  query que ReportsService.attention().openGaps, expuesta aparte para no
+   *  tener que traer todo ese agregado solo para un número en el sidebar. */
+  async countOpenGaps(tenantId: string): Promise<{ count: number }> {
+    const count = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.knowledgeGap.count({ where: { status: 'OPEN' } }),
+    );
+    return { count };
+  }
+
   async listGaps(tenantId: string) {
     return this.prisma.withTenant(tenantId, (tx) =>
       tx.knowledgeGap.findMany({
