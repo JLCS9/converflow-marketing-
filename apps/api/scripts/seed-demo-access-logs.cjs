@@ -9,10 +9,13 @@
  * cada deploy ni sobre tenants reales de un cliente.
  *
  * Usa los USUARIOS REALES ya registrados en el tenant encontrado — no
- * inventa personas ni correos. Localiza el tenant por coincidencia parcial
- * de nombre (case-insensitive), así que imprime SIEMPRE qué tenant y qué
- * usuarios ha resuelto antes de escribir nada, para poder frenar si no es
- * el que tocaba.
+ * inventa personas ni correos. Localiza el tenant por, en orden de
+ * precisión: --id (exacto), --slug (exacto) o --tenant (nombre, coincidencia
+ * PARCIAL insensible a mayúsculas — ojo: el `name` de un tenant puede NO
+ * contener el nombre comercial que usas de memoria; dos tenants distintos
+ * pueden compartir el mismo `name` — usa --slug o --id si hay ambigüedad).
+ * Imprime SIEMPRE qué tenant y qué usuarios ha resuelto antes de escribir
+ * nada, para poder frenar si no es el que tocaba.
  *
  * IPs y user-agents son sintéticos: las IPs usan los rangos que la IANA
  * reserva para documentación/ejemplos (RFC 5737 — 192.0.2.0/24,
@@ -25,14 +28,20 @@
  * dos veces con --apply, duplica los eventos — pensado para una sola pasada
  * sobre una cuenta de demo recién creada.
  *
- *   node apps/api/scripts/seed-demo-access-logs.cjs --tenant "chesterton"
- *   node apps/api/scripts/seed-demo-access-logs.cjs --tenant "chesterton" --apply
+ *   node apps/api/scripts/seed-demo-access-logs.cjs --slug "chesterton-meco"
+ *   node apps/api/scripts/seed-demo-access-logs.cjs --slug "chesterton-meco" --apply
+ *   node apps/api/scripts/seed-demo-access-logs.cjs --id "cmpuyo7o2000iqw01r889hmry" --apply
  */
 const { prisma, withRlsBypass } = require('@converflow/db');
 
 const APPLY = process.argv.includes('--apply');
-const tenantArgIdx = process.argv.indexOf('--tenant');
-const TENANT_QUERY = tenantArgIdx !== -1 && process.argv[tenantArgIdx + 1] ? process.argv[tenantArgIdx + 1] : 'chesterton';
+function argAfter(flag) {
+  const i = process.argv.indexOf(flag);
+  return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : undefined;
+}
+const TENANT_ID = argAfter('--id');
+const TENANT_SLUG = argAfter('--slug');
+const TENANT_QUERY = argAfter('--tenant') ?? (TENANT_ID || TENANT_SLUG ? undefined : 'chesterton');
 const DAYS = 90;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -65,16 +74,37 @@ function atHour(base, hFrom, hSpan) {
 }
 
 async function main() {
+  const where = TENANT_ID
+    ? { id: TENANT_ID }
+    : TENANT_SLUG
+      ? { slug: TENANT_SLUG }
+      : { name: { contains: TENANT_QUERY, mode: 'insensitive' } };
+
   const tenant = await withRlsBypass(prisma, (tx) =>
     tx.tenant.findFirst({
-      where: { name: { contains: TENANT_QUERY, mode: 'insensitive' } },
+      where,
       include: { users: { where: { status: 'ACTIVE' }, select: { id: true, email: true, name: true, role: true } } },
     }),
   );
   if (!tenant) {
-    console.error(`No se encontró ningún tenant cuyo nombre contenga "${TENANT_QUERY}". Prueba con --tenant "<otro texto>".`);
+    console.error(`No se encontró ningún tenant con ese criterio (${JSON.stringify(where)}). Prueba --id/--slug/--tenant.`);
     await prisma.$disconnect();
     return;
+  }
+  if (!TENANT_ID && !TENANT_SLUG) {
+    // Búsqueda por nombre parcial: puede haber más de un tenant con el mismo
+    // `name` (p. ej. varios tenants literalmente llamados "Raquel") — avisar
+    // en vez de aplicar en silencio al primero que devuelva la BD.
+    const matches = await withRlsBypass(prisma, (tx) =>
+      tx.tenant.count({ where }),
+    );
+    if (matches > 1) {
+      console.error(
+        `AMBIGUO: ${matches} tenants coinciden con --tenant "${TENANT_QUERY}". Usa --slug o --id para elegir uno exacto (ver /admin/tenants o consulta la BD).`,
+      );
+      await prisma.$disconnect();
+      return;
+    }
   }
   if (tenant.users.length === 0) {
     console.error(`El tenant "${tenant.name}" (${tenant.id}) no tiene usuarios ACTIVOS — nada que simular.`);
